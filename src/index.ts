@@ -11,6 +11,7 @@
 import 'dotenv/config'
 import { startWhatsApp } from './whatsapp.js'
 import { startCallbackServer } from './callback-server.js'
+import { startScheduler } from './scheduler/index.js'
 
 async function main(): Promise<void> {
   console.log(`Starting ${process.env.AGENT_NAME ?? 'Ahrness'} Agent…`)
@@ -20,6 +21,9 @@ async function main(): Promise<void> {
   // so we pass it after WhatsApp connects
   const socket = await startWhatsApp()
   startCallbackServer(socket)
+
+  // Scheduler fires recurring/one-off jobs through the same socket.
+  startScheduler(socket)
 }
 
 main().catch((err) => {

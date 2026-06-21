@@ -3,12 +3,16 @@ import { parse as parseUrl } from 'node:url'
 import { parse as parseQs } from 'node:querystring'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import QRCode from 'qrcode'
 import { getOrCreateSession, loadSession, saveSession } from './session.js'
 import { getAllRoles } from '../roles/index.js'
 import { getAllMcps } from '../mcps/index.js'
+import { verifyClientToken } from './client-link.js'
+import { getTemplatesForRole } from '../scheduler/index.js'
 import {
   saveProfile,
   saveRole,
+  getRole as getClientRole,
   upsertConnection,
   clientIdFromJid,
 } from '../store/client-store.js'
@@ -27,11 +31,20 @@ const linkedSessions = new Set<string>()
 
 // ── Called by whatsapp.ts when QR changes ─────────────────────────────────────
 
-export function broadcastQr(sessionId: string, qrText: string): void {
-  qrData.set(sessionId, qrText)
+export async function broadcastQr(sessionId: string, qrText: string): Promise<void> {
+  // Encode the raw Baileys QR string into a scannable PNG data URI.
+  // 464px source renders crisply at the 232px display size on retina screens.
+  let dataUri: string
+  try {
+    dataUri = await QRCode.toDataURL(qrText, { margin: 1, width: 464, errorCorrectionLevel: 'M' })
+  } catch (err) {
+    console.error('[onboarding] QR encode failed:', err)
+    return
+  }
+  qrData.set(sessionId, dataUri)
   const client = qrSseClients.get(sessionId)
   if (client && !client.destroyed) {
-    client.write(`data: ${JSON.stringify({ type: 'qr', qr: qrText })}\n\n`)
+    client.write(`data: ${JSON.stringify({ type: 'qr', qr: dataUri })}\n\n`)
   }
 }
 
@@ -56,10 +69,21 @@ async function layout(title: string, content: string): Promise<string> {
     .replace('{{CONTENT}}', content)
 }
 
+const STEP_LABELS = ['Profile', 'Role', 'Automations', 'Connect', 'Link', 'Live']
+
 function stepDots(current: number): string {
-  return `<div class="step-indicator">${[1, 2, 3, 4, 5]
-    .map((n) => `<div class="step-dot ${n < current ? 'done' : n === current ? 'active' : ''}"></div>`)
-    .join('')}</div>`
+  const items = STEP_LABELS.map((label, i) => {
+    const n = i + 1
+    const state = n < current ? 'done' : n === current ? 'active' : ''
+    const num = String(n).padStart(2, '0')
+    const aria = n === current ? ' aria-current="step"' : ''
+    return `<li class="${state}"${aria}><span class="sr-num">${state === 'done' ? '✓' : num}</span><span class="sr-label">${label}</span></li>`
+  }).join('')
+  return `<nav class="steprail" aria-label="Onboarding progress"><ol>${items}</ol></nav>`
+}
+
+function eyebrow(step: number, label: string): string {
+  return `<div class="eyebrow">Step ${String(step).padStart(2, '0')} / ${label}</div>`
 }
 
 function html(res: ServerResponse, body: string, status = 200): void {
@@ -116,8 +140,9 @@ async function renderStep1(_session: OnboardingSession): Promise<string> {
   return layout('Business Profile', `
     ${stepDots(1)}
     <div class="card">
+      ${eyebrow(1, 'Business Profile')}
       <h1>Tell us about your business</h1>
-      <p class="subtitle">This lets your agent give personalised advice instead of generic answers.</p>
+      <p class="subtitle">Your agent uses this to give advice grounded in your business — not generic answers.</p>
       <form method="POST" action="/onboarding/step/1">
         <div class="field-row">
           <div class="field">
@@ -178,23 +203,37 @@ async function renderStep1(_session: OnboardingSession): Promise<string> {
 
 async function renderStep2(session: OnboardingSession): Promise<string> {
   const roles = getAllRoles()
+  const mcpName = new Map(getAllMcps().map((m) => [m.id, m.displayName]))
   return layout('Choose Your Role', `
     ${stepDots(2)}
     <div class="card">
-      <h1>Choose your agent's role</h1>
-      <p class="subtitle">One specialised agent per WhatsApp number. You can always change this later.</p>
+      ${eyebrow(2, 'Role')}
+      <h1>Commission your specialist</h1>
+      <p class="subtitle">One specialist runs your WhatsApp number. Pick the focus that fits — you can reassign anytime.</p>
       <form method="POST" action="/onboarding/step/2">
         <div class="role-cards">
-          ${roles.map((r) => `
+          ${roles.map((r) => {
+            const tools = [
+              ...r.requiredMcps.map((id) => ({ id, core: true })),
+              ...r.optionalMcps.map((id) => ({ id, core: false })),
+            ]
+            const chips = tools
+              .map((t) => `<span class="chip ${t.core ? 'chip-core' : ''}">${mcpName.get(t.id) ?? t.id}</span>`)
+              .join('')
+            return `
             <label class="role-card">
               <input type="radio" name="roleId" value="${r.id}" ${session.roleId === r.id ? 'checked' : ''} required />
-              <div class="role-emoji">${r.emoji}</div>
+              <span class="role-mono" aria-hidden="true">${r.emoji}</span>
               <div class="role-info">
-                <h3>${r.displayName}</h3>
+                <div class="role-top">
+                  <h3>${r.displayName}</h3>
+                  <span class="role-tag">Assigned</span>
+                </div>
                 <p>${r.description}</p>
+                ${chips ? `<div class="role-chips">${chips}</div>` : ''}
               </div>
             </label>
-          `).join('')}
+          `}).join('')}
         </div>
         <div class="actions">
           <a href="/onboarding/step/1" class="btn btn-secondary">← Back</a>
@@ -206,6 +245,54 @@ async function renderStep2(session: OnboardingSession): Promise<string> {
 }
 
 async function renderStep3(session: OnboardingSession): Promise<string> {
+  const role = getAllRoles().find((r) => r.id === session.roleId)
+  if (!role) return redirect_str('/onboarding/step/2')
+
+  const templates = session.roleId ? getTemplatesForRole(session.roleId) : []
+  // Pre-check: reflect a prior selection, otherwise default every automation ON.
+  const clientId = session.clientId ?? session.sessionId
+  const saved = await getClientRole(clientId)
+  const selected = new Set(saved?.scheduleTemplates ?? templates.map((t) => t.id))
+
+  const cards = templates.length
+    ? templates
+        .map(
+          (t) => `
+          <label class="role-card">
+            <input type="checkbox" name="templates" value="${t.id}" ${selected.has(t.id) ? 'checked' : ''} />
+            <span class="role-mono" aria-hidden="true">${t.emoji}</span>
+            <div class="role-info">
+              <div class="role-top">
+                <h3>${t.title}</h3>
+                <span class="role-tag">${t.cadence}</span>
+              </div>
+              <p>${t.description}</p>
+            </div>
+          </label>`,
+        )
+        .join('')
+    : `<p class="subtitle">No prebuilt automations for this role yet — you can still ask your agent to schedule reminders and reports anytime on WhatsApp.</p>`
+
+  return layout('Automations', `
+    ${stepDots(3)}
+    <div class="card">
+      ${eyebrow(3, 'Automations')}
+      <h1>Put ${role.displayName} on a schedule</h1>
+      <p class="subtitle">Your agent can run these on its own and message you the results — no need to ask. Switch on what's useful; you can change these anytime in chat.</p>
+      <form method="POST" action="/onboarding/step/3">
+        <div class="role-cards">
+          ${cards}
+        </div>
+        <div class="actions">
+          <a href="/onboarding/step/2" class="btn btn-secondary">← Back</a>
+          <button type="submit" class="btn btn-primary">Continue →</button>
+        </div>
+      </form>
+    </div>
+  `)
+}
+
+async function renderStep4(session: OnboardingSession): Promise<string> {
   const roles = getAllRoles()
   const role = roles.find((r) => r.id === session.roleId)
   if (!role) return redirect_str('/onboarding/step/2')
@@ -218,10 +305,11 @@ async function renderStep3(session: OnboardingSession): Promise<string> {
   const callbackBase = process.env.CALLBACK_BASE_URL ?? 'http://localhost:3000'
 
   return layout('Connect Platforms', `
-    ${stepDots(3)}
+    ${stepDots(4)}
     <div class="card">
+      ${eyebrow(4, 'Connect')}
       <h1>Connect your platforms</h1>
-      <p class="subtitle">Connect the services your ${role.displayName} needs to work.</p>
+      <p class="subtitle">Link the services your ${role.displayName} needs. Required platforms must be connected to continue.</p>
       <div class="platform-list" id="platformList">
         ${relevantPlatforms.map((p) => {
           const status = session.connections[p.id] ?? 'pending'
@@ -250,8 +338,8 @@ async function renderStep3(session: OnboardingSession): Promise<string> {
         }).join('')}
       </div>
       <div class="actions">
-        <a href="/onboarding/step/2" class="btn btn-secondary">← Back</a>
-        <a href="/onboarding/step/4" class="btn btn-primary" id="continueBtn">Continue →</a>
+        <a href="/onboarding/step/3" class="btn btn-secondary">← Back</a>
+        <a href="/onboarding/step/5" class="btn btn-primary" id="continueBtn">Continue →</a>
       </div>
     </div>
     <script>
@@ -283,12 +371,13 @@ function redirect_str(url: string): string {
   return `<script>location.href='${url}'</script>`
 }
 
-async function renderStep4(session: OnboardingSession): Promise<string> {
+async function renderStep5(session: OnboardingSession): Promise<string> {
   return layout('Link WhatsApp', `
-    ${stepDots(4)}
+    ${stepDots(5)}
     <div class="card">
-      <h1>Scan to link WhatsApp</h1>
-      <p class="subtitle">Open WhatsApp on your phone → tap ⋮ → Linked Devices → Link a Device → scan this QR code.</p>
+      ${eyebrow(5, 'Link WhatsApp')}
+      <h1>Scan to go live</h1>
+      <p class="subtitle">On your phone, open WhatsApp → tap ⋮ → Linked Devices → Link a Device → scan this code.</p>
       <div class="qr-box">
         <div id="qrDisplay">
           <div class="spinner" id="qrSpinner"></div>
@@ -296,7 +385,7 @@ async function renderStep4(session: OnboardingSession): Promise<string> {
         <p class="qr-hint" id="qrHint">Waiting for QR code…</p>
       </div>
       <div class="actions" style="margin-top:1.5rem;">
-        <a href="/onboarding/step/3" class="btn btn-secondary">← Back</a>
+        <a href="/onboarding/step/4" class="btn btn-secondary">← Back</a>
         <span id="linkStatus"></span>
       </div>
     </div>
@@ -307,22 +396,26 @@ async function renderStep4(session: OnboardingSession): Promise<string> {
         const data = JSON.parse(e.data)
         if (data.type === 'qr') {
           document.getElementById('qrSpinner')?.remove()
-          document.getElementById('qrHint').textContent = 'Scan with WhatsApp — QR refreshes automatically'
-          // Render QR as text for simplicity (real impl would use a QR library)
+          document.getElementById('qrHint').textContent = 'Scan with WhatsApp — the code refreshes automatically'
           const d = document.getElementById('qrDisplay')
-          d.innerHTML = '<pre style="font-size:6px;line-height:1;font-family:monospace">' + data.qr + '</pre>'
+          const img = d.querySelector('img') || document.createElement('img')
+          img.src = data.qr
+          img.alt = 'WhatsApp linking QR code'
+          img.width = 232
+          img.height = 232
+          if (!img.parentNode) { d.innerHTML = ''; d.appendChild(img) }
         }
         if (data.type === 'linked') {
           es.close()
           document.getElementById('linkStatus').innerHTML = '<span style="color:#276749;font-weight:700">✓ Linked! Redirecting…</span>'
-          setTimeout(() => { location.href = '/onboarding/step/5' }, 1200)
+          setTimeout(() => { location.href = '/onboarding/step/6' }, 1200)
         }
       }
     </script>
   `)
 }
 
-async function renderStep5(session: OnboardingSession): Promise<string> {
+async function renderStep6(session: OnboardingSession): Promise<string> {
   const roles = getAllRoles()
   const role = roles.find((r) => r.id === session.roleId)
   const connectedPlatforms = Object.entries(session.connections)
@@ -333,10 +426,11 @@ async function renderStep5(session: OnboardingSession): Promise<string> {
   const waLink = waNumber ? `https://wa.me/${waNumber.replace(/\D/g, '')}` : '#'
 
   return layout('You\'re All Set!', `
-    ${stepDots(5)}
+    ${stepDots(6)}
     <div class="card" style="text-align:center;">
+      ${eyebrow(6, 'Live')}
       <div class="success-icon">🎉</div>
-      <h1>Your agent is ready!</h1>
+      <h1>Your agent is live</h1>
       <p class="subtitle">
         ${role ? `${role.emoji} <strong>${role.displayName}</strong> is set up and knows your business.` : 'Your agent is configured.'}
       </p>
@@ -367,6 +461,18 @@ export function createOnboardingHandler(): OnboardingHandler {
       setSessionCookie(res, session.sessionId)
     }
 
+    // ── Adopt the signed client link (?c=) so onboarding writes under the ──────
+    //    runtime key (sha256 of the JID) instead of the random session id.
+    const linkToken = typeof query.c === 'string' ? query.c : undefined
+    if (linkToken && !session.clientId) {
+      const jid = verifyClientToken(linkToken)
+      if (jid) {
+        session.clientId = clientIdFromJid(jid)
+        session.whatsappJid = jid
+        await saveSession(session)
+      }
+    }
+
     // ── GET /onboarding ──────────────────────────────────────────────────────
     if (req.method === 'GET' && pathname === '/onboarding') {
       return redirect(res, `/onboarding/step/${session.step}`)
@@ -381,6 +487,7 @@ export function createOnboardingHandler(): OnboardingHandler {
       else if (n === 3) body = await renderStep3(session)
       else if (n === 4) body = await renderStep4(session)
       else if (n === 5) body = await renderStep5(session)
+      else if (n === 6) body = await renderStep6(session)
       else return redirect(res, '/onboarding')
       return html(res, body)
     }
@@ -393,7 +500,7 @@ export function createOnboardingHandler(): OnboardingHandler {
       const tiktokHandle = str(body.tiktok)
       const profile: ClientProfile = {
         clientId,
-        whatsappJid: session.clientId ?? '',
+        whatsappJid: session.whatsappJid ?? '',
         createdAt: session.createdAt,
         business: {
           name: str(body.name),
@@ -436,6 +543,27 @@ export function createOnboardingHandler(): OnboardingHandler {
       session.step = 3
       await saveSession(session)
       return redirect(res, '/onboarding/step/3')
+    }
+
+    // ── POST /onboarding/step/3 — automations / scheduler templates ──────────
+    if (req.method === 'POST' && pathname === '/onboarding/step/3') {
+      const body = await parseBody(req)
+      const clientId = session.clientId ?? session.sessionId
+      const validIds = new Set((session.roleId ? getTemplatesForRole(session.roleId) : []).map((t) => t.id))
+      const chosen = arr(body.templates).filter((id) => validIds.has(id))
+
+      // Preserve the existing role record, just attach the chosen automations.
+      const existing = await getClientRole(clientId)
+      await saveRole(clientId, {
+        roleId: existing?.roleId ?? (session.roleId as RoleId),
+        assignedAt: existing?.assignedAt ?? new Date().toISOString(),
+        skillOverrides: existing?.skillOverrides ?? { disabled: [], extra: [] },
+        mcpOverrides: existing?.mcpOverrides ?? { disabled: [], extra: [] },
+        scheduleTemplates: chosen,
+      })
+      session.step = 4
+      await saveSession(session)
+      return redirect(res, '/onboarding/step/4')
     }
 
     // ── GET /onboarding/qr-stream — SSE for QR codes ─────────────────────────
@@ -537,10 +665,10 @@ export function createOnboardingHandler(): OnboardingHandler {
           session.connections[platform] = 'connected'
           await saveSession(session)
 
-          return redirect(res, '/onboarding/step/3')
+          return redirect(res, '/onboarding/step/4')
         } catch (err) {
           console.error(`[oauth/${platform}] token exchange failed:`, err)
-          return html(res, `<p>Connection failed: ${err instanceof Error ? err.message : 'unknown error'}. <a href="/onboarding/step/3">Try again</a></p>`, 500)
+          return html(res, `<p>Connection failed: ${err instanceof Error ? err.message : 'unknown error'}. <a href="/onboarding/step/4">Try again</a></p>`, 500)
         }
       }
 

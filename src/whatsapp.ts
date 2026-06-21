@@ -17,8 +17,10 @@ import {
   type proto,
 } from '@whiskeysockets/baileys'
 import qrcode from 'qrcode-terminal'
-import { buildClientAgent, clientIdFromJid } from './agent.js'
-import { getConnections } from './store/client-store.js'
+import { clientIdFromJid, type ClientAgentSession } from './agent.js'
+import { runAndDeliver } from './delivery.js'
+import { onboardingUrlFor } from './onboarding/client-link.js'
+import { getConnections, getRole } from './store/client-store.js'
 import { broadcastQr, broadcastLinked } from './onboarding/server.js'
 
 const AUTH_DIR = './store/auth'
@@ -63,7 +65,7 @@ export async function startWhatsApp(): Promise<WASocket> {
       }
       // Stream QR to onboarding web UI for all pending sessions
       const onboardingSession = process.env.ONBOARDING_SESSION_ID
-      if (onboardingSession) broadcastQr(onboardingSession, qr)
+      if (onboardingSession) await broadcastQr(onboardingSession, qr)
     }
 
     if (connection === 'open') {
@@ -101,14 +103,18 @@ export async function startWhatsApp(): Promise<WASocket> {
 
       await socket.readMessages([msg.key])
 
-      // Check if client has completed onboarding (has at least one connected platform)
+      // Client is onboarded once they've connected a platform OR committed to a
+      // role (some roles need no platform, but still configure profile + automations).
       const clientId = clientIdFromJid(jid)
       const connections = await getConnections(clientId)
       const hasAnyConnection = Object.values(connections).some((c) => c?.status === 'connected')
+      const hasRole = (await getRole(clientId)) !== null
 
-      if (!hasAnyConnection) {
+      if (!hasAnyConnection && !hasRole) {
+        // Carry the client's JID (signed) so their onboarding writes under the
+        // same key the runtime reads — see onboarding/client-link.ts.
         const onboardingUrl = process.env.CALLBACK_BASE_URL
-          ? `${process.env.CALLBACK_BASE_URL}/onboarding`
+          ? onboardingUrlFor(process.env.CALLBACK_BASE_URL, jid)
           : null
         await socket.sendMessage(jid, {
           text:
@@ -123,45 +129,25 @@ export async function startWhatsApp(): Promise<WASocket> {
       // Client is onboarded — invoke agent
       try {
         await socket.sendPresenceUpdate('composing', jid)
-        const session = await buildClientAgent(jid)
         let prompt = text ?? 'Use the attached file to complete my request.'
-        if (media) {
-          const bytes = await downloadMediaMessage(msg, 'buffer', {}, {
-            reuploadRequest: socket.updateMediaMessage,
-            logger: silentLogger,
-          })
-          const maxInputBytes = positiveInteger(process.env.AGENT_MAX_INPUT_BYTES, 26_214_400)
-          if (bytes.length > maxInputBytes) throw new Error(`WhatsApp attachment exceeds ${maxInputBytes} bytes`)
-          const fileName = `${Date.now()}-${sanitizeFileName(media.fileName)}`
-          const inputPath = `/workspace/inbox/${fileName}`
-          await session.writeInput(inputPath, bytes)
-          prompt += `\n\nAttached file: ${inputPath}\nMIME type: ${media.mimeType}`
-        }
-        const result = await session.agent.invoke(prompt)
-        const reply = result.lastMessage.content
-          .filter((b) => b.type === 'textBlock')
-          .map((b: any) => b.text as string)
-          .join('') || '(no response)'
 
-        await socket.sendMessage(jid, { text: reply })
-        for (const output of session.publishedOutputs) {
-          const bytes = await session.readOutput(output)
-          const content = Buffer.from(bytes)
-          if (output.mimeType.startsWith('image/')) {
-            await socket.sendMessage(jid, { image: content, mimetype: output.mimeType, caption: output.caption })
-          } else if (output.mimeType.startsWith('video/')) {
-            await socket.sendMessage(jid, { video: content, mimetype: output.mimeType, caption: output.caption })
-          } else if (output.mimeType.startsWith('audio/')) {
-            await socket.sendMessage(jid, { audio: content, mimetype: output.mimeType })
-          } else {
-            await socket.sendMessage(jid, {
-              document: content,
-              mimetype: output.mimeType,
-              fileName: output.fileName,
-              ...(output.caption ? { caption: output.caption } : {}),
+        // Attachment is written into the sandbox just before the agent runs.
+        let prepare: ((session: ClientAgentSession) => Promise<void>) | undefined
+        if (media) {
+          const inputPath = `/workspace/inbox/${Date.now()}-${sanitizeFileName(media.fileName)}`
+          prompt += `\n\nAttached file: ${inputPath}\nMIME type: ${media.mimeType}`
+          prepare = async (session) => {
+            const bytes = await downloadMediaMessage(msg, 'buffer', {}, {
+              reuploadRequest: socket.updateMediaMessage,
+              logger: silentLogger,
             })
+            const maxInputBytes = positiveInteger(process.env.AGENT_MAX_INPUT_BYTES, 26_214_400)
+            if (bytes.length > maxInputBytes) throw new Error(`WhatsApp attachment exceeds ${maxInputBytes} bytes`)
+            await session.writeInput(inputPath, bytes)
           }
         }
+
+        await runAndDeliver(socket, jid, prompt, { prepare })
       } catch (err) {
         console.error(`[${jid}] agent error:`, err)
         await socket.sendMessage(jid, { text: 'Something went wrong. Please try again.' })

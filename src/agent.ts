@@ -22,10 +22,15 @@ import {
   type PublishedOutput,
 } from './outputs.js'
 import { createShareInputTool } from './input-sharing.js'
+import { createSchedulerTools, materializeTemplates } from './scheduler/index.js'
 import { getClientSandbox } from './sandbox.js'
 import { BusinessContextPlugin } from './plugins/business-context-plugin.js'
 import { createHiggsFieldMcpClient } from './mcp.js'
 import type { PlatformId } from './store/types.js'
+import type { TurnMessage, Summarize } from './sessions/index.js'
+
+/** Model id used for the client agent and for context-window budgeting. */
+export const AGENT_MODEL = process.env.AGENT_MODEL ?? 'claude-opus-4-8'
 
 export { clientIdFromJid }
 
@@ -61,6 +66,11 @@ Sandbox rules:
 - For a completed Higgsfield result URL, call deliver_higgsfield_output to download and send it through WhatsApp.
 - Never claim a file was delivered unless publish_output or deliver_higgsfield_output succeeded.
 
+Automations:
+- When the client asks to be reminded, to get a recurring report, or to run something on a cadence ("every morning", "each Monday", "in 2 hours"), use schedule_task. Translate their phrasing into a cron expression (recurring) or an ISO timestamp (one-time), and confirm what you set in their own words.
+- Use list_scheduled_tasks / cancel_scheduled_task / set_scheduled_task_enabled to review, stop, or pause automations on request.
+- When a scheduled task fires, you receive its instruction as a normal message — just do it and reply concisely.
+
 Respond naturally and helpfully. Keep replies concise for WhatsApp — short paragraphs, no walls of text.`
 }
 
@@ -68,6 +78,10 @@ Respond naturally and helpfully. Keep replies concise for WhatsApp — short par
 
 export type ClientAgentSession = {
   agent: Agent
+  /** Model id this agent runs on (for token budgeting / compaction). */
+  model: string
+  /** Count of messages the agent was seeded with (the memory prefix). */
+  seededMessageCount: number
   publishedOutputs: PublishedOutput[]
   readOutput(output: PublishedOutput): Promise<Uint8Array>
   writeInput(path: string, content: Uint8Array): Promise<void>
@@ -78,7 +92,12 @@ export type ClientAgentSession = {
  * Reads the client's stored profile, role, and platform connections to
  * compose a fully personalised agent with the right tools, skills, and prompt.
  */
-export async function buildClientAgent(jid: string): Promise<ClientAgentSession> {
+export async function buildClientAgent(
+  jid: string,
+  seedMessages: TurnMessage[] = [],
+  modelOverride?: string | null,
+): Promise<ClientAgentSession> {
+  const model = modelOverride ?? AGENT_MODEL
   const clientId = clientIdFromJid(jid)
 
   // Migrate legacy token store on first call
@@ -91,6 +110,16 @@ export async function buildClientAgent(jid: string): Promise<ClientAgentSession>
   const agentName = process.env.AGENT_NAME ?? 'Ahrness'
   const roleId = roleRecord?.roleId ?? 'personal-assistant-dev'
   const roleDef = getRoleDefinition(roleId)
+
+  // Turn any onboarding-selected automation templates into live scheduled jobs.
+  // Idempotent and best-effort — a failure here must never block the agent.
+  if (roleRecord?.scheduleTemplates?.length) {
+    try {
+      await materializeTemplates(clientId, jid, roleRecord.scheduleTemplates)
+    } catch (err) {
+      console.warn('[scheduler] template materialization failed:', err instanceof Error ? err.message : err)
+    }
+  }
 
   // Which platforms to actually load (connected + not overridden)
   const disabledMcps = new Set(roleRecord?.mcpOverrides?.disabled ?? [])
@@ -147,6 +176,7 @@ export async function buildClientAgent(jid: string): Promise<ClientAgentSession>
     createPublishOutputTool(sandbox, publishedOutputs),
     createImportRemoteOutputTool(sandbox, publishedOutputs),
     createShareInputTool(clientId),
+    ...createSchedulerTools(clientId, jid),
     tool({
       name: 'get_business_context',
       description:
@@ -187,17 +217,53 @@ export async function buildClientAgent(jid: string): Promise<ClientAgentSession>
 
   // ── Agent ─────────────────────────────────────────────────────────────────
 
+  // NOTE: `messages` + `model` seeding is the documented Strands shape but is
+  // unverified in this environment (SDK symlink unresolved). Confirm via the
+  // spike in docs/superpowers/specs/2026-06-22-agent-memory-layer-design.md.
   const agent = new Agent({
     systemPrompt: buildSystemPrompt(agentName, roleAddition),
     sandbox,
     tools: allTools,
     plugins,
-  })
+    model,
+    ...(seedMessages.length > 0 ? { messages: seedMessages } : {}),
+  } as ConstructorParameters<typeof Agent>[0])
 
   return {
     agent,
+    model,
+    seededMessageCount: seedMessages.length,
     publishedOutputs,
     readOutput: (output) => readPublishedOutput(sandbox, output),
     writeInput: (path, content) => sandbox.writeFile(path, content),
+  }
+}
+
+/**
+ * A compaction summarizer backed by a lightweight one-shot agent invocation.
+ * SDK-gated and unverified pending the spike.
+ */
+export function createSummarizer(): Summarize {
+  return async ({ previousSummary, messages }) => {
+    const transcript = messages
+      .map((m) => `${m.role}: ${typeof m.content === 'string' ? m.content : JSON.stringify(m.content)}`)
+      .join('\n')
+    const prompt =
+      (previousSummary ? `Existing summary so far:\n${previousSummary}\n\n` : '') +
+      'Summarize the conversation below, preserving key facts, decisions, client ' +
+      'preferences, and any open tasks. Be concise (under 200 words):\n\n' +
+      transcript
+
+    const agent = new Agent({
+      systemPrompt: 'You are a precise conversation summarizer for a marketing assistant.',
+      model: AGENT_MODEL,
+    } as ConstructorParameters<typeof Agent>[0])
+    const result = await agent.invoke(prompt)
+    return (
+      result.lastMessage.content
+        .filter((b: any) => b.type === 'textBlock')
+        .map((b: any) => b.text as string)
+        .join('') || (previousSummary ?? '')
+    )
   }
 }

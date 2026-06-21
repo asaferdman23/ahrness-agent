@@ -39,7 +39,7 @@ Each client gets one agent instance per conversation, built dynamically from:
 
 ## Onboarding Flow
 
-Served at `/onboarding` from the existing Node.js process. Five steps, server-rendered HTML.
+Served at `/onboarding` from the existing Node.js process. Six steps, server-rendered HTML.
 
 ```
 Step 1 — Business Profile
@@ -49,35 +49,70 @@ Step 1 — Business Profile
 Step 2 — Role Picker
   └─ Five role cards (see Roles section). One selectable. Role determines which platforms appear next.
 
-Step 3 — Connect Platforms
+Step 3 — Automations
+  └─ Per-role scheduler templates (see Scheduler section). Each switched-on template
+     becomes a recurring job the agent runs on its own. Saved to role.json.scheduleTemplates.
+
+Step 4 — Connect Platforms
   └─ OAuth buttons for each platform the role requires/supports.
      Required platforms must be connected before continuing.
      Status updated live via polling /onboarding/status.
 
-Step 4 — Link WhatsApp
+Step 5 — Link WhatsApp
   └─ QR code rendered via SSE stream from Baileys.
      Page auto-advances on scan.
      (Slack / Google Chat — coming soon)
 
-Step 5 — Ready
+Step 6 — Ready
   └─ Summary of role + connected platforms + WhatsApp deep link.
 ```
+
+## Scheduler
+
+The Strands SDK is request-driven and has no time-based scheduler, so cadence is an
+app-layer concern (`src/scheduler/`).
+
+```
+ScheduledJob (store/clients/<clientId>/schedules.json)
+  └─ { jid, title, prompt, schedule: cron|once, templateId?, enabled, lastRunAt, runCount }
+
+runner.ts   — ticks every 30s, finds due jobs (timezone-aware cron, no deps),
+              and runs each through the shared delivery path → proactive WhatsApp message.
+cron.ts     — minimal 5-field cron evaluator (ranges, lists, *​/n steps, Vixie OR-semantics),
+              matched against wall-clock minute in the client's timezone (AGENT_TIMEZONE).
+templates.ts— per-role use cases (weekly digest, daily ROAS, content calendar, …).
+tools.ts    — schedule_task / list / cancel / pause tools the agent uses live in chat.
+```
+
+Two ways jobs are created:
+- **In chat** — the agent calls `schedule_task` ("remind me every Monday at 9"). The live
+  WhatsApp JID is known, so delivery always targets the right chat.
+- **In onboarding** — selected templates are stored on `role.json.scheduleTemplates` and
+  materialized into live jobs (idempotently) the next time that client's agent is built.
 
 ### Onboarding Routes
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| GET | `/onboarding` | Redirect to step 1 or resume session |
-| GET | `/onboarding/step/:n` | Render step N |
+| GET | `/onboarding[?c=<token>]` | Adopt signed client link, then redirect to current step |
+| GET | `/onboarding/step/:n` | Render step N (1 Profile, 2 Role, 3 Automations, 4 Connect, 5 Link, 6 Ready) |
 | POST | `/onboarding/step/1` | Save business profile |
 | POST | `/onboarding/step/2` | Save role choice |
-| GET | `/onboarding/step/3` | Show platform OAuth buttons |
-| GET | `/oauth/:platform/start` | Begin OAuth for a platform |
-| GET | `/oauth/:platform/callback` | Handle OAuth redirect, save token |
-| GET | `/onboarding/step/4` | QR code page |
+| POST | `/onboarding/step/3` | Save chosen automations to `role.json.scheduleTemplates` |
+| GET | `/oauth/:platform/callback` | Handle OAuth redirect, save token, return to step 4 |
 | GET | `/onboarding/qr-stream` | SSE stream of QR updates |
-| GET | `/onboarding/step/5` | Confirmation page |
 | GET | `/onboarding/status` | JSON: `{ step, connections, whatsappLinked }` |
+
+### Client key (web ↔ runtime)
+
+The runtime keys every client by `clientIdFromJid(jid)` (sha256 of the WhatsApp JID),
+but a web onboarding session has no JID of its own. To bridge them, the agent sends each
+un-onboarded client an onboarding link carrying their **HMAC-signed JID** (`?c=<token>`,
+signed with `MEDIA_SIGNING_SECRET`; see `onboarding/client-link.ts`). On first load the
+session adopts `clientId = clientIdFromJid(jid)`, so the profile, role, automations, and
+platform tokens all save under the same key the agent reads at message time. Without a
+signing secret the link falls back to a session-keyed flow (web setup won't reach the
+runtime — fine for local demos).
 
 ---
 
