@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{TITLE}} — {{AGENT_NAME}}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f0f4f8;
+      color: #1a202c;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem;
+    }
+    .container { max-width: 680px; width: 100%; }
+    .logo { font-size: 1.5rem; font-weight: 700; color: #25d366; margin-bottom: 2rem; }
+    .step-indicator { display: flex; gap: 0.5rem; margin-bottom: 2rem; }
+    .step-dot {
+      width: 10px; height: 10px; border-radius: 50%; background: #cbd5e0;
+    }
+    .step-dot.active { background: #25d366; }
+    .step-dot.done { background: #48bb78; }
+    .card {
+      background: #fff; border-radius: 16px; padding: 2rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.04);
+    }
+    h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .subtitle { color: #718096; margin-bottom: 1.5rem; font-size: 0.95rem; }
+    label { display: block; font-size: 0.875rem; font-weight: 600; color: #4a5568; margin-bottom: 0.25rem; }
+    input[type=text], input[type=url], textarea, select {
+      width: 100%; padding: 0.625rem 0.875rem; border: 1.5px solid #e2e8f0;
+      border-radius: 8px; font-size: 0.95rem; color: #1a202c;
+      background: #fff; transition: border-color 0.15s;
+      outline: none;
+    }
+    input:focus, textarea:focus, select:focus { border-color: #25d366; }
+    textarea { resize: vertical; min-height: 80px; }
+    .field { margin-bottom: 1rem; }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 0.75rem 1.5rem; border-radius: 10px; font-size: 0.95rem; font-weight: 600;
+      border: none; cursor: pointer; transition: opacity 0.15s, transform 0.1s;
+      text-decoration: none;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn-primary { background: #25d366; color: #fff; }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-secondary { background: #edf2f7; color: #4a5568; }
+    .btn-outline { background: transparent; border: 1.5px solid #e2e8f0; color: #4a5568; }
+    .btn-outline.connected { border-color: #48bb78; color: #276749; background: #f0fff4; }
+    .actions { display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem; gap: 1rem; }
+    .checkbox-group { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    .checkbox-label {
+      display: flex; align-items: center; gap: 0.4rem;
+      padding: 0.4rem 0.75rem; border: 1.5px solid #e2e8f0;
+      border-radius: 8px; cursor: pointer; font-size: 0.875rem; font-weight: 500;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .checkbox-label:has(input:checked) { border-color: #25d366; background: #f0fff4; color: #276749; }
+    .checkbox-label input { display: none; }
+    .role-cards { display: flex; flex-direction: column; gap: 0.75rem; }
+    .role-card {
+      border: 2px solid #e2e8f0; border-radius: 12px; padding: 1rem 1.25rem;
+      cursor: pointer; transition: border-color 0.15s, background 0.15s;
+      display: flex; align-items: flex-start; gap: 1rem;
+    }
+    .role-card:has(input:checked) { border-color: #25d366; background: #f0fff4; }
+    .role-card input { display: none; }
+    .role-emoji { font-size: 1.75rem; line-height: 1; }
+    .role-info h3 { font-size: 0.95rem; font-weight: 700; margin-bottom: 0.15rem; }
+    .role-info p { font-size: 0.8rem; color: #718096; }
+    .platform-list { display: flex; flex-direction: column; gap: 0.75rem; }
+    .platform-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0.75rem 1rem; border: 1.5px solid #e2e8f0; border-radius: 10px;
+    }
+    .platform-row.connected { border-color: #48bb78; background: #f0fff4; }
+    .platform-info { display: flex; align-items: center; gap: 0.75rem; }
+    .platform-icon { font-size: 1.25rem; }
+    .platform-name { font-size: 0.9rem; font-weight: 600; }
+    .platform-desc { font-size: 0.78rem; color: #718096; }
+    .badge { font-size: 0.7rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 4px; }
+    .badge-required { background: #fed7d7; color: #c53030; }
+    .badge-optional { background: #e2e8f0; color: #718096; }
+    .badge-connected { background: #c6f6d5; color: #276749; }
+    .qr-box {
+      display: flex; flex-direction: column; align-items: center; gap: 1rem;
+      padding: 1.5rem; border: 1.5px dashed #e2e8f0; border-radius: 12px;
+      background: #fafafa;
+    }
+    .qr-box img, .qr-box canvas { max-width: 240px; max-height: 240px; border-radius: 8px; }
+    .qr-hint { font-size: 0.8rem; color: #718096; text-align: center; }
+    .success-icon { font-size: 3rem; text-align: center; margin-bottom: 1rem; }
+    .connected-list { list-style: none; display: flex; flex-direction: column; gap: 0.4rem; margin: 1rem 0; }
+    .connected-list li { display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; }
+    .connected-list li::before { content: "✓"; color: #48bb78; font-weight: 700; }
+    .whatsapp-cta {
+      display: flex; align-items: center; gap: 0.75rem;
+      background: #25d366; color: #fff; padding: 1rem 1.25rem;
+      border-radius: 12px; text-decoration: none; font-weight: 600;
+      margin-top: 1rem;
+    }
+    .whatsapp-cta:hover { opacity: 0.9; }
+    .spinner { display: inline-block; width: 18px; height: 18px; border: 2.5px solid #e2e8f0; border-top-color: #25d366; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">{{AGENT_NAME}}</div>
+    {{CONTENT}}
+  </div>
+</body>
+</html>
