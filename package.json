@@ -7,7 +7,8 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "type-check": "tsc --noEmit",
-    "test": "node --import tsx --test 'src/**/*.test.ts'"
+    "test": "node --import tsx --test 'src/**/*.test.ts'",
+    "test:memory": "node --import tsx src/sessions/memory-e2e.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.92.0",
