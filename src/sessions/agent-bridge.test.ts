@@ -38,11 +38,12 @@ test('preserves interleaved tool messages in the new turn', () => {
 })
 
 test('falls back to user prompt + assistant text when no full transcript is exposed', () => {
-  const result = { lastMessage: { content: [{ type: 'textBlock', text: 'hi' }] } }
+  const result = { lastMessage: { content: [{ text: 'hi' }] } }
   const turn = extractTurnMessages(result, { prompt: 'hello', priorMessageCount: 5 })
+  // content MUST be a block array, never a bare string (the SDK maps over it).
   assert.deepEqual(turn, [
-    { role: 'user', content: 'hello' },
-    { role: 'assistant', content: [{ type: 'textBlock', text: 'hi' }] },
+    { role: 'user', content: [{ text: 'hello' }] },
+    { role: 'assistant', content: [{ text: 'hi' }] },
   ])
 })
 
@@ -65,8 +66,10 @@ test('seeds a leading summary note followed by verbatim messages', () => {
   const seed = toSeedMessages(ctx)
   assert.equal(seed.length, 3)
   assert.equal(seed[0].role, 'user')
-  assert.match(seed[0].content as string, /summary/i)
-  assert.match(seed[0].content as string, /we discussed pricing/)
+  // summary note content is a block array, not a string
+  const summaryText = (seed[0].content as Array<{ text: string }>)[0].text
+  assert.match(summaryText, /summary/i)
+  assert.match(summaryText, /we discussed pricing/)
   assert.deepEqual(seed[1], { role: 'user', content: 'and budget?' })
   assert.deepEqual(seed[2], { role: 'assistant', content: [{ type: 'textBlock', text: 'sure' }] })
 })

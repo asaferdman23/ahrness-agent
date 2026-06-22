@@ -56,7 +56,13 @@ async function main(): Promise<void> {
     const seed = toSeedMessages(ctx)
     const agent = new Agent({ systemPrompt: SYSTEM, model: createModel(), messages: seed } as any)
     const result = await agent.invoke(prompt)
-    store.appendTurn(KEY, extractTurnMessages(result, { prompt, priorMessageCount: seed.length }))
+    store.appendTurn(
+      KEY,
+      extractTurnMessages(
+        { messages: (agent as any).messages, lastMessage: result.lastMessage },
+        { prompt, priorMessageCount: seed.length },
+      ),
+    )
     return { reply: replyText(result), seeded: seed.length }
   }
 

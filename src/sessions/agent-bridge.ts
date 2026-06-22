@@ -40,9 +40,10 @@ export function extractTurnMessages(result: unknown, ctx: ExtractContext): TurnM
   }
 
   // Fallback: minimal but real memory (loses tool-call replay fidelity).
+  // `content` MUST be a block array — the SDK seeds messages by mapping over it.
   return [
-    { role: 'user', content: ctx.prompt },
-    { role: 'assistant', content: r?.lastMessage?.content ?? '' },
+    { role: 'user', content: [{ text: ctx.prompt }] },
+    { role: 'assistant', content: r?.lastMessage?.content ?? [{ text: '' }] },
   ]
 }
 
@@ -64,7 +65,7 @@ export function toSeedMessages(ctx: WorkingContext, opts: SeedOptions = {}): Tur
   if (ctx.summary) {
     seed.unshift({
       role: 'user',
-      content: `[Earlier conversation summary — context from before this point]\n${ctx.summary}`,
+      content: [{ text: `[Earlier conversation summary — context from before this point]\n${ctx.summary}` }],
     })
   }
 

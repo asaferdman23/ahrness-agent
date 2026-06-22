@@ -77,10 +77,19 @@ export async function runAndDeliver(
       },
     })
 
-    // Persist the turn — only now that the run has succeeded.
-    store.appendTurn(key, extractTurnMessages(result, { prompt, priorMessageCount: seededMessageCount }))
-
     const session = delivered!
+
+    // Persist the turn — only now that the run has succeeded. The agent's own
+    // transcript is the canonical source (captures tool calls); fall back to the
+    // result's last message if it isn't exposed.
+    store.appendTurn(
+      key,
+      extractTurnMessages(
+        { messages: (session.agent as { messages?: unknown[] }).messages, lastMessage: result.lastMessage },
+        { prompt, priorMessageCount: seededMessageCount },
+      ),
+    )
+
     const reply =
       result.lastMessage.content
         .filter((b) => b.type === 'textBlock')
