@@ -1,4 +1,5 @@
 import { tool } from '@strands-agents/sdk'
+import type { JSONValue } from '@strands-agents/sdk'
 import { isValidCron } from './cron.js'
 import { addJob, listJobs, removeJob, updateJob } from './store.js'
 import type { ScheduleSpec } from './types.js'
@@ -12,7 +13,13 @@ function asRecord(input: unknown): Record<string, unknown> {
   return input as Record<string, unknown>
 }
 
-function jobSummary(job: { id: string; title: string; enabled: boolean; schedule: ScheduleSpec; lastRunAt: string | null }): Record<string, unknown> {
+function jobSummary(job: {
+  id: string
+  title: string
+  enabled: boolean
+  schedule: ScheduleSpec
+  lastRunAt: string | null
+}): Record<string, JSONValue> {
   return {
     id: job.id,
     title: job.title,

@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
-    "@strands-agents/sdk": "file:../harness-sdk/strands-ts",
+    "@strands-agents/sdk": "1.6.0",
     "@whiskeysockets/baileys": "^7.0.0-rc.9",
     "better-sqlite3": "^12.11.1",
     "dotenv": "^16.6.1",
