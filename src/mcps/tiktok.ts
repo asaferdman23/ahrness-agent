@@ -20,12 +20,11 @@ export const tiktokMcp: McpDefinition = {
   displayName: 'TikTok',
   oauthFlow: 'redirect',
   scopes: ['user.info.basic', 'video.list', 'video.publish', 'video.upload'],
-  authUrl: (_sessionId, redirectBase) => {
+  authUrl: (state, redirectBase) => {
     const clientKey = requireEnv('TIKTOK_CLIENT_KEY')
     const redirect = encodeURIComponent(`${redirectBase}/oauth/tiktok/callback`)
     const scopes = encodeURIComponent('user.info.basic,video.list,video.publish,video.upload')
-    const state = Math.random().toString(36).slice(2)
-    return `https://www.tiktok.com/v2/auth/authorize/?client_key=${clientKey}&redirect_uri=${redirect}&response_type=code&scope=${scopes}&state=${state}`
+    return `https://www.tiktok.com/v2/auth/authorize/?client_key=${clientKey}&redirect_uri=${redirect}&response_type=code&scope=${scopes}&state=${encodeURIComponent(state)}`
   },
   createClient: (_credentials: ConnectionRecord): McpClient | null => null,
   roles: ['marketing-manager', 'social-media-manager'],

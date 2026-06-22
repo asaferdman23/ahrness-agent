@@ -7,7 +7,7 @@ import QRCode from 'qrcode'
 import { getOrCreateSession, loadSession, saveSession } from './session.js'
 import { getAllRoles } from '../roles/index.js'
 import { getAllMcps } from '../mcps/index.js'
-import { verifyClientToken } from './client-link.js'
+import { oauthStateFor, verifyClientToken } from './client-link.js'
 import { getTemplatesForRole } from '../scheduler/index.js'
 import {
   saveProfile,
@@ -303,6 +303,9 @@ async function renderStep4(session: OnboardingSession): Promise<string> {
   )
 
   const callbackBase = process.env.CALLBACK_BASE_URL ?? 'http://localhost:3000'
+  // OAuth state binds the token exchange to this client: a signed JID when we have
+  // one (verified in the callback), else the session id as a CSRF token.
+  const oauthState = oauthStateFor(session)
 
   return layout('Connect Platforms', `
     ${stepDots(4)}
@@ -318,7 +321,7 @@ async function renderStep4(session: OnboardingSession): Promise<string> {
           const iconMap: Record<string, string> = {
             'meta-ads': '📘', 'instagram-graph': '📸', 'tiktok': '🎵', 'google': '📊', 'higgsfield': '🎨',
           }
-          const authUrl = p.authUrl ? `${p.authUrl(session.sessionId, callbackBase)}` : '#'
+          const authUrl = p.authUrl ? `${p.authUrl(oauthState, callbackBase)}` : '#'
           return `
             <div class="platform-row ${isConnected ? 'connected' : ''}" id="platform-${p.id}">
               <div class="platform-info">
@@ -610,6 +613,23 @@ export function createOnboardingHandler(): OnboardingHandler {
 
         if (!code) return html(res, '<p>OAuth error: no code received.</p>', 400)
 
+        // Verify the OAuth state: a signed JID binds the exchange to a specific
+        // client; otherwise it must match this session (CSRF protection).
+        let stateClientId: string | undefined
+        if (state) {
+          const jid = verifyClientToken(state)
+          if (jid) {
+            stateClientId = clientIdFromJid(jid)
+            if (!session.clientId) {
+              session.clientId = stateClientId
+              session.whatsappJid = jid
+              await saveSession(session)
+            }
+          } else if (state !== session.sessionId) {
+            return html(res, '<p>OAuth state mismatch. <a href="/onboarding/step/4">Try again</a></p>', 400)
+          }
+        }
+
         const callbackBase = process.env.CALLBACK_BASE_URL ?? 'http://localhost:3000'
         const tokenEndpoints: Partial<Record<PlatformId, string>> = {
           'meta-ads': 'https://graph.facebook.com/v21.0/oauth/access_token',
@@ -650,7 +670,7 @@ export function createOnboardingHandler(): OnboardingHandler {
           const tokenData = (await tokenRes.json()) as Record<string, unknown>
           if (!tokenRes.ok) throw new Error(JSON.stringify(tokenData))
 
-          const clientId = session.clientId ?? session.sessionId
+          const clientId = stateClientId ?? session.clientId ?? session.sessionId
           await upsertConnection(clientId, platform, {
             status: 'connected',
             accessToken: (tokenData['access_token'] as string | undefined) ?? ((tokenData['data'] as Record<string, unknown> | undefined)?.['access_token'] as string | undefined) ?? null,

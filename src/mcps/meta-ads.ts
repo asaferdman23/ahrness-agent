@@ -14,10 +14,10 @@ export const metaAdsMcp: McpDefinition = {
   displayName: 'Meta Ads',
   oauthFlow: 'redirect',
   scopes: ['ads_management', 'ads_read'],
-  authUrl: (_sessionId, redirectBase) => {
+  authUrl: (state, redirectBase) => {
     const appId = requireEnv('META_APP_ID')
     const redirect = encodeURIComponent(`${redirectBase}/oauth/meta-ads/callback`)
-    return `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${redirect}&scope=ads_management,ads_read`
+    return `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${redirect}&scope=ads_management,ads_read&state=${encodeURIComponent(state)}`
   },
   createClient: (credentials: ConnectionRecord): McpClient | null => {
     if (!credentials.accessToken) return null

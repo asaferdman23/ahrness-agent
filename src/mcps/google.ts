@@ -37,13 +37,13 @@ export const googleMcp: McpDefinition = {
     'https://www.googleapis.com/auth/analytics.readonly',
     'https://www.googleapis.com/auth/webmasters.readonly',
   ],
-  authUrl: (_sessionId, redirectBase) => {
+  authUrl: (state, redirectBase) => {
     const clientId = requireEnv('GOOGLE_CLIENT_ID')
     const redirect = encodeURIComponent(`${redirectBase}/oauth/google/callback`)
     const scopes = encodeURIComponent(
       'https://www.googleapis.com/auth/analytics.readonly https://www.googleapis.com/auth/webmasters.readonly',
     )
-    return `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirect}&response_type=code&scope=${scopes}&access_type=offline&prompt=consent`
+    return `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirect}&response_type=code&scope=${scopes}&access_type=offline&prompt=consent&state=${encodeURIComponent(state)}`
   },
   createClient: (_credentials: ConnectionRecord): McpClient | null => null,
   roles: ['marketing-manager', 'ads-analyst'],

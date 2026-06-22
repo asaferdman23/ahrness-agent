@@ -8,8 +8,9 @@ export interface McpDefinition {
   displayName: string
   oauthFlow: OAuthFlow
   scopes: string[]
-  /** Generate the OAuth authorization URL for this platform */
-  authUrl?: (sessionId: string, redirectBase: string) => string
+  /** Generate the OAuth authorization URL. `state` is echoed back to the callback
+   *  for CSRF protection and to bind the token exchange to a specific client. */
+  authUrl?: (state: string, redirectBase: string) => string
   /** Create an McpClient from stored credentials */
   createClient: (credentials: ConnectionRecord) => McpClient | null
   /** Which roles this MCP can be used with */

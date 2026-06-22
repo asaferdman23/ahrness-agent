@@ -21,11 +21,11 @@ export const instagramGraphMcp: McpDefinition = {
   displayName: 'Instagram (organic)',
   oauthFlow: 'redirect',
   scopes: ['instagram_basic', 'instagram_content_publish', 'instagram_manage_insights', 'pages_read_engagement'],
-  authUrl: (_sessionId, redirectBase) => {
+  authUrl: (state, redirectBase) => {
     const appId = requireEnv('META_APP_ID')
     const redirect = encodeURIComponent(`${redirectBase}/oauth/instagram-graph/callback`)
     const scopes = 'instagram_basic,instagram_content_publish,instagram_manage_insights,pages_read_engagement'
-    return `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${redirect}&scope=${scopes}`
+    return `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${redirect}&scope=${scopes}&state=${encodeURIComponent(state)}`
   },
   createClient: (_credentials: ConnectionRecord): McpClient | null => null,
   roles: ['marketing-manager', 'creative-director', 'social-media-manager'],

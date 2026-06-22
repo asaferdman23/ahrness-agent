@@ -8,7 +8,9 @@ export const higgsfieldMcp: McpDefinition = {
   displayName: 'Higgsfield AI',
   oauthFlow: 'redirect',
   scopes: ['openid', 'email', 'offline_access'],
-  authUrl: (_sessionId, redirectBase) =>
+  // Higgsfield is a shared account with its own OAuth flow (higgsfield-auth.ts),
+  // so it doesn't use the per-client state.
+  authUrl: (_state, redirectBase) =>
     `${redirectBase}/oauth/higgsfield/start`,
   createClient: (_credentials: ConnectionRecord): McpClient => {
     const staticToken = process.env.HIGGSFIELD_MCP_ACCESS_TOKEN

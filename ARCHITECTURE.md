@@ -114,6 +114,11 @@ platform tokens all save under the same key the agent reads at message time. Wit
 signing secret the link falls back to a session-keyed flow (web setup won't reach the
 runtime — fine for local demos).
 
+The same signed token is passed as the OAuth `state` on every platform connect. The
+callback verifies it (`verifyClientToken`) and keys the saved token by the client it
+encodes — binding the token exchange to that client and protecting against CSRF. A state
+that is neither a valid signed token nor the current session id is rejected.
+
 ---
 
 ## Roles

@@ -8,6 +8,7 @@
  * key the runtime reads — closing the gap between web setup and the live agent.
  */
 import { createHmac, timingSafeEqual } from 'node:crypto'
+import type { OnboardingSession } from '../store/types.js'
 
 function signingSecret(): string {
   const secret = process.env.MEDIA_SIGNING_SECRET ?? process.env.HIGGSFIELD_SETUP_SECRET
@@ -58,4 +59,20 @@ export function onboardingUrlFor(base: string, jid: string): string {
   } catch {
     return url
   }
+}
+
+/**
+ * OAuth `state` for an onboarding session: a signed JID token when the session is
+ * tied to a client (so the callback can verify and key the connection by client),
+ * otherwise the session id as a plain CSRF token.
+ */
+export function oauthStateFor(session: OnboardingSession): string {
+  if (session.whatsappJid) {
+    try {
+      return signClientToken(session.whatsappJid)
+    } catch {
+      // No signing secret — fall through to the session id.
+    }
+  }
+  return session.sessionId
 }
