@@ -48,6 +48,26 @@ export const SCHEDULER_TEMPLATES: SchedulerTemplate[] = [
       'that stalled or hit limits. If nothing is wrong, say so in one line. Otherwise list each issue with a fix.',
   },
 
+  // ── Client Reporting (agency wedge) ──────────────────────────────────────────
+  {
+    id: 'client-weekly-report',
+    roles: ['marketing-manager', 'ads-analyst'],
+    emoji: '📄',
+    title: 'Weekly client report (auto-delivered)',
+    description:
+      'Every Monday, a polished, client-ready performance report compiled across all connected channels and delivered as a document.',
+    cron: '0 8 * * 1',
+    cadence: 'Every Monday, 8:00',
+    prompt:
+      'Compile this client\'s weekly performance report across every connected channel (Meta Ads, Instagram, ' +
+      'TikTok, Google Analytics/Search Console). For each: key metrics and the change vs. the prior week. ' +
+      'Open with a 3-bullet executive summary, then per-channel detail, then up to 3 recommended actions. ' +
+      'Reference what we recommended last week and whether it moved the numbers — make it feel like a continuing ' +
+      'relationship, not a cold dump. Build it as a clean Markdown document in the sandbox, convert it to a PDF, ' +
+      'and call publish_output so it is delivered as a downloadable file. In the WhatsApp message, send only the ' +
+      'executive summary and note that the full report is attached.',
+  },
+
   // ── Ads Analyst ─────────────────────────────────────────────────────────────
   {
     id: 'aa-daily-roas',
