@@ -1,4 +1,5 @@
 import { Agent, tool } from '@strands-agents/sdk'
+import { AnthropicModel } from '@strands-agents/sdk/models/anthropic'
 import { AgentSkills } from '@strands-agents/sdk/vended-plugins/skills'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -31,6 +32,19 @@ import type { TurnMessage, Summarize } from './sessions/index.js'
 
 /** Model id used for the client agent and for context-window budgeting. */
 export const AGENT_MODEL = process.env.AGENT_MODEL ?? 'claude-opus-4-8'
+
+/**
+ * Build a direct-Anthropic model provider. The Strands `Agent` treats a bare
+ * string model id as a Bedrock model, so we construct an explicit AnthropicModel
+ * to route through the Anthropic API (uses ANTHROPIC_API_KEY).
+ */
+export function createModel(modelId: string = AGENT_MODEL): AnthropicModel {
+  return new AnthropicModel({
+    apiKey: process.env.ANTHROPIC_API_KEY,
+    modelId,
+    maxTokens: Number(process.env.AGENT_MAX_TOKENS ?? 16384),
+  })
+}
 
 export { clientIdFromJid }
 
@@ -225,7 +239,7 @@ export async function buildClientAgent(
     sandbox,
     tools: allTools,
     plugins,
-    model,
+    model: createModel(model),
     ...(seedMessages.length > 0 ? { messages: seedMessages } : {}),
   } as ConstructorParameters<typeof Agent>[0])
 
@@ -256,7 +270,7 @@ export function createSummarizer(): Summarize {
 
     const agent = new Agent({
       systemPrompt: 'You are a precise conversation summarizer for a marketing assistant.',
-      model: AGENT_MODEL,
+      model: createModel(),
     } as ConstructorParameters<typeof Agent>[0])
     const result = await agent.invoke(prompt)
     return (
