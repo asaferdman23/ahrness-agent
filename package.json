@@ -5,7 +5,11 @@
   "scripts": {
     "start": "tsx src/index.ts",
     "dev": "tsx watch src/index.ts",
-    "build": "tsc",
+    "dev:onboarding:api": "tsx watch src/onboarding/dev-server.ts",
+    "dev:frontend": "vite --config frontend/onboarding/vite.config.ts --host 127.0.0.1",
+    "build": "tsc && npm run build:frontend",
+    "build:frontend": "vite build --config frontend/onboarding/vite.config.ts",
+    "preview:frontend": "vite preview --config frontend/onboarding/vite.config.ts --host 127.0.0.1",
     "type-check": "tsc --noEmit",
     "test": "node --import tsx --test 'src/**/*.test.ts'",
     "test:memory": "node --import tsx src/sessions/memory-e2e.ts"
@@ -15,18 +19,23 @@
     "@modelcontextprotocol/sdk": "^1.12.1",
     "@strands-agents/sdk": "1.6.0",
     "@whiskeysockets/baileys": "^7.0.0-rc.9",
+    "better-auth": "^1.6.22",
     "better-sqlite3": "^12.11.1",
     "dotenv": "^16.6.1",
+    "drizzle-orm": "^0.45.2",
     "meta-ads-mcp-server": "latest",
     "pino": "^9.6.0",
     "qrcode": "^1.5.4",
-    "qrcode-terminal": "^0.12.0"
+    "qrcode-terminal": "^0.12.0",
+    "twilio": "^5.13.1"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20.0.0",
     "@types/qrcode": "^1.5.5",
-    "tsx": "^4.19.0",
-    "typescript": "^5.7.0"
+    "drizzle-kit": "^0.31.10",
+    "tsx": "^4.22.4",
+    "typescript": "^5.7.0",
+    "vite": "^8.1.0"
   }
 }
