@@ -1,0 +1,23 @@
+[Unit]
+Description=Ahrness Agent
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=ahrness
+WorkingDirectory=/opt/ahrness
+EnvironmentFile=/opt/ahrness/.env
+ExecStart=/usr/bin/node --import tsx/esm src/index.ts
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ahrness
+
+# Graceful shutdown — give agent 30s to finish in-flight requests
+TimeoutStopSec=30
+KillMode=mixed
+
+[Install]
+WantedBy=multi-user.target

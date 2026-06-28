@@ -1,0 +1,26 @@
+# Replace your-domain.com with your actual domain.
+# Caddy handles HTTPS/TLS automatically via Let's Encrypt.
+
+your-domain.com {
+    reverse_proxy localhost:3456
+    encode gzip
+
+    # Security headers
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+    }
+
+    # Larger body for media uploads from Twilio
+    request_body {
+        max_size 30MB
+    }
+
+    log {
+        output file /var/log/caddy/ahrness.log {
+            roll_size 10MB
+            roll_keep 5
+        }
+    }
+}
