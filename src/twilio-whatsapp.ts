@@ -6,12 +6,13 @@
  */
 import twilio from 'twilio'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { clientIdFromJid, type ClientAgentSession } from './agent.js'
-import { isSenderAllowed } from './access.js'
+import type { ClientAgentSession } from './agent.js'
+import { isInboundSenderAllowed } from './access.js'
 import { runAndDeliver } from './delivery.js'
 import { maybeOnboardingNudge } from './onboarding-nudge.js'
 import { bindSessionToWhatsAppCode } from './onboarding/session.js'
 import { getConnections, getRole, updateClientMeta } from './store/client-store.js'
+import { clientIdForJid } from './tenant-store.js'
 import { signedOutputUrl } from './output-sharing.js'
 import { jidToTwilioAddress, normalizePhoneE164, phoneToJid } from './whatsapp-address.js'
 import { isTwilioProvider as hasTwilioProvider } from './whatsapp-providers.js'
@@ -120,7 +121,7 @@ async function uploadOrSignMedia(
   mimeType: string,
   fileName: string,
 ): Promise<string> {
-  const clientId = clientIdFromJid(jid)
+  const clientId = await clientIdForJid(jid)
   const { getClientSandbox } = await import('./sandbox.js')
   const { sandbox } = await getClientSandbox(clientId)
   const safeName = `${Date.now()}-${fileName.replace(/[^a-zA-Z0-9._-]+/g, '-').slice(-120) || 'attachment.bin'}`
@@ -197,11 +198,6 @@ export async function handleTwilioWebhook(
 
   res.writeHead(200).end('OK')
 
-  if (!isSenderAllowed(jid)) {
-    console.log(`[twilio:${jid}] blocked by sender allowlist`)
-    return
-  }
-
   // Process async — Twilio expects 200 within ~5s
   void processInbound(transport, jid, text, body, numMedia).catch((err) => {
     console.error(`[twilio:${jid}] inbound error:`, err)
@@ -217,11 +213,16 @@ async function processInbound(
 ): Promise<void> {
   console.log(`[${jid}] ${text || `[${numMedia} media]`}`)
 
-  const clientId = clientIdFromJid(jid)
-  await updateClientMeta(clientId, { whatsappProvider: 'twilio' })
-
   const linked = await maybeBindTwilioOnboarding(text, jid, transport)
   if (linked) return
+
+  if (!(await isInboundSenderAllowed(jid))) {
+    console.log(`[twilio:${jid}] blocked by sender access policy`)
+    return
+  }
+
+  const clientId = await clientIdForJid(jid)
+  await updateClientMeta(clientId, { whatsappProvider: 'twilio' })
 
   const connections = await getConnections(clientId)
   const hasAnyConnection = Object.values(connections).some((c) => c?.status === 'connected')

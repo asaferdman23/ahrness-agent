@@ -1,4 +1,4 @@
-# Ahrness Agent
+# BizzClaw Agent
 
 A WhatsApp-first AI marketing agent platform. Each client onboards through a web
 UI, picks a role, connects their platforms (Meta Ads, Instagram, TikTok, Google,
@@ -151,7 +151,7 @@ Copy `.env.example` to `.env`. Key variables:
 | `HIGGSFIELD_MCP_URL` / `HIGGSFIELD_SETUP_SECRET` | Higgsfield shared account |
 | `HIGGSFIELD_DAILY_GENERATION_LIMIT` | Per-client daily safety cap (0 disables) |
 | `WHATSAPP_PHONE_NUMBER` | Pairing-code auth; blank = QR code |
-| `AGENT_NAME` | Display name (default `Ahrness`) |
+| `AGENT_NAME` | Display name (default `BizzClaw`) |
 | `AGENT_TIMEZONE` | IANA tz for scheduled automations (default `UTC`) |
 | `AGENT_SANDBOX_*` | Docker sandbox image, limits, network, workspace dir |
 
@@ -196,17 +196,41 @@ store/                  # runtime data (gitignored): agent.sqlite, workspaces, .
   never falls back to host execution.
 - **Secrets** — model keys, Meta secrets, and the Higgsfield token stay on the
   host process and are never mounted into client containers.
+- **Encrypted at rest** — every client's OAuth access/refresh tokens are sealed
+  with AES-256-GCM (`AGENT_MASTER_KEY` + scrypt) before they touch disk; the
+  Higgsfield token store is encrypted the same way. Plaintext tokens from older
+  installs are migrated and re-encrypted automatically on first read.
+- **Brokered apps** — the model never holds a token. It expresses intent and the
+  host makes the authenticated API call, so a prompt injection can't exfiltrate
+  credentials.
+- **Sender allowlist** — set `AGENT_ALLOWED_SENDERS` so the agent only engages
+  known numbers; unset = open (a warning is logged at startup).
 - **Final files** must be written to `/workspace/outputs` and published with the
   `publish_output` tool before delivery.
+
+### Autonomous web access
+
+The agent can search and read the web without weakening the sandbox:
+
+- **`web_search`** is a host-side broker. `WEB_SEARCH_API_KEY` stays on the host
+  and is never exposed to the sandbox or the model; the model gets back titles,
+  URLs, and snippets framed as *untrusted* data.
+- **Sandbox egress** (`AGENT_SANDBOX_EGRESS=true`) lets in-sandbox code
+  (`curl`/scrape) reach the web — but only through a filtering forward proxy on an
+  internal Docker network. The sandbox has no internet of its own; the proxy
+  allows only `AGENT_WEB_ALLOWLIST` domains, blocks private/loopback addresses,
+  and rate-limits per source. Left off, the sandbox stays fully isolated.
+- Fetched web content is treated as data, never instructions, and the agent is
+  told never to send secrets to web tools or take irreversible/spending actions
+  without confirmation.
 
 ---
 
 ## SDK note
 
-This project depends on `@strands-agents/sdk`, currently wired as a local file
-dependency (`file:../harness-sdk/strands-ts`). Clone/restore that package next to
-this repo before `npm install` so the agent runtime resolves. The SDK-free
-modules (memory layer, scheduler) build and test independently of it.
+This project depends on `@strands-agents/sdk`, pinned to a published npm version
+in `package.json`. Upgrades are done manually. The SDK-free modules (memory layer,
+vault, access control, egress proxy, scheduler) build and test independently of it.
 
 ---
 

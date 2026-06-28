@@ -2,6 +2,7 @@ import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { auth, type OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js'
+import { decryptSecret, encryptSecret } from './vault.js'
 import type {
   OAuthClientInformationMixed,
   OAuthClientMetadata,
@@ -9,7 +10,9 @@ import type {
 } from '@modelcontextprotocol/sdk/shared/auth.js'
 
 export const HIGGSFIELD_MCP_URL = process.env.HIGGSFIELD_MCP_URL ?? 'https://mcp.higgsfield.ai/mcp'
-const STORE_PATH = path.resolve(process.env.HIGGSFIELD_AUTH_STORE ?? './store/higgsfield-oauth.json')
+function storePath(): string {
+  return path.resolve(process.env.HIGGSFIELD_AUTH_STORE ?? './store/higgsfield-oauth.json')
+}
 let storeQueue: Promise<void> = Promise.resolve()
 
 type OAuthStore = {
@@ -20,20 +23,32 @@ type OAuthStore = {
   authorizationUrl?: string
 }
 
+/** On-disk shape: the OAuth `tokens` object is stored encrypted in `tokensEnc`. */
+type StoredOAuthStore = Omit<OAuthStore, 'tokens'> & { tokensEnc?: string; tokens?: OAuthTokens }
+
 async function readStore(): Promise<OAuthStore> {
+  let stored: StoredOAuthStore
   try {
-    return JSON.parse(await readFile(STORE_PATH, 'utf8')) as OAuthStore
+    stored = JSON.parse(await readFile(storePath(), 'utf8')) as StoredOAuthStore
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return {}
     throw error
   }
+  const { tokensEnc, tokens: legacyTokens, ...rest } = stored
+  // Prefer the encrypted blob; fall back to a legacy plaintext `tokens` field.
+  const tokens = tokensEnc ? (JSON.parse(decryptSecret(tokensEnc)) as OAuthTokens) : legacyTokens
+  return tokens ? { ...rest, tokens } : { ...rest }
 }
 
 async function writeStore(store: OAuthStore): Promise<void> {
-  await mkdir(path.dirname(STORE_PATH), { recursive: true })
-  const temporary = `${STORE_PATH}.${process.pid}.tmp`
-  await writeFile(temporary, JSON.stringify(store, null, 2), { mode: 0o600 })
-  await rename(temporary, STORE_PATH)
+  const file = storePath()
+  await mkdir(path.dirname(file), { recursive: true })
+  const { tokens, ...rest } = store
+  // Never write the `tokens` object in plaintext — encrypt it into `tokensEnc`.
+  const onDisk: StoredOAuthStore = tokens ? { ...rest, tokensEnc: encryptSecret(JSON.stringify(tokens)) } : rest
+  const temporary = `${file}.${process.pid}.tmp`
+  await writeFile(temporary, JSON.stringify(onDisk, null, 2), { mode: 0o600 })
+  await rename(temporary, file)
 }
 
 async function updateStore(update: (current: OAuthStore) => OAuthStore): Promise<void> {
@@ -59,7 +74,7 @@ class HiggsfieldOAuthProvider implements OAuthClientProvider {
       token_endpoint_auth_method: 'none',
       grant_types: ['authorization_code', 'refresh_token'],
       response_types: ['code'],
-      client_name: process.env.AGENT_NAME ?? 'Ahrness',
+      client_name: process.env.AGENT_NAME ?? 'BizzClaw',
       scope: 'openid email offline_access',
     }
   }

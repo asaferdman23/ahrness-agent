@@ -3,10 +3,12 @@ import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import type { ScheduledJob } from './types.js'
 
-const CLIENTS_DIR = path.resolve('./store/clients')
+function clientsDir(): string {
+  return path.resolve(process.env.AGENT_STORE_DIR ?? './store', 'clients')
+}
 
 function jobsPath(clientId: string): string {
-  return path.join(CLIENTS_DIR, clientId, 'schedules.json')
+  return path.join(clientsDir(), clientId, 'schedules.json')
 }
 
 async function atomicWrite(filePath: string, data: unknown): Promise<void> {
@@ -82,7 +84,7 @@ export async function removeJob(clientId: string, jobId: string): Promise<boolea
 export async function listAllJobs(): Promise<ScheduledJob[]> {
   let entries: string[]
   try {
-    entries = await readdir(CLIENTS_DIR)
+    entries = await readdir(clientsDir())
   } catch {
     return []
   }

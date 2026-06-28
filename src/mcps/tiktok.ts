@@ -2,6 +2,7 @@ import { McpClient } from '@strands-agents/sdk'
 import { tool } from '@strands-agents/sdk'
 import type { McpDefinition } from './types.js'
 import type { ConnectionRecord } from '../store/types.js'
+import { stageOrExecute, fileConfirmationStore } from '../confirmations.js'
 
 const TIKTOK_API_BASE = 'https://open.tiktokapis.com/v2'
 
@@ -30,7 +31,7 @@ export const tiktokMcp: McpDefinition = {
   roles: ['marketing-manager', 'social-media-manager'],
 }
 
-export function createTikTokTools(credentials: ConnectionRecord) {
+export function createTikTokTools(credentials: ConnectionRecord, clientId?: string) {
   if (!credentials.accessToken) return []
   const token = credentials.accessToken
 
@@ -96,26 +97,39 @@ export function createTikTokTools(credentials: ConnectionRecord) {
       },
       callback: async (rawInput: unknown) => {
         const input = rawInput as { videoUrl: string; title: string; privacyLevel?: string }
-        // TikTok Content Posting API: pull from URL
-        const res = await fetch(`${TIKTOK_API_BASE}/post/publish/video/init/`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            post_info: {
-              title: input.title.slice(0, 2200),
-              privacy_level: input.privacyLevel ?? 'PUBLIC_TO_EVERYONE',
-              disable_duet: false,
-              disable_comment: false,
-              disable_stitch: false,
-            },
-            source_info: {
-              source: 'PULL_FROM_URL',
-              video_url: input.videoUrl,
-            },
-          }),
-          signal: AbortSignal.timeout(60_000),
-        })
-        return JSON.stringify(await res.json())
+        const doUpload = async () => {
+          // TikTok Content Posting API: pull from URL
+          const res = await fetch(`${TIKTOK_API_BASE}/post/publish/video/init/`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              post_info: {
+                title: input.title.slice(0, 2200),
+                privacy_level: input.privacyLevel ?? 'PUBLIC_TO_EVERYONE',
+                disable_duet: false,
+                disable_comment: false,
+                disable_stitch: false,
+              },
+              source_info: {
+                source: 'PULL_FROM_URL',
+                video_url: input.videoUrl,
+              },
+            }),
+            signal: AbortSignal.timeout(60_000),
+          })
+          return JSON.stringify(await res.json())
+        }
+        if (!clientId) return doUpload()
+        return stageOrExecute(
+          {
+            store: fileConfirmationStore(),
+            clientId,
+            toolName: 'tiktok_upload_video',
+            input: rawInput,
+            summarize: () => `upload a video to TikTok${input?.title ? `: "${input.title.slice(0, 80)}"` : ''}`,
+          },
+          doUpload,
+        )
       },
     }),
   ]

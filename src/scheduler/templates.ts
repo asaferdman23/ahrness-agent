@@ -158,6 +158,51 @@ export const SCHEDULER_TEMPLATES: SchedulerTemplate[] = [
       'inspirational, and promotional pillars. Include ready-to-publish captions and hashtag sets.',
   },
 
+  // ── GTM Operator ───────────────────────────────────────────────────────────
+  {
+    id: 'gtm-monday-plan',
+    roles: ['gtm-operator'],
+    emoji: '🚀',
+    title: 'Weekly GTM action plan',
+    description:
+      'Mondays, choose the best channels for this week and draft founder-led posts, replies, and DM follow-ups.',
+    cron: '0 9 * * 1',
+    cadence: 'Every Monday, 9:00',
+    prompt:
+      'Create this week\'s founder-led GTM action plan. Start from the client\'s target buyer, pain, offer, ' +
+      'and current proof. Pick the best 2-3 channels for the week across LinkedIn, X/Twitter, Reddit, Hacker ' +
+      'News, Product Hunt, Indie Hackers, or niche founder communities. Draft 2 ready-to-post posts, 3 helpful ' +
+      'reply/comment drafts, and 2 follow-up DM drafts. End with what to measure this week.',
+  },
+  {
+    id: 'gtm-midweek-replies',
+    roles: ['gtm-operator'],
+    emoji: '💬',
+    title: 'Midweek conversation push',
+    description:
+      'Wednesdays, draft useful replies and follow-ups that turn attention into conversations without spamming.',
+    cron: '0 11 * * 3',
+    cadence: 'Every Wednesday, 11:00',
+    prompt:
+      'Prepare a midweek GTM conversation push. Give 5 useful replies or comments the founder can adapt for ' +
+      'active conversations in their market, plus 3 short follow-up DMs for people who already engaged. Keep ' +
+      'everything transparent, non-spammy, and specific to the client\'s offer.',
+  },
+  {
+    id: 'gtm-friday-review',
+    roles: ['gtm-operator'],
+    emoji: '📌',
+    title: 'Friday GTM signal review',
+    description:
+      'Fridays, review replies, objections, demo requests, and buyer language, then sharpen next week\'s angle.',
+    cron: '0 15 * * 5',
+    cadence: 'Every Friday, 15:00',
+    prompt:
+      'Run a Friday GTM signal review. Summarize what was posted or tested this week, what got replies, the ' +
+      'strongest objections, any demo/signup signals, and the exact buyer language worth reusing. Recommend ' +
+      'one sharper angle for next week and draft the first post for it.',
+  },
+
   // ── Personal Assistant / Developer ──────────────────────────────────────────
   {
     id: 'pa-morning-briefing',

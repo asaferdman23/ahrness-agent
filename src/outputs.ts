@@ -4,6 +4,9 @@ import path from 'node:path'
 import { tool } from '@strands-agents/sdk'
 import type { DockerSandbox } from '@strands-agents/sdk/sandbox/docker'
 import { OUTPUTS_DIR, resolvePublishedOutputPath } from './sandbox.js'
+import { isPrivateAddress } from './net-guard.js'
+
+export { isPrivateAddress }
 
 export type PublishedOutput = {
   path: string
@@ -228,26 +231,6 @@ async function assertPublicHttpsUrl(url: URL): Promise<void> {
   if (addresses.length === 0 || addresses.some(({ address }) => isPrivateAddress(address))) {
     throw new Error('Private or local media URLs are not allowed')
   }
-}
-
-export function isPrivateAddress(address: string): boolean {
-  const normalized = address.toLowerCase()
-  if (normalized === '::' || normalized === '::1' || normalized.startsWith('fc') || normalized.startsWith('fd')) {
-    return true
-  }
-  if (/^fe[89ab]/.test(normalized)) return true
-  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(normalized)?.[1]
-  const ipv4 = mapped ?? (isIP(normalized) === 4 ? normalized : null)
-  if (!ipv4) return false
-  const [a, b] = ipv4.split('.').map(Number)
-  return (
-    a === 0 || a === 10 || a === 127 || a >= 224 ||
-    (a === 100 && b >= 64 && b <= 127) ||
-    (a === 169 && b === 254) ||
-    (a === 172 && b >= 16 && b <= 31) ||
-    (a === 192 && b === 168) ||
-    (a === 198 && (b === 18 || b === 19))
-  )
 }
 
 export async function readPublishedOutput(sandbox: DockerSandbox, output: PublishedOutput): Promise<Uint8Array> {

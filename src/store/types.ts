@@ -6,6 +6,7 @@ export type RoleId =
   | 'creative-director'
   | 'ads-analyst'
   | 'social-media-manager'
+  | 'gtm-operator'
   | 'personal-assistant-dev'
 
 export type GoalType =

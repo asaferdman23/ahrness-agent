@@ -71,7 +71,9 @@ export async function bindSessionToWhatsAppCode(
     if (!session || session.whatsappConnectCode !== wanted) continue
 
     const oldClientId = session.clientId ?? session.sessionId
-    const clientId = await adoptClientData(oldClientId, jid)
+    const legacyClientId = clientIdFromJid(jid)
+    const hasAuthenticatedTenant = Boolean(session.clientId && session.clientId !== session.sessionId && session.clientId !== legacyClientId)
+    const clientId = hasAuthenticatedTenant ? oldClientId : await adoptClientData(oldClientId, jid)
     session.clientId = clientId
     session.whatsappJid = jid
     session.whatsappProvider = provider
@@ -79,9 +81,8 @@ export async function bindSessionToWhatsAppCode(
     session.whatsappLinked = true
     session.step = Math.max(session.step, 6)
     await saveSession(session)
-    await updateClientMeta(clientIdFromJid(jid), { whatsappProvider: provider })
-    // If this session has a tenantId (Google-authed user), link their JID to the tenant table
-    if (clientId && clientId !== oldClientId) {
+    await updateClientMeta(clientId, { whatsappProvider: provider })
+    if (hasAuthenticatedTenant) {
       await linkWhatsAppToTenant(clientId, jid, provider).catch(() => {})
     }
     return session

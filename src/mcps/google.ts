@@ -2,6 +2,7 @@ import { McpClient } from '@strands-agents/sdk'
 import { tool } from '@strands-agents/sdk'
 import type { McpDefinition } from './types.js'
 import type { ConnectionRecord } from '../store/types.js'
+import { upsertConnection } from '../store/client-store.js'
 
 const GA4_BASE = 'https://analyticsdata.googleapis.com/v1beta'
 const GSC_BASE = 'https://searchconsole.googleapis.com/v1'
@@ -12,7 +13,7 @@ function requireEnv(name: string): string {
   return val
 }
 
-async function refreshGoogleToken(refreshToken: string): Promise<string> {
+async function refreshGoogleToken(refreshToken: string): Promise<{ accessToken: string; expiresIn: number }> {
   const res = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -24,9 +25,9 @@ async function refreshGoogleToken(refreshToken: string): Promise<string> {
     }),
     signal: AbortSignal.timeout(15_000),
   })
-  const data = (await res.json()) as { access_token?: string; error?: string }
+  const data = (await res.json()) as { access_token?: string; expires_in?: number; error?: string }
   if (!res.ok || !data.access_token) throw new Error(`Google token refresh failed: ${data.error ?? 'unknown'}`)
-  return data.access_token
+  return { accessToken: data.access_token, expiresIn: data.expires_in ?? 3600 }
 }
 
 export const googleMcp: McpDefinition = {
@@ -49,14 +50,24 @@ export const googleMcp: McpDefinition = {
   roles: ['marketing-manager', 'ads-analyst'],
 }
 
-export function createGoogleTools(credentials: ConnectionRecord) {
+export function createGoogleTools(credentials: ConnectionRecord, clientId?: string) {
   if (!credentials.accessToken) return []
 
   async function getToken(): Promise<string> {
     const expiry = credentials.tokenExpiresAt ? new Date(credentials.tokenExpiresAt) : null
     const isExpired = !expiry || expiry.getTime() - Date.now() < 60_000
     if (isExpired && credentials.refreshToken) {
-      return refreshGoogleToken(credentials.refreshToken)
+      const { accessToken, expiresIn } = await refreshGoogleToken(credentials.refreshToken)
+      // Cache for this session and persist so the refreshed token isn't lost.
+      credentials.accessToken = accessToken
+      credentials.tokenExpiresAt = new Date(Date.now() + expiresIn * 1000).toISOString()
+      if (clientId) {
+        await upsertConnection(clientId, 'google', {
+          accessToken,
+          tokenExpiresAt: credentials.tokenExpiresAt,
+        })
+      }
+      return accessToken
     }
     return credentials.accessToken!
   }

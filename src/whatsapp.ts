@@ -1,9 +1,8 @@
 /**
- * WhatsApp adapter via Baileys.
+ * WhatsApp via Baileys (unofficial Web API).
  *
- * Auth gate: if a client hasn't connected their Meta Ads account yet,
- * we send them an OAuth link instead of invoking the agent.
- * Once they authorize, their token is stored and future messages go straight to the agent.
+ * Use WHATSAPP_PROVIDER=baileys for dev/personal numbers.
+ * Production WhatsApp Business API: WHATSAPP_PROVIDER=twilio (default).
  */
 import { mkdir } from 'node:fs/promises'
 import {
@@ -17,11 +16,14 @@ import {
   type proto,
 } from '@whiskeysockets/baileys'
 import qrcode from 'qrcode-terminal'
-import { clientIdFromJid, type ClientAgentSession } from './agent.js'
+import type { ClientAgentSession } from './agent.js'
+import { isInboundSenderAllowed } from './access.js'
 import { runAndDeliver } from './delivery.js'
-import { onboardingUrlFor } from './onboarding/client-link.js'
-import { getConnections, getRole } from './store/client-store.js'
-import { broadcastQr, broadcastLinked } from './onboarding/server.js'
+import { maybeOnboardingNudge } from './onboarding-nudge.js'
+import { getConnections, getRole, updateClientMeta } from './store/client-store.js'
+import { clientIdForJid } from './tenant-store.js'
+import { broadcastLinked, broadcastLinkedToAll, broadcastQr, broadcastQrToAll } from './onboarding/server.js'
+import type { WhatsAppTransport } from './whatsapp-transport.js'
 
 const AUTH_DIR = './store/auth'
 
@@ -32,7 +34,26 @@ const silentLogger: any = {
   child: () => silentLogger,
 }
 
-export async function startWhatsApp(): Promise<WASocket> {
+function createBaileysTransport(socket: WASocket): WhatsAppTransport {
+  return {
+    sendText: (jid, text) => socket.sendMessage(jid, { text }).then(() => {}),
+    sendImage: (jid, data, mimeType, caption) =>
+      socket.sendMessage(jid, { image: data, mimetype: mimeType, caption }).then(() => {}),
+    sendVideo: (jid, data, mimeType, caption) =>
+      socket.sendMessage(jid, { video: data, mimetype: mimeType, caption }).then(() => {}),
+    sendAudio: (jid, data, mimeType) =>
+      socket.sendMessage(jid, { audio: data, mimetype: mimeType }).then(() => {}),
+    sendDocument: (jid, data, mimeType, fileName, caption) =>
+      socket.sendMessage(jid, {
+        document: data,
+        mimetype: mimeType,
+        fileName,
+        ...(caption ? { caption } : {}),
+      }).then(() => {}),
+  }
+}
+
+export async function startBaileysWhatsApp(): Promise<WhatsAppTransport> {
   await mkdir(AUTH_DIR, { recursive: true })
 
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR)
@@ -45,6 +66,8 @@ export async function startWhatsApp(): Promise<WASocket> {
     logger: silentLogger,
     printQRInTerminal: false,
   })
+
+  const transport = createBaileysTransport(socket)
 
   socket.ev.on('creds.update', saveCreds)
 
@@ -63,22 +86,23 @@ export async function startWhatsApp(): Promise<WASocket> {
         console.log('\nScan this QR code in WhatsApp → Settings → Linked Devices:\n')
         qrcode.generate(qr, { small: true })
       }
-      // Stream QR to onboarding web UI for all pending sessions
       const onboardingSession = process.env.ONBOARDING_SESSION_ID
       if (onboardingSession) await broadcastQr(onboardingSession, qr)
+      else await broadcastQrToAll(qr)
     }
 
     if (connection === 'open') {
-      console.log('✓ WhatsApp connected')
+      console.log('✓ WhatsApp connected (Baileys)')
       const onboardingSession = process.env.ONBOARDING_SESSION_ID
       if (onboardingSession) broadcastLinked(socket.user?.id ?? '', onboardingSession)
+      else broadcastLinkedToAll(socket.user?.id ?? '')
     }
 
     if (connection === 'close') {
       const code = (lastDisconnect?.error as any)?.output?.statusCode
       const shouldReconnect = code !== DisconnectReason.loggedOut
       if (shouldReconnect) {
-        setTimeout(() => startWhatsApp(), 3000)
+        setTimeout(() => startBaileysWhatsApp(), 3000)
       } else {
         console.error('Logged out — delete ./store/auth/ and restart to re-authenticate')
         process.exit(1)
@@ -95,6 +119,11 @@ export async function startWhatsApp(): Promise<WASocket> {
       const jid = msg.key.remoteJid
       if (!jid) continue
 
+      if (!(await isInboundSenderAllowed(jid))) {
+        console.log(`[${jid}] blocked by sender allowlist`)
+        continue
+      }
+
       const text = extractText(msg)
       const media = extractMedia(msg)
       if (!text && !media) continue
@@ -103,35 +132,20 @@ export async function startWhatsApp(): Promise<WASocket> {
 
       await socket.readMessages([msg.key])
 
-      // Client is onboarded once they've connected a platform OR committed to a
-      // role (some roles need no platform, but still configure profile + automations).
-      const clientId = clientIdFromJid(jid)
+      const clientId = await clientIdForJid(jid)
+      await updateClientMeta(clientId, { whatsappProvider: 'baileys' })
       const connections = await getConnections(clientId)
       const hasAnyConnection = Object.values(connections).some((c) => c?.status === 'connected')
       const hasRole = (await getRole(clientId)) !== null
+      const onboarded = hasAnyConnection || hasRole
 
-      if (!hasAnyConnection && !hasRole) {
-        // Carry the client's JID (signed) so their onboarding writes under the
-        // same key the runtime reads — see onboarding/client-link.ts.
-        const onboardingUrl = process.env.CALLBACK_BASE_URL
-          ? onboardingUrlFor(process.env.CALLBACK_BASE_URL, jid)
-          : null
-        await socket.sendMessage(jid, {
-          text:
-            `👋 Hi! I'm ${process.env.AGENT_NAME ?? 'Ahrness'}, your AI business assistant.\n\n` +
-            (onboardingUrl
-              ? `To get started, set up your agent here:\n${onboardingUrl}\n\nTakes about 2 minutes — choose your role, connect your platforms, and you're ready.`
-              : `To get started, please complete the onboarding setup. Ask your administrator for the setup link.`),
-        })
-        continue
-      }
+      // Value before integration: serve even un-onboarded senders with the default
+      // agent, then invite setup once (rather than bouncing them to a link).
 
-      // Client is onboarded — invoke agent
       try {
         await socket.sendPresenceUpdate('composing', jid)
         let prompt = text ?? 'Use the attached file to complete my request.'
 
-        // Attachment is written into the sandbox just before the agent runs.
         let prepare: ((session: ClientAgentSession) => Promise<void>) | undefined
         if (media) {
           const inputPath = `/workspace/inbox/${Date.now()}-${sanitizeFileName(media.fileName)}`
@@ -147,17 +161,22 @@ export async function startWhatsApp(): Promise<WASocket> {
           }
         }
 
-        await runAndDeliver(socket, jid, prompt, { prepare })
+        await runAndDeliver(transport, jid, prompt, { prepare })
+
+        if (!onboarded) {
+          const nudge = await maybeOnboardingNudge(clientId, jid)
+          if (nudge) await transport.sendText(jid, nudge)
+        }
       } catch (err) {
         console.error(`[${jid}] agent error:`, err)
-        await socket.sendMessage(jid, { text: 'Something went wrong. Please try again.' })
+        await transport.sendText(jid, 'Something went wrong. Please try again.')
       } finally {
         await socket.sendPresenceUpdate('paused', jid)
       }
     }
   })
 
-  return socket
+  return transport
 }
 
 function extractText(msg: proto.IWebMessageInfo): string | null {
@@ -202,10 +221,10 @@ function extractMedia(msg: proto.IWebMessageInfo): InboundMedia | null {
 function extensionForMime(mimeType: string): string {
   const subtype = mimeType.split('/', 2)[1]?.split(';', 1)[0]?.toLowerCase() ?? 'bin'
   const aliases: Record<string, string> = {
-    'jpeg': 'jpg',
-    'quicktime': 'mov',
-    'mpeg': 'mp3',
-    'plain': 'txt',
+    jpeg: 'jpg',
+    quicktime: 'mov',
+    mpeg: 'mp3',
+    plain: 'txt',
     'x-m4a': 'm4a',
   }
   return aliases[subtype] ?? (subtype.replace(/[^a-z0-9]+/g, '') || 'bin')

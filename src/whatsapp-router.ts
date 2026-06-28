@@ -1,4 +1,5 @@
-import { clientIdFromJid, getClientMeta } from './store/client-store.js'
+import { getClientMeta } from './store/client-store.js'
+import { clientIdForJid } from './tenant-store.js'
 import type { WhatsAppProvider } from './whatsapp-providers.js'
 import type { WhatsAppTransport } from './whatsapp-transport.js'
 
@@ -9,7 +10,7 @@ export function createRoutingWhatsAppTransport(
   defaultProvider: WhatsAppProvider,
 ): WhatsAppTransport {
   async function pick(jid: string): Promise<WhatsAppTransport> {
-    const clientId = clientIdFromJid(jid)
+    const clientId = await clientIdForJid(jid)
     const preferred = (await getClientMeta(clientId)).whatsappProvider
     const provider = preferred && transports[preferred] ? preferred : defaultProvider
     const transport = transports[provider] ?? transports.twilio ?? transports.baileys

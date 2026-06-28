@@ -4,9 +4,24 @@ import { mkdir, chmod, chown } from 'node:fs/promises'
 import path from 'node:path'
 import { DockerSandbox } from '@strands-agents/sdk/sandbox/docker'
 
-const SANDBOX_VERSION = '1'
 const CONTAINER_WORKSPACE = '/workspace'
 export const OUTPUTS_DIR = `${CONTAINER_WORKSPACE}/outputs`
+
+// Egress: when enabled, the sandbox has no internet of its own and reaches the
+// web only through the filtering proxy container on an internal Docker network.
+const EGRESS_NETWORK = 'ahrness-egress'
+const EGRESS_PROXY_CONTAINER = 'ahrness-egress-proxy'
+const EGRESS_PROXY_PORT = 8080
+
+function egressEnabled(): boolean {
+  return process.env.AGENT_SANDBOX_EGRESS === 'true'
+}
+
+// Container layout version — bumped implicitly by egress mode so toggling it
+// recreates sandboxes with the right network instead of reusing a stale one.
+function sandboxVersion(): string {
+  return egressEnabled() ? '2-egress' : '1'
+}
 
 type DockerResult = {
   stdout: string
@@ -135,12 +150,14 @@ class SandboxManager {
       true,
     )
 
+    if (egressEnabled()) await this.ensureEgressInfra()
+
     if (inspection.exitCode === 0) {
       const [managed, version, running] = inspection.stdout.trim().split(/\s+/)
       if (managed !== 'true') {
         throw new Error(`Refusing to use unmanaged container ${containerName}`)
       }
-      if (version !== SANDBOX_VERSION) {
+      if (version !== sandboxVersion()) {
         await runDocker(['rm', '--force', containerName])
         await this.create(containerName, workspaceDir, user.value)
       } else if (running !== 'true') {
@@ -161,11 +178,77 @@ class SandboxManager {
     }
   }
 
+  /** Create the internal network + filtering proxy container (idempotent, once per process). */
+  private egressReady: Promise<void> | null = null
+  private ensureEgressInfra(): Promise<void> {
+    if (this.egressReady) return this.egressReady
+    this.egressReady = (async () => {
+      const netInspect = await runDocker(['network', 'inspect', EGRESS_NETWORK], true)
+      if (netInspect.exitCode !== 0) {
+        // --internal: no NAT to the internet, so the sandbox's only way out is the proxy.
+        await runDocker(['network', 'create', '--internal', EGRESS_NETWORK])
+      }
+      const proxyInspect = await runDocker(
+        ['inspect', '--format', '{{.State.Running}}', EGRESS_PROXY_CONTAINER],
+        true,
+      )
+      if (proxyInspect.exitCode !== 0) {
+        const repoRoot = path.resolve(process.env.AGENT_REPO_DIR ?? '.')
+        await runDocker([
+          'run',
+          '-d',
+          '--name',
+          EGRESS_PROXY_CONTAINER,
+          '--label',
+          'com.ahrness.managed=true',
+          '--network',
+          EGRESS_NETWORK,
+          '--restart',
+          'unless-stopped',
+          '--volume',
+          `${repoRoot}:/app:ro`,
+          '--workdir',
+          '/app',
+          '--env',
+          `AGENT_WEB_ALLOWLIST=${process.env.AGENT_WEB_ALLOWLIST ?? ''}`,
+          '--env',
+          `EGRESS_PROXY_PORT=${EGRESS_PROXY_PORT}`,
+          '--env',
+          `EGRESS_MAX_PER_MINUTE=${process.env.EGRESS_MAX_PER_MINUTE ?? '120'}`,
+          'node:22',
+          'node',
+          '--import',
+          'tsx',
+          'src/egress-proxy-server.ts',
+        ])
+        // Give the proxy (and only the proxy) real internet via the default bridge.
+        await runDocker(['network', 'connect', 'bridge', EGRESS_PROXY_CONTAINER])
+      } else if (proxyInspect.stdout.trim() !== 'true') {
+        await runDocker(['start', EGRESS_PROXY_CONTAINER])
+      }
+    })().catch((err) => {
+      this.egressReady = null // allow a retry on the next sandbox request
+      throw err
+    })
+    return this.egressReady
+  }
+
   private async create(containerName: string, workspaceDir: string, user: string): Promise<void> {
     const image = process.env.AGENT_SANDBOX_IMAGE ?? 'ahrness-sandbox:latest'
-    const network = process.env.AGENT_SANDBOX_NETWORK ?? 'none'
-    if (network !== 'none' && network !== 'bridge') {
-      throw new Error('AGENT_SANDBOX_NETWORK must be "none" or "bridge"')
+    const proxyEnv: string[] = []
+    let network: string
+    if (egressEnabled()) {
+      network = EGRESS_NETWORK
+      const proxyUrl = `http://${EGRESS_PROXY_CONTAINER}:${EGRESS_PROXY_PORT}`
+      for (const key of ['HTTPS_PROXY', 'HTTP_PROXY', 'https_proxy', 'http_proxy']) {
+        proxyEnv.push('--env', `${key}=${proxyUrl}`)
+      }
+      proxyEnv.push('--env', 'NO_PROXY=localhost,127.0.0.1')
+    } else {
+      network = process.env.AGENT_SANDBOX_NETWORK ?? 'none'
+      if (network !== 'none' && network !== 'bridge') {
+        throw new Error('AGENT_SANDBOX_NETWORK must be "none" or "bridge"')
+      }
     }
 
     await runDocker([
@@ -175,9 +258,10 @@ class SandboxManager {
       '--label',
       'com.ahrness.managed=true',
       '--label',
-      `com.ahrness.version=${SANDBOX_VERSION}`,
+      `com.ahrness.version=${sandboxVersion()}`,
       '--network',
       network,
+      ...proxyEnv,
       '--read-only',
       '--cap-drop',
       'ALL',

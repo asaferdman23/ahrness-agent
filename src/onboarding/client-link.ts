@@ -3,9 +3,9 @@
  *
  * The agent sends each un-onboarded client a personalised onboarding link that
  * carries their WhatsApp JID, HMAC-signed so it can't be tampered with or guessed.
- * The onboarding session adopts `clientIdFromJid(jid)` from it, so everything saved
- * during onboarding (profile, role, automations, connections) lands under the same
- * key the runtime reads — closing the gap between web setup and the live agent.
+ * For authenticated onboarding, the session keeps the signed-in tenant id and
+ * links the WhatsApp JID to it. Legacy unauthenticated links can still fall back
+ * to `clientIdFromJid(jid)` so old local demos keep working.
  */
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import type { OnboardingSession } from '../store/types.js'
@@ -52,12 +52,13 @@ export function verifyClientToken(token: string): string | null {
  * signing secret is configured; otherwise falls back to the plain URL so local
  * demos without secrets still work.
  */
-export function onboardingUrlFor(base: string, jid: string): string {
+export function onboardingUrlFor(base: string, jid: string, platform?: string): string {
   const url = `${base.replace(/\/$/, '')}/onboarding`
+  const suffix = platform ? `&platform=${encodeURIComponent(platform)}` : ''
   try {
-    return `${url}?c=${signClientToken(jid)}`
+    return `${url}?c=${signClientToken(jid)}${suffix}`
   } catch {
-    return url
+    return platform ? `${url}?platform=${encodeURIComponent(platform)}` : url
   }
 }
 

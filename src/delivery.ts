@@ -1,23 +1,17 @@
 /**
  * Shared "run the agent and deliver its output over WhatsApp" path.
  *
- * Used by the inbound message handler (whatsapp.ts) and by the scheduler runner,
- * so a scheduled job produces exactly the same kind of reply + media a live
- * message would.
- *
- * This path is memory-aware: it loads the client's session transcript, seeds the
- * agent with a compacted working view, runs with failover, and persists the new
- * turn — but only after a successful run. See
- * docs/superpowers/specs/2026-06-22-agent-memory-layer-design.md.
+ * Used by the inbound message handler (whatsapp.ts / twilio-whatsapp.ts) and by
+ * the scheduler runner, so a scheduled job produces exactly the same kind of
+ * reply + media a live message would.
  */
-import type { WASocket } from '@whiskeysockets/baileys'
 import {
   buildClientAgent,
   createSummarizer,
   AGENT_MODEL,
-  clientIdFromJid,
   type ClientAgentSession,
 } from './agent.js'
+import { clientIdForJid } from './tenant-store.js'
 import {
   sessionStore,
   runQueue,
@@ -29,6 +23,8 @@ import {
   toSeedMessages,
   extractTurnMessages,
 } from './sessions/index.js'
+import { fileConfirmationStore, resolvePendingApproval } from './confirmations.js'
+import type { WhatsAppTransport } from './whatsapp-transport.js'
 
 export interface DeliverOptions {
   /** Runs after the agent is built but before invocation — e.g. to write an attachment. */
@@ -43,22 +39,28 @@ const FALLBACK_MODEL = process.env.AGENT_FALLBACK_MODEL ?? null
  * to `jid`. Throws on failure so callers can handle it.
  */
 export async function runAndDeliver(
-  socket: WASocket,
+  transport: WhatsAppTransport,
   jid: string,
   prompt: string,
   opts: DeliverOptions = {},
 ): Promise<void> {
-  const clientId = clientIdFromJid(jid)
+  const clientId = await clientIdForJid(jid)
   const key = sessionKeyFor(clientId)
   const store = sessionStore()
   const summarize = createSummarizer()
 
   store.ensureSession(key, { clientId, channel: SESSION_CHANNEL, model: AGENT_MODEL })
 
-  // Serialize per client so two rapid messages can't interleave-corrupt the log.
   await runQueue().enqueue(key, async () => {
-    // Pre-emptive compaction. A guard error means the summary+tail alone are over
-    // budget — proceed anyway; the seed is capped and failover will not loop.
+    // Approve-before-act: a "YES" reply approves a staged action; "NO" cancels it.
+    const confirmStore = fileConfirmationStore()
+    const decision = await resolvePendingApproval({ store: confirmStore, clientId, text: prompt })
+    if (decision?.decision === 'cancelled') {
+      await transport.sendText(jid, decision.reply)
+      return
+    }
+    const effectivePrompt = decision?.decision === 'approved' ? `${decision.nudge}\n\n${prompt}` : prompt
+
     await compactQuietly(key, summarize)
 
     let delivered: ClientAgentSession | null = null
@@ -71,7 +73,7 @@ export async function runAndDeliver(
       buildAndInvoke: async (ctx, model) => {
         const session = await buildClientAgent(jid, toSeedMessages(ctx), model)
         if (opts.prepare) await opts.prepare(session)
-        const invokeResult = await session.agent.invoke(prompt)
+        const invokeResult = await session.agent.invoke(effectivePrompt)
         delivered = session
         return { result: invokeResult, seededMessageCount: session.seededMessageCount }
       },
@@ -79,14 +81,11 @@ export async function runAndDeliver(
 
     const session = delivered!
 
-    // Persist the turn — only now that the run has succeeded. The agent's own
-    // transcript is the canonical source (captures tool calls); fall back to the
-    // result's last message if it isn't exposed.
     store.appendTurn(
       key,
       extractTurnMessages(
         { messages: (session.agent as { messages?: unknown[] }).messages, lastMessage: result.lastMessage },
-        { prompt, priorMessageCount: seededMessageCount },
+        { prompt: effectivePrompt, priorMessageCount: seededMessageCount },
       ),
     )
 
@@ -96,30 +95,23 @@ export async function runAndDeliver(
         .map((b: any) => b.text as string)
         .join('') || '(no response)'
 
-    await socket.sendMessage(jid, { text: reply })
+    await transport.sendText(jid, reply)
 
     for (const output of session.publishedOutputs) {
-      const bytes = await session.readOutput(output)
-      const content = Buffer.from(bytes)
+      const bytes = Buffer.from(await session.readOutput(output))
       if (output.mimeType.startsWith('image/')) {
-        await socket.sendMessage(jid, { image: content, mimetype: output.mimeType, caption: output.caption })
+        await transport.sendImage(jid, bytes, output.mimeType, output.caption)
       } else if (output.mimeType.startsWith('video/')) {
-        await socket.sendMessage(jid, { video: content, mimetype: output.mimeType, caption: output.caption })
+        await transport.sendVideo(jid, bytes, output.mimeType, output.caption)
       } else if (output.mimeType.startsWith('audio/')) {
-        await socket.sendMessage(jid, { audio: content, mimetype: output.mimeType })
+        await transport.sendAudio(jid, bytes, output.mimeType)
       } else {
-        await socket.sendMessage(jid, {
-          document: content,
-          mimetype: output.mimeType,
-          fileName: output.fileName,
-          ...(output.caption ? { caption: output.caption } : {}),
-        })
+        await transport.sendDocument(jid, bytes, output.mimeType, output.fileName, output.caption)
       }
     }
   })
 }
 
-/** Compact if needed, swallowing the post-compaction guard (caller proceeds). */
 async function compactQuietly(
   key: string,
   summarize: ReturnType<typeof createSummarizer>,

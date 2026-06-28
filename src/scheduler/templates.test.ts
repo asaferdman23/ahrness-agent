@@ -31,3 +31,11 @@ test('all template ids remain unique after adding it', () => {
   const ids = SCHEDULER_TEMPLATES.map((t) => t.id)
   assert.equal(new Set(ids).size, ids.length)
 })
+
+test('GTM Operator has startup-focused recurring templates', () => {
+  const templates = getTemplatesForRole('gtm-operator')
+  assert.ok(templates.some((t) => t.id === 'gtm-monday-plan'))
+  assert.ok(templates.some((t) => t.id === 'gtm-midweek-replies'))
+  assert.ok(templates.some((t) => t.id === 'gtm-friday-review'))
+  assert.ok(templates.every((t) => isValidCron(t.cron)), 'all GTM template crons should be valid')
+})

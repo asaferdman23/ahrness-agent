@@ -2,6 +2,7 @@ import { McpClient } from '@strands-agents/sdk'
 import { tool } from '@strands-agents/sdk'
 import type { McpDefinition } from './types.js'
 import type { ConnectionRecord } from '../store/types.js'
+import { stageOrExecute, fileConfirmationStore } from '../confirmations.js'
 
 const GRAPH_BASE = 'https://graph.instagram.com/v21.0'
 
@@ -31,7 +32,7 @@ export const instagramGraphMcp: McpDefinition = {
   roles: ['marketing-manager', 'creative-director', 'social-media-manager'],
 }
 
-export function createInstagramTools(credentials: ConnectionRecord) {
+export function createInstagramTools(credentials: ConnectionRecord, clientId?: string) {
   if (!credentials.accessToken) return []
   const token = credentials.accessToken
   const userId = credentials.userId
@@ -109,28 +110,41 @@ export function createInstagramTools(credentials: ConnectionRecord) {
       },
       callback: async (rawInput: unknown) => {
         const input = rawInput as { imageUrl: string; caption: string }
-        const id = userId ?? 'me'
-        // Step 1: create container
-        const containerUrl = new URL(`${GRAPH_BASE}/${id}/media`)
-        containerUrl.searchParams.set('access_token', token)
-        const containerRes = await fetch(containerUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image_url: input.imageUrl, caption: input.caption }),
-          signal: AbortSignal.timeout(30_000),
-        })
-        const container = (await containerRes.json()) as { id?: string; error?: unknown }
-        if (!containerRes.ok || !container.id) throw new Error(`Failed to create media container: ${JSON.stringify(container)}`)
-        // Step 2: publish
-        const publishUrl = new URL(`${GRAPH_BASE}/${id}/media_publish`)
-        publishUrl.searchParams.set('access_token', token)
-        const publishRes = await fetch(publishUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ creation_id: container.id }),
-          signal: AbortSignal.timeout(30_000),
-        })
-        return publishRes.json()
+        const doPost = async () => {
+          const id = userId ?? 'me'
+          // Step 1: create container
+          const containerUrl = new URL(`${GRAPH_BASE}/${id}/media`)
+          containerUrl.searchParams.set('access_token', token)
+          const containerRes = await fetch(containerUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image_url: input.imageUrl, caption: input.caption }),
+            signal: AbortSignal.timeout(30_000),
+          })
+          const container = (await containerRes.json()) as { id?: string; error?: unknown }
+          if (!containerRes.ok || !container.id) throw new Error(`Failed to create media container: ${JSON.stringify(container)}`)
+          // Step 2: publish
+          const publishUrl = new URL(`${GRAPH_BASE}/${id}/media_publish`)
+          publishUrl.searchParams.set('access_token', token)
+          const publishRes = await fetch(publishUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ creation_id: container.id }),
+            signal: AbortSignal.timeout(30_000),
+          })
+          return publishRes.json()
+        }
+        if (!clientId) return doPost()
+        return stageOrExecute(
+          {
+            store: fileConfirmationStore(),
+            clientId,
+            toolName: 'instagram_create_post',
+            input: rawInput,
+            summarize: () => `publish a post to Instagram${input?.caption ? `: "${input.caption.slice(0, 80)}"` : ''}`,
+          },
+          doPost,
+        )
       },
     }),
   ]

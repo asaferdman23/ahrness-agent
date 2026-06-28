@@ -4,7 +4,7 @@ import { parse as parseQs } from 'node:querystring'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import QRCode from 'qrcode'
-import { getOrCreateSession, loadSession, saveSession } from './session.js'
+import { ensureWhatsAppConnectCode, getOrCreateSession, loadSession, saveSession } from './session.js'
 import { getAllRoles } from '../roles/index.js'
 import { getAllMcps } from '../mcps/index.js'
 import { oauthStateFor, verifyClientToken } from './client-link.js'
@@ -15,17 +15,29 @@ import {
   getRole as getClientRole,
   upsertConnection,
   clientIdFromJid,
+  updateClientMeta,
 } from '../store/client-store.js'
 import type { ClientProfile, GoalType, PlatformId, RoleId, OnboardingSession } from '../store/types.js'
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { isTwilioProvider, twilioBusinessNumberDigits } from '../twilio-whatsapp.js'
+import { clientIdForJid } from '../tenant-store.js'
+import {
+  defaultWhatsAppProvider,
+  configuredWhatsAppProviders,
+  isBaileysProvider,
+  isWhatsAppProvider,
+  type WhatsAppProvider,
+} from '../whatsapp-providers.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const VIEWS_DIR = path.join(__dirname, 'views')
+const FRONTEND_DIST_DIR = path.resolve('dist/onboarding')
 
 // SSE clients waiting for QR updates
 const qrSseClients = new Map<string, ServerResponse>()
 // QR data per session
 const qrData = new Map<string, string>()
+let latestQrDataUri: string | null = null
 // Sessions that have completed WhatsApp linking
 const linkedSessions = new Set<string>()
 
@@ -34,17 +46,32 @@ const linkedSessions = new Set<string>()
 export async function broadcastQr(sessionId: string, qrText: string): Promise<void> {
   // Encode the raw Baileys QR string into a scannable PNG data URI.
   // 464px source renders crisply at the 232px display size on retina screens.
-  let dataUri: string
-  try {
-    dataUri = await QRCode.toDataURL(qrText, { margin: 1, width: 464, errorCorrectionLevel: 'M' })
-  } catch (err) {
-    console.error('[onboarding] QR encode failed:', err)
-    return
-  }
+  const dataUri = await qrDataUri(qrText)
+  if (!dataUri) return
+  latestQrDataUri = dataUri
   qrData.set(sessionId, dataUri)
   const client = qrSseClients.get(sessionId)
   if (client && !client.destroyed) {
     client.write(`data: ${JSON.stringify({ type: 'qr', qr: dataUri })}\n\n`)
+  }
+}
+
+export async function broadcastQrToAll(qrText: string): Promise<void> {
+  const dataUri = await qrDataUri(qrText)
+  if (!dataUri) return
+  latestQrDataUri = dataUri
+  for (const [sessionId, client] of qrSseClients.entries()) {
+    qrData.set(sessionId, dataUri)
+    if (!client.destroyed) client.write(`data: ${JSON.stringify({ type: 'qr', qr: dataUri })}\n\n`)
+  }
+}
+
+async function qrDataUri(qrText: string): Promise<string | null> {
+  try {
+    return await QRCode.toDataURL(qrText, { margin: 1, width: 464, errorCorrectionLevel: 'M' })
+  } catch (err) {
+    console.error('[onboarding] QR encode failed:', err)
+    return null
   }
 }
 
@@ -58,11 +85,22 @@ export function broadcastLinked(jid: string, sessionId: string): void {
   }
 }
 
+export function broadcastLinkedToAll(jid: string): void {
+  for (const [sessionId, client] of qrSseClients.entries()) {
+    linkedSessions.add(sessionId)
+    if (!client.destroyed) {
+      client.write(`data: ${JSON.stringify({ type: 'linked', jid })}\n\n`)
+      client.end()
+    }
+  }
+  qrSseClients.clear()
+}
+
 // ── HTML rendering ─────────────────────────────────────────────────────────────
 
 async function layout(title: string, content: string): Promise<string> {
   const template = await readFile(path.join(VIEWS_DIR, 'layout.html'), 'utf-8')
-  const agentName = process.env.AGENT_NAME ?? 'Ahrness'
+  const agentName = process.env.AGENT_NAME ?? 'BizzClaw'
   return template
     .replace(/{{TITLE}}/g, title)
     .replace(/{{AGENT_NAME}}/g, agentName)
@@ -101,6 +139,10 @@ function redirect(res: ServerResponse, url: string): void {
   res.end()
 }
 
+function notFound(res: ServerResponse): void {
+  res.writeHead(404).end('Not found')
+}
+
 // ── Body parsing ───────────────────────────────────────────────────────────────
 
 function parseBody(req: IncomingMessage): Promise<Record<string, string | string[]>> {
@@ -111,6 +153,25 @@ function parseBody(req: IncomingMessage): Promise<Record<string, string | string
   })
 }
 
+function parseJsonBody(req: IncomingMessage): Promise<Record<string, unknown>> {
+  return new Promise((resolve, reject) => {
+    let body = ''
+    req.on('data', (chunk: Buffer) => { body += chunk.toString() })
+    req.on('end', () => {
+      if (!body.trim()) {
+        resolve({})
+        return
+      }
+      try {
+        resolve(JSON.parse(body) as Record<string, unknown>)
+      } catch (err) {
+        reject(err)
+      }
+    })
+    req.on('error', reject)
+  })
+}
+
 function str(v: string | string[] | undefined): string {
   return Array.isArray(v) ? v[0] ?? '' : v ?? ''
 }
@@ -118,6 +179,15 @@ function str(v: string | string[] | undefined): string {
 function arr(v: string | string[] | undefined): string[] {
   if (!v) return []
   return Array.isArray(v) ? v : [v]
+}
+
+function jsonString(v: unknown): string {
+  return typeof v === 'string' ? v : ''
+}
+
+function jsonStringArray(v: unknown): string[] {
+  if (!Array.isArray(v)) return []
+  return v.filter((item): item is string => typeof item === 'string')
 }
 
 // ── Session cookie helper ──────────────────────────────────────────────────────
@@ -137,61 +207,46 @@ function setSessionCookie(res: ServerResponse, sessionId: string): void {
 async function renderStep1(_session: OnboardingSession): Promise<string> {
   const s = _session
   const biz = (s.profile as ClientProfile | undefined)?.business
+  const assets = (s.profile as ClientProfile | undefined)?.assets
   return layout('Business Profile', `
     ${stepDots(1)}
     <div class="card">
       ${eyebrow(1, 'Business Profile')}
-      <h1>Tell us about your business</h1>
-      <p class="subtitle">Your agent uses this to give advice grounded in your business — not generic answers.</p>
+      <h1>Give BizzClaw a little context</h1>
+      <p class="subtitle">A few words and public links are enough. Your agent will use them to understand your business, audience, and content style.</p>
       <form method="POST" action="/onboarding/step/1">
-        <div class="field-row">
-          <div class="field">
-            <label for="name">Business Name *</label>
-            <input type="text" id="name" name="name" required value="${biz?.name ?? ''}" placeholder="Bloom Skincare" />
+        <div class="field">
+          <label for="name">Business or project name</label>
+          <input type="text" id="name" name="name" value="${biz?.name ?? ''}" placeholder="BizzClaw" />
+        </div>
+        <input type="hidden" name="industry" value="${biz?.industry ?? 'other'}" />
+        <div class="field">
+          <label for="description">What should your agent know?</label>
+          <textarea id="description" name="description" required placeholder="We help small business owners get more customers from WhatsApp, ads, and social content. Our audience is non-technical founders who want an AI employee.">${biz?.description ?? ''}</textarea>
+        </div>
+        <div class="field">
+          <label for="targetAudience">Audience or content area</label>
+          <input type="text" id="targetAudience" name="targetAudience" value="${biz?.targetAudience ?? ''}" placeholder="Startup founders, local business owners, agency clients" />
+        </div>
+        <div class="field">
+          <label>Public links the agent can learn from</label>
+          <div class="field-row">
+            <div class="field">
+              <label for="website">Website</label>
+              <input type="url" id="website" name="website" value="${assets?.website ?? ''}" placeholder="https://yoursite.com" />
+            </div>
+            <div class="field">
+              <label for="instagram">Instagram</label>
+              <input type="text" id="instagram" name="instagram" value="${assets?.instagram?.handle ?? ''}" placeholder="@yourhandle" />
+            </div>
           </div>
           <div class="field">
-            <label for="industry">Industry *</label>
-            <select id="industry" name="industry" required>
-              ${['e-commerce','SaaS','local business','agency','real estate','health & wellness','education','finance','food & beverage','fashion','tech','other']
-                .map((i) => `<option value="${i}" ${biz?.industry === i ? 'selected' : ''}>${i}</option>`)
-                .join('')}
-            </select>
+            <label for="tiktok">TikTok</label>
+            <input type="text" id="tiktok" name="tiktok" value="${assets?.tiktok?.handle ?? ''}" placeholder="@yourhandle" />
           </div>
         </div>
-        <div class="field">
-          <label for="description">What do you sell / do?</label>
-          <textarea id="description" name="description" placeholder="Natural skincare products for women 25-45">${biz?.description ?? ''}</textarea>
-        </div>
-        <div class="field">
-          <label for="targetAudience">Target Audience</label>
-          <input type="text" id="targetAudience" name="targetAudience" value="${biz?.targetAudience ?? ''}" placeholder="Women 25-45, health-conscious, mid-high income" />
-        </div>
-        <div class="field">
-          <label for="brandVoice">Brand Voice</label>
-          <input type="text" id="brandVoice" name="brandVoice" value="${biz?.brandVoice ?? ''}" placeholder="Warm, trustworthy, educational. Never pushy." />
-        </div>
-        <div class="field">
-          <label>Goals (pick all that apply)</label>
-          <div class="checkbox-group">
-            ${(['generate_leads','increase_roas','grow_instagram','grow_tiktok','increase_sales','brand_awareness'] as GoalType[])
-              .map((g) => `<label class="checkbox-label"><input type="checkbox" name="goals" value="${g}" ${(biz?.goals ?? []).includes(g) ? 'checked' : ''} />${g.replace(/_/g, ' ')}</label>`)
-              .join('')}
-          </div>
-        </div>
-        <div class="field">
-          <label for="website">Website URL</label>
-          <input type="url" id="website" name="website" value="${(s.profile as ClientProfile | undefined)?.assets?.website ?? ''}" placeholder="https://yoursite.com" />
-        </div>
-        <div class="field-row">
-          <div class="field">
-            <label for="instagram">Instagram Handle</label>
-            <input type="text" id="instagram" name="instagram" value="${(s.profile as ClientProfile | undefined)?.assets?.instagram?.handle ?? ''}" placeholder="@yourhandle" />
-          </div>
-          <div class="field">
-            <label for="tiktok">TikTok Handle</label>
-            <input type="text" id="tiktok" name="tiktok" value="${(s.profile as ClientProfile | undefined)?.assets?.tiktok?.handle ?? ''}" placeholder="@yourhandle" />
-          </div>
-        </div>
+        <input type="hidden" name="brandVoice" value="${biz?.brandVoice ?? ''}" />
+        <input type="hidden" name="goals" value="${biz?.goals?.[0] ?? 'brand_awareness'}" />
         <div class="actions">
           <span></span>
           <button type="submit" class="btn btn-primary">Continue →</button>
@@ -375,17 +430,111 @@ function redirect_str(url: string): string {
 }
 
 async function renderStep5(session: OnboardingSession): Promise<string> {
+  const providers = configuredWhatsAppProviders()
+  const selectedProvider = session.whatsappProvider ?? defaultWhatsAppProvider()
+  const providerPicker = providers.length > 1 ? `
+    <form method="POST" action="/onboarding/step/5" class="provider-picker">
+      <div class="role-cards">
+        <label class="role-card">
+          <input type="radio" name="whatsappProvider" value="twilio" ${selectedProvider === 'twilio' ? 'checked' : ''} />
+          <span class="role-mono" aria-hidden="true">✓</span>
+          <div class="role-info">
+            <div class="role-top">
+              <h3>Verified API</h3>
+              <span class="role-tag">Twilio</span>
+            </div>
+            <p>Use the WhatsApp Business API through our verified Twilio number.</p>
+          </div>
+        </label>
+        <label class="role-card">
+          <input type="radio" name="whatsappProvider" value="baileys" ${selectedProvider === 'baileys' ? 'checked' : ''} />
+          <span class="role-mono" aria-hidden="true">⌁</span>
+          <div class="role-info">
+            <div class="role-top">
+              <h3>Linked device</h3>
+              <span class="role-tag">Baileys</span>
+            </div>
+            <p>Connect a WhatsApp account as a linked device for development or private deployments.</p>
+          </div>
+        </label>
+      </div>
+      <div class="actions provider-actions">
+        <span></span>
+        <button type="submit" class="btn btn-secondary">Use selected method</button>
+      </div>
+    </form>
+  ` : ''
+
+  if (selectedProvider === 'twilio' && isTwilioProvider()) {
+    const digits = twilioBusinessNumberDigits()
+    const code = session.whatsappJid ? null : await ensureWhatsAppConnectCode(session)
+    const text = code ? `connect ${code}` : 'Hi'
+    const waLink = digits ? `https://wa.me/${digits}?text=${encodeURIComponent(text)}` : '#'
+    return layout('Connect on WhatsApp', `
+      ${stepDots(5)}
+      <div class="card">
+        ${eyebrow(5, 'WhatsApp')}
+        <h1>Choose how WhatsApp connects</h1>
+        <p class="subtitle">Use the verified WhatsApp Business API, or switch to a linked-device setup when this deployment enables it.</p>
+        ${providerPicker}
+        <div class="connect-panel">
+          <h2>Verified API via Twilio</h2>
+          <p class="subtitle">Your agent runs on our WhatsApp Business number: <strong>+${digits || 'not configured'}</strong>.</p>
+        ${digits ? `
+          <a href="${waLink}" class="whatsapp-cta" style="justify-content:center;margin:1.5rem 0;">
+            <span aria-hidden="true">↗</span>
+            <span>Open WhatsApp</span>
+          </a>
+          ${code ? `
+            <p class="qr-hint">Send this prefilled message to link setup: <strong>${code}</strong></p>
+            <p class="qr-hint" id="linkStatus">Waiting for your WhatsApp message…</p>
+          ` : '<p class="qr-hint">You opened setup from WhatsApp, so this session is already linked.</p>'}
+        ` : '<p class="qr-hint">TWILIO_WHATSAPP_NUMBER is not configured on the server.</p>'}
+        </div>
+        <div class="actions" style="margin-top:1.5rem;justify-content:center;">
+          <a href="/onboarding/step/4" class="btn btn-secondary">← Back</a>
+          <a href="/onboarding/step/6" class="btn btn-primary">Continue →</a>
+        </div>
+      </div>
+      ${code ? `
+      <script>
+        const pollLink = () => fetch('/onboarding/status?session=${session.sessionId}')
+          .then(r => r.json())
+          .then(data => {
+            if (data.whatsappLinked) {
+              const el = document.getElementById('linkStatus')
+              if (el) el.textContent = 'Connected. Redirecting…'
+              setTimeout(() => { location.href = '/onboarding/step/6' }, 800)
+            }
+          })
+          .catch(() => {})
+        setInterval(pollLink, 2500)
+      </script>` : ''}
+    `)
+  }
+
+  if (selectedProvider === 'baileys' && !isBaileysProvider()) {
+    session.whatsappProvider = 'twilio'
+    await saveSession(session)
+    return redirect_str('/onboarding/step/5')
+  }
+
   return layout('Link WhatsApp', `
     ${stepDots(5)}
     <div class="card">
       ${eyebrow(5, 'Link WhatsApp')}
-      <h1>Scan to go live</h1>
-      <p class="subtitle">On your phone, open WhatsApp → tap ⋮ → Linked Devices → Link a Device → scan this code.</p>
+      <h1>Choose how WhatsApp connects</h1>
+      <p class="subtitle">Scan the linked-device QR code, or switch to the verified API when this deployment enables it.</p>
+      ${providerPicker}
+      <div class="connect-panel">
+      <h2>Linked device via Baileys</h2>
+      <p class="subtitle">On your phone, open WhatsApp → Linked Devices → Link a Device → scan this code.</p>
       <div class="qr-box">
         <div id="qrDisplay">
           <div class="spinner" id="qrSpinner"></div>
         </div>
         <p class="qr-hint" id="qrHint">Waiting for QR code…</p>
+      </div>
       </div>
       <div class="actions" style="margin-top:1.5rem;">
         <a href="/onboarding/step/4" class="btn btn-secondary">← Back</a>
@@ -425,7 +574,9 @@ async function renderStep6(session: OnboardingSession): Promise<string> {
     .filter(([, s]) => s === 'connected')
     .map(([id]) => getAllMcps().find((m) => m.id === id)?.displayName ?? id)
 
-  const waNumber = process.env.WHATSAPP_NUMBER ?? ''
+  const waNumber = isTwilioProvider()
+    ? twilioBusinessNumberDigits()
+    : (process.env.WHATSAPP_NUMBER ?? process.env.WHATSAPP_PHONE_NUMBER ?? '')
   const waLink = waNumber ? `https://wa.me/${waNumber.replace(/\D/g, '')}` : '#'
 
   return layout('You\'re All Set!', `
@@ -450,6 +601,200 @@ async function renderStep6(session: OnboardingSession): Promise<string> {
   `)
 }
 
+// ── Vite frontend + JSON API ─────────────────────────────────────────────────
+
+function mimeTypeFor(filePath: string): string {
+  if (filePath.endsWith('.html')) return 'text/html; charset=utf-8'
+  if (filePath.endsWith('.js')) return 'text/javascript; charset=utf-8'
+  if (filePath.endsWith('.css')) return 'text/css; charset=utf-8'
+  if (filePath.endsWith('.svg')) return 'image/svg+xml'
+  if (filePath.endsWith('.png')) return 'image/png'
+  if (filePath.endsWith('.ico')) return 'image/x-icon'
+  if (filePath.endsWith('.json')) return 'application/json'
+  return 'application/octet-stream'
+}
+
+async function serveOnboardingFrontend(pathname: string, res: ServerResponse): Promise<void> {
+  const relative = pathname.startsWith('/onboarding/assets/')
+    ? pathname.replace('/onboarding/', '')
+    : 'index.html'
+  const filePath = path.resolve(FRONTEND_DIST_DIR, relative)
+  if (!filePath.startsWith(FRONTEND_DIST_DIR)) {
+    res.writeHead(403).end('Forbidden')
+    return
+  }
+  try {
+    const body = await readFile(filePath)
+    res.writeHead(200, {
+      'Content-Type': mimeTypeFor(filePath),
+      'Cache-Control': relative === 'index.html' ? 'no-cache' : 'public, max-age=31536000, immutable',
+    })
+    res.end(body)
+  } catch {
+    const devUrl = process.env.ONBOARDING_VITE_DEV_URL ?? 'http://localhost:5173/onboarding'
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }).end(
+      '<html><body style="font-family:sans-serif;padding:40px;line-height:1.5">' +
+        '<h1>Onboarding frontend is not built</h1>' +
+        '<p>Run <code>npm run dev:frontend</code> for Vite dev, or <code>npm run build:frontend</code> before serving from this process.</p>' +
+        `<p><a href="${devUrl}">Open Vite frontend</a></p>` +
+      '</body></html>',
+    )
+  }
+}
+
+function rolePayload(session: OnboardingSession): Record<string, unknown>[] {
+  const mcpName = new Map(getAllMcps().map((m) => [m.id, m.displayName]))
+  return getAllRoles().map((r) => ({
+    id: r.id,
+    displayName: r.displayName,
+    description: r.description,
+    emoji: r.emoji,
+    requiredMcps: r.requiredMcps,
+    optionalMcps: r.optionalMcps,
+    selected: session.roleId === r.id,
+    tools: [
+      ...r.requiredMcps.map((id) => ({ id, displayName: mcpName.get(id) ?? id, required: true })),
+      ...r.optionalMcps.map((id) => ({ id, displayName: mcpName.get(id) ?? id, required: false })),
+    ],
+  }))
+}
+
+async function onboardingBootstrap(session: OnboardingSession): Promise<Record<string, unknown>> {
+  const role = getAllRoles().find((r) => r.id === session.roleId)
+  const callbackBase = process.env.CALLBACK_BASE_URL ?? 'http://localhost:3000'
+  const oauthState = oauthStateFor(session)
+  const mcps = getAllMcps()
+  const relevantPlatforms = role
+    ? mcps.filter((p) => role.requiredMcps.includes(p.id) || role.optionalMcps.includes(p.id))
+    : []
+  const providers = configuredWhatsAppProviders()
+  const selectedProvider = session.whatsappProvider ?? defaultWhatsAppProvider()
+  const twilioDigits = twilioBusinessNumberDigits()
+  const connectCode = selectedProvider === 'twilio' && isTwilioProvider() && !session.whatsappJid
+    ? await ensureWhatsAppConnectCode(session)
+    : null
+  const twilioText = connectCode ? `connect ${connectCode}` : 'Hi'
+
+  return {
+    agentName: process.env.AGENT_NAME ?? 'BizzClaw',
+    session: {
+      sessionId: session.sessionId,
+      step: session.step,
+      clientId: session.clientId ?? null,
+      whatsappJid: session.whatsappJid ?? null,
+      whatsappLinked: session.whatsappLinked,
+      whatsappProvider: selectedProvider,
+      profile: session.profile ?? null,
+      roleId: session.roleId ?? null,
+      connections: session.connections,
+    },
+    roles: rolePayload(session),
+    templates: session.roleId ? getTemplatesForRole(session.roleId) : [],
+    platforms: relevantPlatforms.map((p) => {
+      const status = session.connections[p.id] ?? 'pending'
+      const required = role?.requiredMcps.includes(p.id) ?? false
+      return {
+        id: p.id,
+        displayName: p.displayName,
+        scopes: p.scopes,
+        required,
+        status,
+        authUrl: p.oauthFlow !== 'none' && p.authUrl ? p.authUrl(oauthState, callbackBase) : null,
+      }
+    }),
+    whatsapp: {
+      providers,
+      selectedProvider,
+      twilio: {
+        enabled: isTwilioProvider(),
+        digits: twilioDigits,
+        connectCode,
+        waLink: twilioDigits ? `https://wa.me/${twilioDigits}?text=${encodeURIComponent(twilioText)}` : null,
+      },
+      baileys: {
+        enabled: isBaileysProvider(),
+        latestQr: latestQrDataUri,
+      },
+    },
+  }
+}
+
+async function saveProfileFromJson(session: OnboardingSession, body: Record<string, unknown>): Promise<void> {
+  const clientId = session.clientId ?? session.sessionId
+  const instagramHandle = jsonString(body.instagram)
+  const tiktokHandle = jsonString(body.tiktok)
+  const description = jsonString(body.description)
+  const fallbackName = description.split(/[.\n]/)[0]?.slice(0, 64).trim()
+  const goals = jsonStringArray(body.goals) as GoalType[]
+  const profile: ClientProfile = {
+    clientId,
+    whatsappJid: session.whatsappJid ?? '',
+    createdAt: session.createdAt,
+    business: {
+      name: jsonString(body.name) || fallbackName || 'My business',
+      industry: jsonString(body.industry) || 'other',
+      description,
+      goals: goals.length ? goals : ['brand_awareness', 'generate_leads'],
+      targetAudience: jsonString(body.targetAudience),
+      brandVoice: jsonString(body.brandVoice),
+      brandColors: [],
+    },
+    assets: {
+      website: jsonString(body.website) || undefined,
+      instagram: instagramHandle
+        ? { handle: instagramHandle, profileUrl: `https://instagram.com/${instagramHandle.replace('@', '')}` }
+        : undefined,
+      tiktok: tiktokHandle
+        ? { handle: tiktokHandle, profileUrl: `https://tiktok.com/@${tiktokHandle.replace('@', '')}` }
+        : undefined,
+    },
+  }
+  await saveProfile(profile)
+  session.profile = profile
+  session.step = Math.max(session.step, 2)
+  await saveSession(session)
+}
+
+async function saveRoleFromJson(session: OnboardingSession, body: Record<string, unknown>): Promise<void> {
+  const roleId = jsonString(body.roleId) as RoleId
+  if (!getAllRoles().some((role) => role.id === roleId)) throw new Error('Unsupported role')
+  const clientId = session.clientId ?? session.sessionId
+  await saveRole(clientId, {
+    roleId,
+    assignedAt: new Date().toISOString(),
+    skillOverrides: { disabled: [], extra: [] },
+    mcpOverrides: { disabled: [], extra: [] },
+  })
+  session.roleId = roleId
+  session.step = Math.max(session.step, 3)
+  await saveSession(session)
+}
+
+async function saveAutomationsFromJson(session: OnboardingSession, body: Record<string, unknown>): Promise<void> {
+  const clientId = session.clientId ?? session.sessionId
+  const validIds = new Set((session.roleId ? getTemplatesForRole(session.roleId) : []).map((t) => t.id))
+  const chosen = jsonStringArray(body.templates).filter((id) => validIds.has(id))
+  const existing = await getClientRole(clientId)
+  await saveRole(clientId, {
+    roleId: existing?.roleId ?? (session.roleId as RoleId),
+    assignedAt: existing?.assignedAt ?? new Date().toISOString(),
+    skillOverrides: existing?.skillOverrides ?? { disabled: [], extra: [] },
+    mcpOverrides: existing?.mcpOverrides ?? { disabled: [], extra: [] },
+    scheduleTemplates: chosen,
+  })
+  session.step = Math.max(session.step, 4)
+  await saveSession(session)
+}
+
+async function saveProviderFromJson(session: OnboardingSession, body: Record<string, unknown>): Promise<void> {
+  const provider = jsonString(body.whatsappProvider)
+  if (!isWhatsAppProvider(provider) || !configuredWhatsAppProviders().includes(provider)) throw new Error('Unsupported provider')
+  session.whatsappProvider = provider as WhatsAppProvider
+  session.step = Math.max(session.step, 5)
+  if (session.clientId) await updateClientMeta(session.clientId, { whatsappProvider: provider as WhatsAppProvider })
+  await saveSession(session)
+}
+
 // ── Route handler ─────────────────────────────────────────────────────────────
 
 export type OnboardingHandler = (req: IncomingMessage, res: ServerResponse) => Promise<void>
@@ -464,6 +809,14 @@ export function createOnboardingHandler(): OnboardingHandler {
       setSessionCookie(res, session.sessionId)
     }
 
+    // ── If the request came through the auth middleware, use tenantId as clientId
+    const tenantId = (req as any).__tenantId as string | undefined
+    let sessionChanged = false
+    if (tenantId && !session.clientId) {
+      session.clientId = tenantId
+      sessionChanged = true
+    }
+
     // ── Adopt the signed client link (?c=) so onboarding writes under the ──────
     //    runtime key (sha256 of the JID) instead of the random session id.
     const linkToken = typeof query.c === 'string' ? query.c : undefined
@@ -472,8 +825,64 @@ export function createOnboardingHandler(): OnboardingHandler {
       if (jid) {
         session.clientId = clientIdFromJid(jid)
         session.whatsappJid = jid
-        await saveSession(session)
+        sessionChanged = true
       }
+    }
+    const requestedProvider = typeof query.platform === 'string' && isWhatsAppProvider(query.platform)
+      ? query.platform
+      : undefined
+    if (requestedProvider && configuredWhatsAppProviders().includes(requestedProvider) && session.whatsappProvider !== requestedProvider) {
+      session.whatsappProvider = requestedProvider
+      sessionChanged = true
+    }
+    if (sessionChanged) await saveSession(session)
+
+    // ── Vite SPA + JSON API ─────────────────────────────────────────────────
+    if (pathname?.startsWith('/api/onboarding')) {
+      try {
+        if (req.method === 'GET' && pathname === '/api/onboarding/bootstrap') {
+          return json(res, await onboardingBootstrap(session))
+        }
+        if (req.method === 'GET' && pathname === '/api/onboarding/status') {
+          const fresh = await loadSession(session.sessionId)
+          return json(res, {
+            step: fresh?.step ?? session.step,
+            connections: fresh?.connections ?? session.connections,
+            whatsappLinked: fresh?.whatsappLinked ?? session.whatsappLinked,
+            whatsappProvider: fresh?.whatsappProvider ?? session.whatsappProvider ?? defaultWhatsAppProvider(),
+          })
+        }
+        if (req.method === 'POST' && pathname === '/api/onboarding/profile') {
+          await saveProfileFromJson(session, await parseJsonBody(req))
+          return json(res, await onboardingBootstrap(session))
+        }
+        if (req.method === 'POST' && pathname === '/api/onboarding/role') {
+          await saveRoleFromJson(session, await parseJsonBody(req))
+          return json(res, await onboardingBootstrap(session))
+        }
+        if (req.method === 'POST' && pathname === '/api/onboarding/automations') {
+          await saveAutomationsFromJson(session, await parseJsonBody(req))
+          return json(res, await onboardingBootstrap(session))
+        }
+        if (req.method === 'POST' && pathname === '/api/onboarding/whatsapp-provider') {
+          await saveProviderFromJson(session, await parseJsonBody(req))
+          return json(res, await onboardingBootstrap(session))
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown onboarding API error'
+        return json(res, { error: message }, 400)
+      }
+      return notFound(res)
+    }
+
+    if (req.method === 'GET' && pathname?.startsWith('/onboarding/assets/')) {
+      await serveOnboardingFrontend(pathname, res)
+      return
+    }
+
+    if (req.method === 'GET' && (pathname === '/onboarding' || pathname?.startsWith('/onboarding/step/'))) {
+      await serveOnboardingFrontend(pathname, res)
+      return
     }
 
     // ── GET /onboarding ──────────────────────────────────────────────────────
@@ -501,15 +910,18 @@ export function createOnboardingHandler(): OnboardingHandler {
       const clientId = session.clientId ?? session.sessionId
       const instagramHandle = str(body.instagram)
       const tiktokHandle = str(body.tiktok)
+      const description = str(body.description)
+      const fallbackName = description.split(/[.\n]/)[0]?.slice(0, 64).trim()
+      const goals = arr(body.goals) as GoalType[]
       const profile: ClientProfile = {
         clientId,
         whatsappJid: session.whatsappJid ?? '',
         createdAt: session.createdAt,
         business: {
-          name: str(body.name),
-          industry: str(body.industry),
-          description: str(body.description),
-          goals: arr(body.goals) as GoalType[],
+          name: str(body.name) || fallbackName || 'My business',
+          industry: str(body.industry) || 'other',
+          description,
+          goals: goals.length ? goals : ['brand_awareness', 'generate_leads'],
           targetAudience: str(body.targetAudience),
           brandVoice: str(body.brandVoice),
           brandColors: [],
@@ -569,6 +981,19 @@ export function createOnboardingHandler(): OnboardingHandler {
       return redirect(res, '/onboarding/step/4')
     }
 
+    // ── POST /onboarding/step/5 — WhatsApp transport preference ─────────────
+    if (req.method === 'POST' && pathname === '/onboarding/step/5') {
+      const body = await parseBody(req)
+      const provider = str(body.whatsappProvider)
+      if (!isWhatsAppProvider(provider) || !configuredWhatsAppProviders().includes(provider)) {
+        return html(res, '<p>Unsupported WhatsApp provider.</p>', 400)
+      }
+      session.whatsappProvider = provider as WhatsAppProvider
+      if (session.clientId) await updateClientMeta(session.clientId, { whatsappProvider: provider as WhatsAppProvider })
+      await saveSession(session)
+      return redirect(res, '/onboarding/step/5')
+    }
+
     // ── GET /onboarding/qr-stream — SSE for QR codes ─────────────────────────
     if (req.method === 'GET' && pathname === '/onboarding/qr-stream') {
       res.writeHead(200, {
@@ -619,7 +1044,7 @@ export function createOnboardingHandler(): OnboardingHandler {
         if (state) {
           const jid = verifyClientToken(state)
           if (jid) {
-            stateClientId = clientIdFromJid(jid)
+            stateClientId = await clientIdForJid(jid)
             if (!session.clientId) {
               session.clientId = stateClientId
               session.whatsappJid = jid

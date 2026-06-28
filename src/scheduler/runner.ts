@@ -5,7 +5,7 @@
  * minute, and runs each one through the shared delivery path so the client
  * receives a proactive WhatsApp message. One-off jobs are deleted after firing.
  */
-import type { WASocket } from '@whiskeysockets/baileys'
+import type { WhatsAppTransport } from '../whatsapp-transport.js'
 import { runAndDeliver } from '../delivery.js'
 import { cronMatches } from './cron.js'
 import { listAllJobs, removeJob, updateJob } from './store.js'
@@ -34,7 +34,7 @@ function isDue(job: ScheduledJob, now: Date): boolean {
   }
 }
 
-export function startScheduler(socket: WASocket): () => void {
+export function startScheduler(transport: WhatsAppTransport): () => void {
   const running = new Set<string>()
 
   const tick = async (): Promise<void> => {
@@ -52,7 +52,7 @@ export function startScheduler(socket: WASocket): () => void {
       if (!isDue(job, now)) continue
       running.add(job.id)
       // Claim the run immediately so a second tick can't double-fire it.
-      void fire(socket, job).finally(() => running.delete(job.id))
+      void fire(transport, job).finally(() => running.delete(job.id))
     }
   }
 
@@ -64,12 +64,12 @@ export function startScheduler(socket: WASocket): () => void {
   return () => clearInterval(timer)
 }
 
-async function fire(socket: WASocket, job: ScheduledJob): Promise<void> {
+async function fire(transport: WhatsAppTransport, job: ScheduledJob): Promise<void> {
   // Mark as run up-front to claim this minute across ticks/restarts.
   await updateJob(job.clientId, job.id, { lastRunAt: new Date().toISOString() })
   console.log(`[scheduler] firing "${job.title}" for ${job.jid}`)
   try {
-    await runAndDeliver(socket, job.jid, job.prompt)
+    await runAndDeliver(transport, job.jid, job.prompt)
     if (job.schedule.kind === 'once') {
       await removeJob(job.clientId, job.id)
     } else {
