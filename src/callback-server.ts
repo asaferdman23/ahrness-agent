@@ -1,12 +1,12 @@
 /**
- * HTTP server for OAuth callbacks, media serving, and web onboarding.
- * All routes are handled in a single server on CALLBACK_PORT (default 3456).
+ * HTTP server for OAuth callbacks, media serving, web onboarding, Twilio webhooks,
+ * and the better-auth Google login / dashboard.
  */
-import { createServer } from 'node:http'
-import type { WASocket } from '@whiskeysockets/baileys'
+import { createServer, type IncomingMessage } from 'node:http'
 import { exchangeCodeForToken, decodeState } from './oauth.js'
 import { saveToken } from './token-store.js'
 import { serveSharedInput } from './input-sharing.js'
+import { serveSharedOutput } from './output-sharing.js'
 import {
   completeHiggsfieldAuthorization,
   isHiggsfieldAuthorized,
@@ -14,28 +14,145 @@ import {
   verifyHiggsfieldSetupSecret,
 } from './higgsfield-auth.js'
 import { createOnboardingHandler } from './onboarding/server.js'
+import { handleTwilioWebhook } from './twilio-whatsapp.js'
+import { isTwilioProvider } from './whatsapp-providers.js'
+import type { WhatsAppTransport } from './whatsapp-transport.js'
+import { auth } from './auth.js'
+import { toNodeHandler, fromNodeHeaders } from 'better-auth/node'
+import { renderLoginPage, renderDashboardPage } from './dashboard.js'
+import { ensureTenant, tenantIdForJid } from './tenant-store.js'
+import { loadSession } from './onboarding/session.js'
+
+const authHandler = toNodeHandler(auth)
 
 const PORT = Number(process.env.CALLBACK_PORT ?? 3456)
 
-export function startCallbackServer(socket: WASocket | null): void {
+function readBody(req: IncomingMessage): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = []
+    req.on('data', (chunk: Buffer) => chunks.push(chunk))
+    req.on('end', () => resolve(Buffer.concat(chunks)))
+    req.on('error', reject)
+  })
+}
+
+function parseFormBody(raw: Buffer): Record<string, string> {
+  const params = new URLSearchParams(raw.toString('utf-8'))
+  const body: Record<string, string> = {}
+  for (const [key, value] of params.entries()) body[key] = value
+  return body
+}
+
+/** Get the better-auth session from an incoming Node request. */
+async function getSession(req: IncomingMessage) {
+  try {
+    return await auth.api.getSession({ headers: fromNodeHeaders(req.headers) })
+  } catch {
+    return null
+  }
+}
+
+export function startCallbackServer(transport: WhatsAppTransport | null): void {
   const onboardingHandler = createOnboardingHandler()
+  const agentName = process.env.AGENT_NAME ?? 'BizzClaw'
 
   const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', `http://localhost:${PORT}`)
 
-    // ── Onboarding + platform OAuth (new) ────────────────────────────────────
-    if (url.pathname.startsWith('/onboarding') || url.pathname.startsWith('/oauth/')) {
+    // ── better-auth routes (/api/auth/*) ─────────────────────────────────────
+    if (url.pathname.startsWith('/api/auth/')) {
+      return authHandler(req, res)
+    }
+
+    // ── Login page ────────────────────────────────────────────────────────────
+    if (url.pathname === '/login' || url.pathname === '/') {
+      const session = await getSession(req)
+      if (session?.user) {
+        res.writeHead(302, { Location: '/dashboard' }).end()
+        return
+      }
+      const error = url.searchParams.get('error') ?? undefined
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+        .end(renderLoginPage(agentName, error))
+      return
+    }
+
+    // ── Dashboard (protected) ─────────────────────────────────────────────────
+    if (url.pathname === '/dashboard') {
+      const session = await getSession(req)
+      if (!session?.user) {
+        res.writeHead(302, { Location: '/login' }).end()
+        return
+      }
+      await ensureTenant(session.user.id)
+
+      // Look up WhatsApp link state from the tenant table + onboarding sessions
+      const jid = await (async () => {
+        // Find the JID linked to this tenant
+        const { db: database } = await import('./db/index.js')
+        const { tenant: tenantTable } = await import('./db/schema.js')
+        const { eq } = await import('drizzle-orm')
+        const row = await database.select().from(tenantTable).where(eq(tenantTable.userId, session.user.id)).get()
+        return row ?? null
+      })()
+
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+        .end(renderDashboardPage(session.user, {
+          whatsappLinked: !!jid?.whatsappJid,
+          whatsappJid: jid?.whatsappJid ?? null,
+          whatsappProvider: jid?.whatsappProvider ?? null,
+          onboardingStep: 1,
+        }))
+      return
+    }
+
+    // ── Twilio WhatsApp webhook ───────────────────────────────────────────────
+    if (req.method === 'POST' && url.pathname === '/webhooks/twilio/whatsapp') {
+      const raw = await readBody(req)
+      const body = parseFormBody(raw)
+      if (transport) {
+        await handleTwilioWebhook(req, res, body, transport)
+      } else {
+        res.writeHead(503).end('WhatsApp transport not ready')
+      }
+      return
+    }
+
+    // ── Onboarding API (protected — requires Google sign-in) ─────────────────
+    if (url.pathname.startsWith('/api/onboarding')) {
+      const session = await getSession(req)
+      if (!session?.user) {
+        res.writeHead(401, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Sign in required' }))
+        return
+      }
+      ;(req as any).__tenantId = session.user.id
       await onboardingHandler(req, res)
       return
     }
 
-    // ── Shared media serving ──────────────────────────────────────────────────
+    // ── Onboarding (protected — requires Google sign-in) ─────────────────────
+    if (url.pathname.startsWith('/onboarding') || url.pathname.startsWith('/oauth/')) {
+      const session = await getSession(req)
+      if (!session?.user) {
+        res.writeHead(302, { Location: '/login' }).end()
+        return
+      }
+      // Inject the tenantId into the request so onboarding can use it as clientId
+      ;(req as any).__tenantId = session.user.id
+      await onboardingHandler(req, res)
+      return
+    }
+
+    if (url.pathname.startsWith('/media/out/')) {
+      await serveSharedOutput(url.pathname, url.searchParams, res)
+      return
+    }
+
     if (url.pathname.startsWith('/media/')) {
       await serveSharedInput(url.pathname, url.searchParams, res)
       return
     }
 
-    // ── Higgsfield OAuth ──────────────────────────────────────────────────────
     if (url.pathname === '/auth/higgsfield/start') {
       if (!verifyHiggsfieldSetupSecret(url.searchParams.get('key'))) {
         res.writeHead(403).end('Forbidden')
@@ -87,7 +204,6 @@ export function startCallbackServer(socket: WASocket | null): void {
       return
     }
 
-    // ── Legacy Meta OAuth callback ────────────────────────────────────────────
     if (url.pathname === '/auth/meta/callback') {
       const code = url.searchParams.get('code')
       const state = url.searchParams.get('state')
@@ -112,10 +228,11 @@ export function startCallbackServer(socket: WASocket | null): void {
         await saveToken(jid, accessToken, expiresIn)
         console.log(`[oauth] token saved for ${jid}`)
 
-        if (socket) {
-          await socket.sendMessage(jid, {
-            text: '✅ Your Meta Ads account is connected! Ask me anything about your campaigns, insights, or budgets.',
-          })
+        if (transport) {
+          await transport.sendText(
+            jid,
+            '✅ Your Meta Ads account is connected! Ask me anything about your campaigns, insights, or budgets.',
+          )
         }
 
         res.writeHead(200, { 'Content-Type': 'text/html' }).end(
@@ -136,6 +253,9 @@ export function startCallbackServer(socket: WASocket | null): void {
     console.log(`✓ Server listening on http://localhost:${PORT}`)
     console.log(`  Onboarding: ${base}/onboarding`)
     console.log(`  Meta OAuth callback: ${base}/auth/meta/callback`)
+    if (isTwilioProvider()) {
+      console.log(`  Twilio webhook: ${base}/webhooks/twilio/whatsapp`)
+    }
     if (process.env.HIGGSFIELD_SETUP_SECRET) {
       console.log('  Higgsfield setup: /auth/higgsfield/start?key=...')
     }

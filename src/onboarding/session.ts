@@ -1,13 +1,19 @@
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
-import { randomUUID } from 'node:crypto'
+import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises'
+import { randomBytes, randomUUID } from 'node:crypto'
 import path from 'node:path'
 import type { OnboardingSession } from '../store/types.js'
+import { adoptClientData, clientIdFromJid, updateClientMeta } from '../store/client-store.js'
+import { linkWhatsAppToTenant } from '../tenant-store.js'
+import type { WhatsAppProvider } from '../whatsapp-providers.js'
 
-const SESSIONS_DIR = path.resolve('./store/sessions')
+function sessionsDir(): string {
+  return path.resolve(process.env.AGENT_STORE_DIR ?? './store', 'sessions')
+}
 
 async function sessionPath(sessionId: string): Promise<string> {
-  await mkdir(SESSIONS_DIR, { recursive: true })
-  return path.join(SESSIONS_DIR, `${sessionId}.json`)
+  const dir = sessionsDir()
+  await mkdir(dir, { recursive: true })
+  return path.join(dir, `${sessionId}.json`)
 }
 
 export async function createSession(): Promise<OnboardingSession> {
@@ -39,6 +45,48 @@ export async function saveSession(session: OnboardingSession): Promise<void> {
   const tmp = `${file}.${process.pid}.tmp`
   await writeFile(tmp, JSON.stringify(session, null, 2), { mode: 0o600 })
   await rename(tmp, file)
+}
+
+export async function ensureWhatsAppConnectCode(session: OnboardingSession): Promise<string> {
+  if (session.whatsappConnectCode) return session.whatsappConnectCode
+  session.whatsappConnectCode = randomBytes(4).toString('hex').toUpperCase()
+  await saveSession(session)
+  return session.whatsappConnectCode
+}
+
+export async function bindSessionToWhatsAppCode(
+  code: string,
+  jid: string,
+  provider: WhatsAppProvider,
+): Promise<OnboardingSession | null> {
+  const wanted = code.trim().toUpperCase()
+  if (!wanted) return null
+
+  const dir = sessionsDir()
+  await mkdir(dir, { recursive: true })
+  const files = await readdir(dir)
+  for (const file of files) {
+    if (!file.endsWith('.json')) continue
+    const session = await loadSession(file.slice(0, -'.json'.length))
+    if (!session || session.whatsappConnectCode !== wanted) continue
+
+    const oldClientId = session.clientId ?? session.sessionId
+    const clientId = await adoptClientData(oldClientId, jid)
+    session.clientId = clientId
+    session.whatsappJid = jid
+    session.whatsappProvider = provider
+    session.whatsappConnectCode = undefined
+    session.whatsappLinked = true
+    session.step = Math.max(session.step, 6)
+    await saveSession(session)
+    await updateClientMeta(clientIdFromJid(jid), { whatsappProvider: provider })
+    // If this session has a tenantId (Google-authed user), link their JID to the tenant table
+    if (clientId && clientId !== oldClientId) {
+      await linkWhatsAppToTenant(clientId, jid, provider).catch(() => {})
+    }
+    return session
+  }
+  return null
 }
 
 export async function getOrCreateSession(sessionId?: string): Promise<OnboardingSession> {
