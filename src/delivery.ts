@@ -33,6 +33,16 @@ export interface DeliverOptions {
 
 const FALLBACK_MODEL = process.env.AGENT_FALLBACK_MODEL ?? null
 
+// Anti-ban: throttle consecutive sends to the same JID. WhatsApp's spam
+// detector flags bursts of messages from unofficial clients (especially
+// multiple media messages in <1s). Override via BAILEYS_SEND_GAP_MS.
+const SEND_GAP_MS = Number.parseInt(process.env.BAILEYS_SEND_GAP_MS ?? '1000', 10)
+const SEND_GAP = Number.isFinite(SEND_GAP_MS) && SEND_GAP_MS > 0 ? SEND_GAP_MS : 1000
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 /**
  * Build the client's agent (seeded with prior conversation), invoke it with
  * `prompt`, persist the turn, and send the text reply plus any published outputs
@@ -98,6 +108,9 @@ export async function runAndDeliver(
     await transport.sendText(jid, reply)
 
     for (const output of session.publishedOutputs) {
+      // Anti-ban: space out consecutive sends so we don't fire a burst of
+      // media messages in <1s, which trips WhatsApp's automation heuristics.
+      await sleep(SEND_GAP)
       const bytes = Buffer.from(await session.readOutput(output))
       if (output.mimeType.startsWith('image/')) {
         await transport.sendImage(jid, bytes, output.mimeType, output.caption)
