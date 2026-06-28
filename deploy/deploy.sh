@@ -14,7 +14,8 @@ ssh "$SERVER" bash <<EOF
   set -euo pipefail
   cd $APP_DIR
   git pull
-  npm ci --omit=dev
+  npm ci
+  npm run build:frontend
   systemctl restart ahrness
   systemctl status ahrness --no-pager -l
 EOF
