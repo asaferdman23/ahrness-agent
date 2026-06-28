@@ -205,6 +205,12 @@ store/                  # runtime data (gitignored): agent.sqlite, workspaces, .
   credentials.
 - **Sender allowlist** — set `AGENT_ALLOWED_SENDERS` so the agent only engages
   known numbers; unset = open (a warning is logged at startup).
+- **Baileys home group mode** — for linked-device deployments, keep
+  `BAILEYS_GROUP_ONLY=true` and set `BAILEYS_ALLOWED_GROUP_JIDS` to the single
+  WhatsApp group where the agent should live. The agent ignores direct chats and
+  other groups, and only runs when a message starts with the configured trigger
+  such as `@bizzclaw hi`. Optionally set `BAILEYS_ALLOWED_GROUP_PARTICIPANTS`
+  to your own WhatsApp JID so only you can trigger it inside that group.
 - **Final files** must be written to `/workspace/outputs` and published with the
   `publish_output` tool before delivery.
 
