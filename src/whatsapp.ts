@@ -112,6 +112,8 @@ export async function startBaileysWhatsApp(
     onboardingSessionId?: string
     onReconnect?: (clientId: string) => void
     onLoggedOut?: (clientId: string) => void
+    onConnected?: (clientId: string) => void
+    onDisconnected?: (clientId: string) => void
   } = {},
 ): Promise<BaileysSession> {
   const authDir = authDirFor(clientId)
@@ -162,6 +164,7 @@ export async function startBaileysWhatsApp(
     if (connection === 'open') {
       reconnectAttempts = 0
       console.log(`✓ WhatsApp connected (Baileys) [client ${clientId}]`)
+      opts.onConnected?.(clientId)
       if (opts.onboardingSessionId) broadcastLinked(socket.user?.id ?? '', opts.onboardingSessionId)
       else broadcastLinkedToAll(socket.user?.id ?? '')
     }
@@ -169,6 +172,7 @@ export async function startBaileysWhatsApp(
     if (connection === 'close') {
       const code = (lastDisconnect?.error as any)?.output?.statusCode
       const shouldReconnect = code !== DisconnectReason.loggedOut
+      opts.onDisconnected?.(clientId)
       if (shouldReconnect) {
         if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
           console.error(

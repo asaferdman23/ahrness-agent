@@ -69,6 +69,44 @@ export class BaileysSessionManager {
     }
   }
 
+  /**
+   * Force a fresh QR for a client. Baileys only emits a QR on initial connect,
+   * so if the socket is already running (but not yet linked) we restart it to
+   * trigger a new QR. If it's already linked, the caller should send a
+   * `linked` event instead. Idempotent + safe if no socket exists yet.
+   */
+  async refreshQr(clientId: string, opts: EnsureSocketOptions = {}): Promise<BaileysSession> {
+    const existing = this.sessions.get(clientId)
+    if (!existing) {
+      // No socket yet — starting one will emit the first QR.
+      return this.ensureSocket(clientId, opts)
+    }
+    // Stop and restart so Baileys emits a fresh QR for the new SSE client.
+    existing.stop()
+    this.sessions.delete(clientId)
+    return this.ensureSocket(clientId, opts)
+  }
+
+  /** True if the client's socket is open (linked). */
+  isConnected(clientId: string): boolean {
+    // Baileys exposes socket.user only after connection.open. We treat the
+    // presence of a linked auth state + open socket as connected; the caller
+    // also has linkedSessions on the onboarding side for the SSE flow.
+    return this.sessions.has(clientId) && this._connected.has(clientId)
+  }
+
+  /** Mark a client's socket as connected (called from connection.open). */
+  markConnected(clientId: string): void {
+    this._connected.add(clientId)
+  }
+
+  /** Mark a client's socket as disconnected (called from connection.close). */
+  markDisconnected(clientId: string): void {
+    this._connected.delete(clientId)
+  }
+
+  private _connected = new Set<string>()
+
   /** Stop all sockets — used on process shutdown. */
   stopAll(): void {
     for (const [, session] of this.sessions) {
@@ -92,6 +130,8 @@ export class BaileysSessionManager {
     return startBaileysWhatsApp(clientId, {
       phoneNumber,
       onboardingSessionId: opts.onboardingSessionId,
+      onConnected: (id) => this.markConnected(id),
+      onDisconnected: (id) => this.markDisconnected(id),
       onReconnect: (id) => {
         // Re-create the socket on disconnect. The old session is already
         // closed; drop it and start fresh, preserving onboarding routing.

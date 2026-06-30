@@ -1068,9 +1068,18 @@ export function createOnboardingHandler(): OnboardingHandler {
       const wantsBaileys = (session.whatsappProvider ?? defaultWhatsAppProvider()) === 'baileys'
       if (wantsBaileys) {
         const clientId = session.clientId ?? session.sessionId
-        baileysSessionManager()
-          .ensureSocket(clientId, { onboardingSessionId: session.sessionId })
-          .catch((err) => console.error(`[onboarding] baileys ensureSocket failed for ${clientId}:`, err))
+        const manager = baileysSessionManager()
+        // If already linked, tell the SSE client immediately. Otherwise force a
+        // fresh QR (Baileys only emits QR on initial connect, so if a socket is
+        // already running but not linked we restart it to trigger a new QR).
+        if (manager.isConnected(clientId)) {
+          res.write(`data: ${JSON.stringify({ type: 'linked' })}\n\n`)
+          res.end()
+          return
+        }
+        manager
+          .refreshQr(clientId, { onboardingSessionId: session.sessionId })
+          .catch((err) => console.error(`[onboarding] baileys refreshQr failed for ${clientId}:`, err))
       }
 
       req.on('close', () => { qrSseClients.delete(session.sessionId) })
