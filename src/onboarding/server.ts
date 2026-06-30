@@ -28,6 +28,7 @@ import {
   isWhatsAppProvider,
   type WhatsAppProvider,
 } from '../whatsapp-providers.js'
+import { baileysSessionManager } from '../baileys-manager.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const VIEWS_DIR = path.join(__dirname, 'views')
@@ -1010,6 +1011,16 @@ export function createOnboardingHandler(): OnboardingHandler {
         res.write(`data: ${JSON.stringify({ type: 'linked' })}\n\n`)
         res.end()
         return
+      }
+
+      // In baileys (BYO number) mode, lazily start this client's WhatsApp
+      // socket so it emits a QR / pairing code for them to scan. Each client
+      // gets their own socket + auth state at store/clients/<clientId>/auth/.
+      if (isBaileysProvider()) {
+        const clientId = session.clientId ?? session.sessionId
+        baileysSessionManager()
+          .ensureSocket(clientId, { onboardingSessionId: session.sessionId })
+          .catch((err) => console.error(`[onboarding] baileys ensureSocket failed for ${clientId}:`, err))
       }
 
       req.on('close', () => { qrSseClients.delete(session.sessionId) })

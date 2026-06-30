@@ -5,6 +5,7 @@
  * Production WhatsApp Business API: WHATSAPP_PROVIDER=twilio (default).
  */
 import { mkdir } from 'node:fs/promises'
+import path from 'node:path'
 import {
   makeWASocket,
   useMultiFileAuthState,
@@ -26,20 +27,28 @@ import { broadcastLinked, broadcastLinkedToAll, broadcastQr, broadcastQrToAll } 
 import type { WhatsAppTransport } from './whatsapp-transport.js'
 import { shouldProcessBaileysInbound } from './baileys-gate.js'
 
-const AUTH_DIR = './store/auth'
+const STORE_ROOT = process.env.AGENT_STORE_DIR ?? './store'
+
+/**
+ * Per-client Baileys auth directory. Each linked WhatsApp account gets its own
+ * auth state under store/clients/<clientId>/auth/ so multiple accounts can be
+ * linked from one process without colliding.
+ */
+function authDirFor(clientId: string): string {
+  return path.resolve(STORE_ROOT, 'clients', clientId, 'auth')
+}
 
 // Anti-ban: cap rapid reconnect loops. Each close multiplies the delay by 2
 // (3s → 6s → 12s → 24s → 30s cap); after MAX_RECONNECT_ATTEMPTS consecutive
 // failures we give up rather than hammering the noise handshake.
-let reconnectAttempts = 0
+// Tracked PER-CLIENT so one account's reconnect storm doesn't affect another.
 const MAX_RECONNECT_ATTEMPTS = 10
 const RECONNECT_BASE_MS = 3000
 const RECONNECT_CAP_MS = 30_000
 
-function nextReconnectDelay(): number {
-  const delay = Math.min(RECONNECT_BASE_MS * 2 ** reconnectAttempts, RECONNECT_CAP_MS)
-  reconnectAttempts += 1
-  return delay
+function nextReconnectDelay(attempts: number): { delay: number; nextAttempts: number } {
+  const delay = Math.min(RECONNECT_BASE_MS * 2 ** attempts, RECONNECT_CAP_MS)
+  return { delay, nextAttempts: attempts + 1 }
 }
 
 function sleep(ms: number): Promise<void> {
@@ -80,11 +89,40 @@ function createBaileysTransport(socket: WASocket): WhatsAppTransport {
   }
 }
 
-export async function startBaileysWhatsApp(): Promise<WhatsAppTransport> {
-  await mkdir(AUTH_DIR, { recursive: true })
+export type BaileysSession = {
+  clientId: string
+  socket: WASocket
+  transport: WhatsAppTransport
+  /** Stop this client's socket and suppress further reconnect. */
+  stop: () => void
+}
 
-  const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR)
+/**
+ * Start a Baileys WhatsApp socket for ONE client, identified by clientId.
+ * Auth state lives at store/clients/<clientId>/auth/ so multiple accounts can
+ * be linked from one process without colliding.
+ *
+ * Pass an optional onReconnect callback so the BaileysSessionManager can
+ * re-create the socket on disconnect (the reconnect loop is per-client).
+ */
+export async function startBaileysWhatsApp(
+  clientId: string,
+  opts: {
+    phoneNumber?: string
+    onboardingSessionId?: string
+    onReconnect?: (clientId: string) => void
+    onLoggedOut?: (clientId: string) => void
+  } = {},
+): Promise<BaileysSession> {
+  const authDir = authDirFor(clientId)
+  await mkdir(authDir, { recursive: true })
+
+  const { state, saveCreds } = await useMultiFileAuthState(authDir)
   const { version } = await fetchLatestBaileysVersion()
+
+  // Per-client reconnect state, isolated from other sockets.
+  let reconnectAttempts = 0
+  let stopped = false
 
   const socket = makeWASocket({
     auth: state,
@@ -106,27 +144,25 @@ export async function startBaileysWhatsApp(): Promise<WhatsAppTransport> {
     const { connection, lastDisconnect, qr } = update
 
     if (qr) {
-      const phoneNumber = process.env.WHATSAPP_PHONE_NUMBER
+      const phoneNumber = opts.phoneNumber
       if (phoneNumber) {
         const code = await socket.requestPairingCode(phoneNumber)
         console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
-        console.log(`WhatsApp pairing code: ${code}`)
+        console.log(`WhatsApp pairing code [client ${clientId}]: ${code}`)
         console.log(`Open WhatsApp → Settings → Linked Devices → Link with phone number`)
         console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`)
       } else {
-        console.log('\nScan this QR code in WhatsApp → Settings → Linked Devices:\n')
+        console.log(`\n[client ${clientId}] Scan this QR code in WhatsApp → Settings → Linked Devices:\n`)
         qrcode.generate(qr, { small: true })
       }
-      const onboardingSession = process.env.ONBOARDING_SESSION_ID
-      if (onboardingSession) await broadcastQr(onboardingSession, qr)
+      if (opts.onboardingSessionId) await broadcastQr(opts.onboardingSessionId, qr)
       else await broadcastQrToAll(qr)
     }
 
     if (connection === 'open') {
       reconnectAttempts = 0
-      console.log('✓ WhatsApp connected (Baileys)')
-      const onboardingSession = process.env.ONBOARDING_SESSION_ID
-      if (onboardingSession) broadcastLinked(socket.user?.id ?? '', onboardingSession)
+      console.log(`✓ WhatsApp connected (Baileys) [client ${clientId}]`)
+      if (opts.onboardingSessionId) broadcastLinked(socket.user?.id ?? '', opts.onboardingSessionId)
       else broadcastLinkedToAll(socket.user?.id ?? '')
     }
 
@@ -136,16 +172,20 @@ export async function startBaileysWhatsApp(): Promise<WhatsAppTransport> {
       if (shouldReconnect) {
         if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
           console.error(
-            `WhatsApp reconnect failed after ${MAX_RECONNECT_ATTEMPTS} attempts — giving up to avoid ban-risk loop. Restart manually.`,
+            `[client ${clientId}] WhatsApp reconnect failed after ${MAX_RECONNECT_ATTEMPTS} attempts — giving up to avoid ban-risk loop. Restart manually.`,
           )
-          process.exit(1)
+          opts.onLoggedOut?.(clientId)
+          return
         }
-        const delay = nextReconnectDelay()
-        console.log(`WhatsApp closed (code ${code}); reconnecting in ${delay}ms (attempt ${reconnectAttempts})`)
-        setTimeout(() => startBaileysWhatsApp(), delay)
+        const { delay, nextAttempts } = nextReconnectDelay(reconnectAttempts)
+        reconnectAttempts = nextAttempts
+        console.log(`[client ${clientId}] WhatsApp closed (code ${code}); reconnecting in ${delay}ms (attempt ${reconnectAttempts})`)
+        setTimeout(() => {
+          if (!stopped) opts.onReconnect?.(clientId)
+        }, delay)
       } else {
-        console.error('Logged out — delete ./store/auth/ and restart to re-authenticate')
-        process.exit(1)
+        console.error(`[client ${clientId}] Logged out — delete ${authDir} and restart to re-authenticate`)
+        opts.onLoggedOut?.(clientId)
       }
     }
   })
@@ -237,7 +277,20 @@ export async function startBaileysWhatsApp(): Promise<WhatsAppTransport> {
     }
   })
 
-  return transport
+  const session: BaileysSession = {
+    clientId,
+    socket,
+    transport,
+    stop: () => {
+      stopped = true
+      try {
+        socket.end(undefined)
+      } catch {
+        // already closed
+      }
+    },
+  }
+  return session
 }
 
 function extractText(msg: proto.IWebMessageInfo): string | null {
