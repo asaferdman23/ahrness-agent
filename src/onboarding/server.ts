@@ -433,7 +433,8 @@ function redirect_str(url: string): string {
 
 async function renderStep5(session: OnboardingSession): Promise<string> {
   const providers = configuredWhatsAppProviders()
-  const selectedProvider = session.whatsappProvider ?? defaultWhatsAppProvider()
+  // No default — the user picks a method. Don't auto-jump to Twilio.
+  const selectedProvider = session.whatsappProvider ?? null
   // Always offer both providers so a client on a Twilio-mode server can still
   // choose Baileys (BYO number / QR). The per-client Baileys socket works
   // regardless of the global WHATSAPP_PROVIDER env.
@@ -481,10 +482,10 @@ async function renderStep5(session: OnboardingSession): Promise<string> {
       <div class="card">
         ${eyebrow(5, 'WhatsApp')}
         <h1>Choose how WhatsApp connects</h1>
-        <p class="subtitle">Use the verified WhatsApp Business API, or switch to a linked-device setup when this deployment enables it.</p>
+        <p class="subtitle">Use our number, or host the agent in a 1:1 group with your own number.</p>
         ${providerPicker}
         <div class="connect-panel">
-          <h2>Verified API via Twilio</h2>
+          <h2>Use our number</h2>
           <p class="subtitle">Your agent runs on our WhatsApp Business number: <strong>+${digits || 'not configured'}</strong>.</p>
         ${digits ? `
           <a href="${waLink}" class="whatsapp-cta" style="justify-content:center;margin:1.5rem 0;">
@@ -519,6 +520,25 @@ async function renderStep5(session: OnboardingSession): Promise<string> {
     `)
   }
 
+  // No provider selected yet — prompt the user to pick. Don't auto-jump.
+  if (!selectedProvider) {
+    return layout('Connect on WhatsApp', `
+      ${stepDots(5)}
+      <div class="card">
+        ${eyebrow(5, 'WhatsApp')}
+        <h1>Choose how WhatsApp connects</h1>
+        <p class="subtitle">Use our number, or host the agent in a 1:1 group with your own number.</p>
+        ${providerPicker}
+        <div class="connect-panel">
+          <p class="qr-hint" style="text-align:center;">Pick a method above to continue.</p>
+        </div>
+        <div class="actions" style="margin-top:1.5rem;justify-content:center;">
+          <a href="/onboarding/step/4" class="btn btn-secondary">← Back</a>
+        </div>
+      </div>
+    `)
+  }
+
   // Baileys (BYO number) is always available per-client, regardless of the
   // global WHATSAPP_PROVIDER env. The QR-stream endpoint starts this client's
   // own socket on demand. No auto-redirect to Twilio.
@@ -528,10 +548,10 @@ async function renderStep5(session: OnboardingSession): Promise<string> {
     <div class="card">
       ${eyebrow(5, 'Link WhatsApp')}
       <h1>Choose how WhatsApp connects</h1>
-      <p class="subtitle">Scan the linked-device QR code, or switch to the verified API when this deployment enables it.</p>
+      <p class="subtitle">Use our number, or host the agent in a 1:1 group with your own number.</p>
       ${providerPicker}
       <div class="connect-panel">
-      <h2>Linked device via Baileys</h2>
+      <h2>Host in your 1:1 group</h2>
       <p class="subtitle">On your phone, open WhatsApp → Linked Devices → Link a Device → scan this code.</p>
       <div class="qr-box">
         <div id="qrDisplay">
@@ -692,7 +712,8 @@ async function onboardingBootstrap(session: OnboardingSession): Promise<Record<s
     ? mcps.filter((p) => role.requiredMcps.includes(p.id) || role.optionalMcps.includes(p.id))
     : []
   const providers = configuredWhatsAppProviders()
-  const selectedProvider = session.whatsappProvider ?? defaultWhatsAppProvider()
+  // No default — the user picks. Don't auto-jump to Twilio.
+  const selectedProvider = session.whatsappProvider ?? null
   const twilioDigits = twilioBusinessNumberDigits()
   const connectCode = selectedProvider === 'twilio' && isTwilioProvider() && !session.whatsappJid
     ? await ensureWhatsAppConnectCode(session)

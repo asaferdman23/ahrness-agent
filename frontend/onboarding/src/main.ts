@@ -35,7 +35,7 @@ interface Bootstrap {
     step: number
     whatsappJid: string | null
     whatsappLinked: boolean
-    whatsappProvider: Provider
+    whatsappProvider: Provider | null
     profile: any | null
     roleId: string | null
     connections: Record<string, string>
@@ -215,31 +215,34 @@ function renderPlatforms(): string {
 
 function renderWhatsApp(): string {
   const selected = data.session.whatsappProvider
-  // Always offer both providers — Baileys (BYO number) is available per-client
-  // even when the server's default is Twilio.
+  // No default selection — the user picks. Baileys (BYO number) is available
+  // per-client even when the server's default is Twilio.
   const twilioAvailable = data.whatsapp.twilio.enabled
   const picker = `<form id="providerForm" class="option-list">
-    ${optionCard({ name: 'whatsappProvider', value: 'twilio', checked: selected === 'twilio', icon: '✓', title: 'Verified API', tag: 'Twilio', description: twilioAvailable ? 'Use the WhatsApp Business API through the verified Twilio number.' : 'Twilio is not configured on this server.' })}
-    ${optionCard({ name: 'whatsappProvider', value: 'baileys', checked: selected === 'baileys', icon: '⌁', title: 'Linked device', tag: 'Baileys', description: 'Connect your own WhatsApp number as a linked device (scan a QR code).' })}
+    ${optionCard({ name: 'whatsappProvider', value: 'twilio', checked: selected === 'twilio', icon: '✓', title: 'Use our number', tag: 'Twilio', description: twilioAvailable ? 'Message our shared WhatsApp Business number to talk to your agent.' : 'Not configured on this server.' })}
+    ${optionCard({ name: 'whatsappProvider', value: 'baileys', checked: selected === 'baileys', icon: '⌁', title: 'Host in your 1:1 group', tag: 'Your number', description: 'Link your own WhatsApp number and host the agent in a 1:1 chat with it (scan a QR code).' })}
     <div class="actions" style="margin-top:.85rem"><span></span><button class="btn btn-secondary" type="submit">Use selected method</button></div>
   </form>`
 
-  const panel = selected === 'twilio'
+  // Nothing selected yet — prompt the user to pick a method. No auto-jump.
+  const panel = !selected
+    ? `<div class="connect-panel"><p class="muted" style="text-align:center;margin:0">Pick a way to connect above to continue.</p></div>`
+    : selected === 'twilio'
     ? `<div class="connect-panel">
-        <h2>Verified API via Twilio</h2>
+        <h2>Use our number</h2>
         <p class="subtitle">Business number: <strong>+${escapeHtml(data.whatsapp.twilio.digits || 'not configured')}</strong></p>
         ${data.whatsapp.twilio.waLink ? `<a href="${data.whatsapp.twilio.waLink}" class="whatsapp-cta"><span aria-hidden="true">↗</span><span>Open WhatsApp</span></a>` : '<p class="muted">TWILIO_WHATSAPP_NUMBER is not configured.</p>'}
         ${data.whatsapp.twilio.connectCode ? `<p class="muted" id="linkStatus" style="margin-top:1rem">Send the prefilled message to link setup: <strong>${data.whatsapp.twilio.connectCode}</strong></p>` : '<p class="muted" style="margin-top:1rem">This setup was opened from WhatsApp, so the session is already linked.</p>'}
       </div>`
     : `<div class="connect-panel">
-        <h2>Linked device via Baileys</h2>
+        <h2>Host in your 1:1 group</h2>
         <div class="qr-box" id="qrBox">
           ${data.whatsapp.baileys.latestQr ? `<img src="${data.whatsapp.baileys.latestQr}" alt="WhatsApp linking QR code" />` : '<span class="spinner" aria-hidden="true"></span>'}
           <p class="muted" id="qrHint">${data.whatsapp.baileys.latestQr ? 'Scan with WhatsApp Linked Devices.' : 'Waiting for a QR code from the server.'}</p>
         </div>
       </div>`
 
-  return shell('Choose how WhatsApp connects', 'Use the verified API, or link a device when this deployment enables it.', `
+  return shell('Choose how WhatsApp connects', 'Use our number, or host the agent in a 1:1 group with your own number.', `
     ${picker}
     ${panel}
     <div class="actions"><button class="btn btn-secondary" type="button" data-step="4">Back</button><button class="btn btn-primary" type="button" data-step="6">Continue</button></div>`)
