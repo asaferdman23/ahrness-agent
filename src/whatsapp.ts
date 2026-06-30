@@ -64,9 +64,15 @@ function jitterDelayMs(): number {
 }
 
 const noop = (): void => {}
+// Logger level is configurable via BAILEYS_LOG_LEVEL (default: silent in prod,
+// 'warn' recommended for debugging). Set to 'info' or 'debug' for more detail.
+const BAILEYS_LOG_LEVEL = process.env.BAILEYS_LOG_LEVEL ?? 'silent'
 const silentLogger: any = {
-  level: 'silent',
-  trace: noop, debug: noop, info: noop, warn: noop, error: noop, fatal: noop,
+  level: BAILEYS_LOG_LEVEL,
+  trace: noop, debug: noop, info: noop,
+  warn: (...args: unknown[]) => { if (BAILEYS_LOG_LEVEL !== 'silent') console.warn('[baileys]', ...args) },
+  error: (...args: unknown[]) => { if (BAILEYS_LOG_LEVEL !== 'silent') console.error('[baileys]', ...args) },
+  fatal: (...args: unknown[]) => { if (BAILEYS_LOG_LEVEL !== 'silent') console.error('[baileys:fatal]', ...args) },
   child: () => silentLogger,
 }
 

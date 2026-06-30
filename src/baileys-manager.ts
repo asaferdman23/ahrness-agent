@@ -74,8 +74,19 @@ export class BaileysSessionManager {
    * so if the socket is already running (but not yet linked) we restart it to
    * trigger a new QR. If it's already linked, the caller should send a
    * `linked` event instead. Idempotent + safe if no socket exists yet.
+   *
+   * Throttled: won't restart more than once every 10s per client, to avoid
+   * amplifying a reconnect loop when the SSE reopens rapidly.
    */
   async refreshQr(clientId: string, opts: EnsureSocketOptions = {}): Promise<BaileysSession> {
+    const now = Date.now()
+    const last = this._lastRefresh.get(clientId) ?? 0
+    if (now - last < 10_000) {
+      // Throttled — return the existing session (or start one if none).
+      return this.ensureSocket(clientId, opts)
+    }
+    this._lastRefresh.set(clientId, now)
+
     const existing = this.sessions.get(clientId)
     if (!existing) {
       // No socket yet — starting one will emit the first QR.
@@ -84,6 +95,7 @@ export class BaileysSessionManager {
     // Stop and restart so Baileys emits a fresh QR for the new SSE client.
     existing.stop()
     this.sessions.delete(clientId)
+    this._connected.delete(clientId)
     return this.ensureSocket(clientId, opts)
   }
 
@@ -106,6 +118,7 @@ export class BaileysSessionManager {
   }
 
   private _connected = new Set<string>()
+  private _lastRefresh = new Map<string, number>()
 
   /** Stop all sockets — used on process shutdown. */
   stopAll(): void {
