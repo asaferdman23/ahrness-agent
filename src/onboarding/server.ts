@@ -7,6 +7,7 @@ import QRCode from 'qrcode'
 import { ensureWhatsAppConnectCode, getOrCreateSession, loadSession, saveSession } from './session.js'
 import { getAllRoles } from '../roles/index.js'
 import { getAllMcps } from '../mcps/index.js'
+import type { McpDefinition } from '../mcps/types.js'
 import { oauthStateFor, verifyClientToken } from './client-link.js'
 import { getTemplatesForRole } from '../scheduler/index.js'
 import {
@@ -377,7 +378,7 @@ async function renderStep4(session: OnboardingSession): Promise<string> {
           const iconMap: Record<string, string> = {
             'meta-ads': '📘', 'instagram-graph': '📸', 'tiktok': '🎵', 'google': '📊', 'higgsfield': '🎨',
           }
-          const authUrl = p.authUrl ? `${p.authUrl(oauthState, callbackBase)}` : '#'
+          const authUrl = p.authUrl ? safeAuthUrl(p, oauthState, callbackBase) : '#'
           return `
             <div class="platform-row ${isConnected ? 'connected' : ''}" id="platform-${p.id}">
               <div class="platform-info">
@@ -604,6 +605,26 @@ async function renderStep6(session: OnboardingSession): Promise<string> {
 
 // ── Vite frontend + JSON API ─────────────────────────────────────────────────
 
+/**
+ * Build a platform's OAuth URL, degrading gracefully if the platform's required
+ * env vars aren't configured. An optional platform with missing env (e.g. Meta
+ * Ads without META_APP_ID) returns '#' instead of throwing, so onboarding can
+ * continue and the client can connect the platforms they do have configured.
+ */
+function safeAuthUrl(
+  p: McpDefinition,
+  state: string,
+  redirectBase: string,
+): string {
+  if (!p.authUrl) return '#'
+  try {
+    return p.authUrl(state, redirectBase)
+  } catch (err) {
+    console.warn(`[onboarding] authUrl for platform ${p.id} failed (likely missing env):`, err instanceof Error ? err.message : err)
+    return '#'
+  }
+}
+
 function mimeTypeFor(filePath: string): string {
   if (filePath.endsWith('.html')) return 'text/html; charset=utf-8'
   if (filePath.endsWith('.js')) return 'text/javascript; charset=utf-8'
@@ -700,7 +721,7 @@ async function onboardingBootstrap(session: OnboardingSession): Promise<Record<s
         scopes: p.scopes,
         required,
         status,
-        authUrl: p.oauthFlow !== 'none' && p.authUrl ? p.authUrl(oauthState, callbackBase) : null,
+        authUrl: p.oauthFlow !== 'none' && p.authUrl ? safeAuthUrl(p, oauthState, callbackBase) : null,
       }
     }),
     whatsapp: {
