@@ -214,13 +214,15 @@ function renderPlatforms(): string {
 }
 
 function renderWhatsApp(): string {
-  const providers = data.whatsapp.providers
   const selected = data.session.whatsappProvider
-  const picker = providers.length > 1 ? `<form id="providerForm" class="option-list">
-    ${optionCard({ name: 'whatsappProvider', value: 'twilio', checked: selected === 'twilio', icon: '✓', title: 'Verified API', tag: 'Twilio', description: 'Use the WhatsApp Business API through the verified Twilio number.' })}
-    ${optionCard({ name: 'whatsappProvider', value: 'baileys', checked: selected === 'baileys', icon: '⌁', title: 'Linked device', tag: 'Baileys', description: 'Connect a WhatsApp account as a linked device for development or private deployments.' })}
+  // Always offer both providers — Baileys (BYO number) is available per-client
+  // even when the server's default is Twilio.
+  const twilioAvailable = data.whatsapp.twilio.enabled
+  const picker = `<form id="providerForm" class="option-list">
+    ${optionCard({ name: 'whatsappProvider', value: 'twilio', checked: selected === 'twilio', icon: '✓', title: 'Verified API', tag: 'Twilio', description: twilioAvailable ? 'Use the WhatsApp Business API through the verified Twilio number.' : 'Twilio is not configured on this server.' })}
+    ${optionCard({ name: 'whatsappProvider', value: 'baileys', checked: selected === 'baileys', icon: '⌁', title: 'Linked device', tag: 'Baileys', description: 'Connect your own WhatsApp number as a linked device (scan a QR code).' })}
     <div class="actions" style="margin-top:.85rem"><span></span><button class="btn btn-secondary" type="submit">Use selected method</button></div>
-  </form>` : ''
+  </form>`
 
   const panel = selected === 'twilio'
     ? `<div class="connect-panel">

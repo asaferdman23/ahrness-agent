@@ -434,18 +434,22 @@ function redirect_str(url: string): string {
 async function renderStep5(session: OnboardingSession): Promise<string> {
   const providers = configuredWhatsAppProviders()
   const selectedProvider = session.whatsappProvider ?? defaultWhatsAppProvider()
-  const providerPicker = providers.length > 1 ? `
+  // Always offer both providers so a client on a Twilio-mode server can still
+  // choose Baileys (BYO number / QR). The per-client Baileys socket works
+  // regardless of the global WHATSAPP_PROVIDER env.
+  const twilioAvailable = isTwilioProvider()
+  const providerPicker = `
     <form method="POST" action="/onboarding/step/5" class="provider-picker">
       <div class="role-cards">
         <label class="role-card">
-          <input type="radio" name="whatsappProvider" value="twilio" ${selectedProvider === 'twilio' ? 'checked' : ''} />
+          <input type="radio" name="whatsappProvider" value="twilio" ${selectedProvider === 'twilio' ? 'checked' : ''} ${!twilioAvailable ? 'disabled' : ''} />
           <span class="role-mono" aria-hidden="true">✓</span>
           <div class="role-info">
             <div class="role-top">
               <h3>Verified API</h3>
               <span class="role-tag">Twilio</span>
             </div>
-            <p>Use the WhatsApp Business API through our verified Twilio number.</p>
+            <p>${twilioAvailable ? 'Use the WhatsApp Business API through our verified Twilio number.' : 'Twilio is not configured on this server.'}</p>
           </div>
         </label>
         <label class="role-card">
@@ -456,7 +460,7 @@ async function renderStep5(session: OnboardingSession): Promise<string> {
               <h3>Linked device</h3>
               <span class="role-tag">Baileys</span>
             </div>
-            <p>Connect a WhatsApp account as a linked device for development or private deployments.</p>
+            <p>Connect your own WhatsApp number as a linked device (scan a QR code or use a pairing code).</p>
           </div>
         </label>
       </div>
@@ -465,7 +469,7 @@ async function renderStep5(session: OnboardingSession): Promise<string> {
         <button type="submit" class="btn btn-secondary">Use selected method</button>
       </div>
     </form>
-  ` : ''
+  `
 
   if (selectedProvider === 'twilio' && isTwilioProvider()) {
     const digits = twilioBusinessNumberDigits()
@@ -515,11 +519,9 @@ async function renderStep5(session: OnboardingSession): Promise<string> {
     `)
   }
 
-  if (selectedProvider === 'baileys' && !isBaileysProvider()) {
-    session.whatsappProvider = 'twilio'
-    await saveSession(session)
-    return redirect_str('/onboarding/step/5')
-  }
+  // Baileys (BYO number) is always available per-client, regardless of the
+  // global WHATSAPP_PROVIDER env. The QR-stream endpoint starts this client's
+  // own socket on demand. No auto-redirect to Twilio.
 
   return layout('Link WhatsApp', `
     ${stepDots(5)}
@@ -734,7 +736,9 @@ async function onboardingBootstrap(session: OnboardingSession): Promise<Record<s
         waLink: twilioDigits ? `https://wa.me/${twilioDigits}?text=${encodeURIComponent(twilioText)}` : null,
       },
       baileys: {
-        enabled: isBaileysProvider(),
+        // Baileys (BYO number) is always available per-client, regardless of
+        // the global WHATSAPP_PROVIDER env.
+        enabled: true,
         latestQr: latestQrDataUri,
       },
     },
@@ -810,7 +814,10 @@ async function saveAutomationsFromJson(session: OnboardingSession, body: Record<
 
 async function saveProviderFromJson(session: OnboardingSession, body: Record<string, unknown>): Promise<void> {
   const provider = jsonString(body.whatsappProvider)
-  if (!isWhatsAppProvider(provider) || !configuredWhatsAppProviders().includes(provider)) throw new Error('Unsupported provider')
+  // Accept any valid provider. Baileys is always available per-client even when
+  // the global WHATSAPP_PROVIDER env is twilio-only, so don't restrict to the
+  // server's configured list.
+  if (!isWhatsAppProvider(provider)) throw new Error('Unsupported provider')
   session.whatsappProvider = provider as WhatsAppProvider
   session.step = Math.max(session.step, 5)
   if (session.clientId) await updateClientMeta(session.clientId, { whatsappProvider: provider as WhatsAppProvider })
@@ -1034,10 +1041,11 @@ export function createOnboardingHandler(): OnboardingHandler {
         return
       }
 
-      // In baileys (BYO number) mode, lazily start this client's WhatsApp
-      // socket so it emits a QR / pairing code for them to scan. Each client
+      // Start this client's Baileys socket when they've chosen Baileys (BYO
+      // number), regardless of the global WHATSAPP_PROVIDER env. Each client
       // gets their own socket + auth state at store/clients/<clientId>/auth/.
-      if (isBaileysProvider()) {
+      const wantsBaileys = (session.whatsappProvider ?? defaultWhatsAppProvider()) === 'baileys'
+      if (wantsBaileys) {
         const clientId = session.clientId ?? session.sessionId
         baileysSessionManager()
           .ensureSocket(clientId, { onboardingSessionId: session.sessionId })

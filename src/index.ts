@@ -27,17 +27,20 @@ async function main(): Promise<void> {
     console.log(`  Configure Twilio webhook → ${twilioWebhookUrl()}`)
   }
 
-  // Baileys is per-client (BYO number). The manager lazily starts one socket
-  // per clientId on demand; no shared socket is booted at startup.
-  const baileysManager = providers.includes('baileys') ? baileysSessionManager() : undefined
-  if (baileysManager) {
-    console.log(`✓ Baileys per-client manager ready (BYO number mode)`)
+  // Baileys is per-client (BYO number) and always available — a client can
+  // choose Baileys from onboarding even when the global default is Twilio.
+  // The manager lazily starts one socket per clientId on demand.
+  const baileysManager = baileysSessionManager()
+  if (providers.includes('baileys')) {
+    console.log(`✓ Baileys per-client manager ready (default provider)`)
+  } else {
+    console.log(`✓ Baileys per-client manager ready (available on request)`)
   }
 
   const transport: WhatsAppTransport = createRoutingWhatsAppTransport(
     transports,
     defaultWhatsAppProvider(),
-    baileysManager ? { baileysManager } : {},
+    { baileysManager },
   )
   startCallbackServer(transport)
   startScheduler(transport)
