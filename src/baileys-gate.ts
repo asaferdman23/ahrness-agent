@@ -104,7 +104,7 @@ function matchTrigger(input: {
   return { triggered: false, prompt: input.text }
 }
 
-function sameWhatsAppUser(a: string, b: string): boolean {
+export function sameWhatsAppUser(a: string, b: string): boolean {
   const left = bareUserId(a)
   const right = bareUserId(b)
   return left.length > 0 && left === right

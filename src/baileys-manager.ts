@@ -173,6 +173,15 @@ export class BaileysSessionManager {
         // must delete the auth dir and re-link to recover.
         this.sessions.delete(id)
       },
+      onStopCommand: (id) => {
+        // Owner typed stop/עצור in the chat. Confirm and let the socket
+        // logout proceed (the caller in whatsapp.ts handles the actual
+        // logout). Clear our session state so reconnect doesn't fire.
+        console.log(`[client ${id}] stop command received from chat — disconnecting`)
+        this._connected.delete(id)
+        this.sessions.delete(id)
+        return true
+      },
     })
   }
 }

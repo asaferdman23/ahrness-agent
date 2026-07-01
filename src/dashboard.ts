@@ -3,6 +3,7 @@
  * Uses the same Vercel/Geist design system as onboarding.
  */
 import type { User } from './auth.js'
+import type { PlatformId } from './store/types.js'
 
 const STYLES = `
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -54,6 +55,27 @@ const STYLES = `
     .stat-sub{font-size:.8rem;color:var(--ink-soft);margin-top:.15rem}
     .divider{border:none;border-top:1px solid var(--line);margin:1.5rem 0}
     .action-row{display:flex;gap:.75rem;flex-wrap:wrap;margin-top:1.5rem}
+    .section-title{font-size:.94rem;font-weight:600;letter-spacing:-.015em;margin-bottom:.85rem}
+    .stack{display:grid;gap:1rem}
+    .info-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:1rem;margin-top:1.5rem}
+    .subcard{background:var(--canvas);border:1px solid var(--line);border-radius:var(--r-md);padding:1rem 1.05rem}
+    .meta-list,.timeline,.alert-list,.capability-list{display:grid;gap:.75rem}
+    .meta-row{display:flex;justify-content:space-between;gap:1rem;padding:.72rem 0;border-top:1px solid var(--line)}
+    .meta-row:first-child{border-top:none;padding-top:0}
+    .meta-key{font-family:var(--mono);font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-faint)}
+    .meta-value{font-size:.9rem;color:var(--ink);text-align:right}
+    .meta-value.muted{color:var(--ink-soft)}
+    .pill{display:inline-flex;align-items:center;gap:.35rem;border-radius:999px;padding:.28rem .55rem;font-family:var(--mono);font-size:.68rem;letter-spacing:.03em;text-transform:uppercase;background:var(--paper);border:1px solid var(--line)}
+    .pill-ok{color:var(--accent-ink);background:var(--accent-tint);border-color:rgba(29,171,97,.18)}
+    .pill-warn{color:#8a5b00;background:#fff8e8;border-color:#f1dfb4}
+    .pill-quiet{color:var(--ink-soft)}
+    .capability-row,.timeline-row,.alert-row{display:flex;justify-content:space-between;gap:1rem;padding:.82rem .95rem;background:var(--paper);border:1px solid var(--line);border-radius:12px}
+    .capability-name,.timeline-title,.alert-title{font-size:.92rem;font-weight:500;letter-spacing:-.01em}
+    .capability-sub,.timeline-sub,.alert-sub{font-size:.8rem;color:var(--ink-soft);margin-top:.18rem}
+    .timeline-note{font-size:.82rem;color:var(--ink-soft)}
+    .empty{font-size:.88rem;color:var(--ink-soft)}
+    .hero-copy{max-width:56ch}
+    .trust-note{margin-top:1rem;padding:.85rem .95rem;background:var(--canvas);border:1px dashed var(--line-strong);border-radius:12px;font-size:.84rem;color:var(--ink-soft)}
     .user-chip{display:flex;align-items:center;gap:.6rem;background:var(--canvas);border:1px solid var(--line);border-radius:999px;padding:.3rem .75rem .3rem .4rem;font-size:.82rem}
     .avatar{width:24px;height:24px;border-radius:50%;background:var(--ink);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:600;flex:none;overflow:hidden}
     .avatar img{width:100%;height:100%;object-fit:cover}
@@ -64,7 +86,12 @@ const STYLES = `
     .login-card{background:var(--paper);border:1px solid var(--line);border-radius:var(--r-lg);padding:2.5rem 2rem;box-shadow:var(--shadow-card);width:100%;max-width:380px;text-align:center;animation:rise .55s var(--ease) both}
     .login-mark{width:44px;height:44px;border-radius:12px;background:var(--ink);position:relative;margin:0 auto 1.25rem}
     .login-mark::after{content:"";position:absolute;inset:12px;border-radius:4px;background:var(--accent)}
-    @media(max-width:540px){.card{padding:1.5rem 1.25rem}}
+    @media(max-width:700px){.info-grid{grid-template-columns:1fr}}
+    @media(max-width:540px){
+      .card{padding:1.5rem 1.25rem}
+      .meta-row,.capability-row,.timeline-row,.alert-row{flex-direction:column}
+      .meta-value{text-align:left}
+    }
   </style>`
 
 function layout(title: string, body: string, agentName = process.env.AGENT_NAME ?? 'BizzClaw'): string {
@@ -133,11 +160,103 @@ export function renderLoginPage(agentName: string, error?: string): string {
   </div>`)
 }
 
+interface DashboardRole {
+  id: string
+  displayName: string
+  description: string
+  emoji: string
+}
+
+interface DashboardProfileSummary {
+  businessName: string | null
+  website: string | null
+  instagram: string | null
+  tiktok: string | null
+  targetAudience: string | null
+  brandVoice: string | null
+  goals: string[]
+}
+
+interface DashboardPlatformSummary {
+  id: PlatformId
+  displayName: string
+  required: boolean
+  status: 'connected' | 'pending' | 'error' | 'not-configured'
+  connectedAt: string | null
+  tokenExpiresAt: string | null
+}
+
+interface DashboardAutomationSummary {
+  id: string
+  title: string
+  enabled: boolean
+  runCount: number
+  lastRunAt: string | null
+  lastRunStatus: 'ok' | 'error' | null
+}
+
+interface DashboardPendingApproval {
+  summary: string
+  createdAt: string
+  approved: boolean
+}
+
+interface DashboardAlert {
+  title: string
+  detail: string
+  level: 'info' | 'warn'
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+}
+
+function labelGoal(goal: string): string {
+  return goal.replaceAll('_', ' ')
+}
+
+function formatTime(value: string | null): string {
+  if (!value) return 'Not yet'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Unknown'
+  return new Intl.DateTimeFormat('en', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(date)
+}
+
+function formatStatus(status: DashboardPlatformSummary['status']): string {
+  switch (status) {
+    case 'connected':
+      return 'Connected'
+    case 'pending':
+      return 'Needs reconnect'
+    case 'error':
+      return 'Error'
+    default:
+      return 'Not connected'
+  }
+}
+
 export function renderDashboardPage(user: User, state: {
   whatsappLinked: boolean
   whatsappJid: string | null
   whatsappProvider: string | null
   onboardingStep: number
+  role: DashboardRole | null
+  profile: DashboardProfileSummary | null
+  platforms: DashboardPlatformSummary[]
+  automations: DashboardAutomationSummary[]
+  pendingApproval: DashboardPendingApproval | null
+  alerts: DashboardAlert[]
+  lastActivityAt: string | null
 }): string {
   const agentName = process.env.AGENT_NAME ?? 'BizzClaw'
   const initials = (user.name ?? user.email ?? '?').slice(0, 2).toUpperCase()
@@ -153,6 +272,87 @@ export function renderDashboardPage(user: User, state: {
   const waLink = waNumber ? `https://wa.me/${waNumber}` : null
 
   const setupStep = state.onboardingStep
+  const connectedPlatforms = state.platforms.filter((platform) => platform.status === 'connected').length
+  const roleLabel = state.role ? `${state.role.emoji} ${state.role.displayName}` : 'Not assigned'
+  const lastActivity = formatTime(state.lastActivityAt)
+  const providerLabel = state.whatsappProvider === 'baileys'
+    ? 'Your own WhatsApp number'
+    : state.whatsappProvider === 'twilio'
+      ? 'Shared business number'
+      : 'Not chosen'
+  const profile = state.profile
+
+  const knowledgeRows = [
+    { key: 'Business', value: profile?.businessName ?? 'Not added yet' },
+    { key: 'Website', value: profile?.website ?? 'Missing' },
+    { key: 'Instagram', value: profile?.instagram ?? 'Missing' },
+    { key: 'TikTok', value: profile?.tiktok ?? 'Missing' },
+    { key: 'Audience', value: profile?.targetAudience ?? 'Missing' },
+    { key: 'Brand voice', value: profile?.brandVoice ?? 'Missing' },
+    { key: 'Goals', value: profile?.goals.length ? profile.goals.map(labelGoal).join(', ') : 'Missing' },
+  ]
+
+  const capabilities = state.platforms.length
+    ? state.platforms.map((platform) => {
+        const pillClass = platform.status === 'connected'
+          ? 'pill pill-ok'
+          : platform.required
+            ? 'pill pill-warn'
+            : 'pill pill-quiet'
+        const detail = platform.status === 'connected'
+          ? `Connected ${formatTime(platform.connectedAt)}${platform.tokenExpiresAt ? ` · token ${new Date(platform.tokenExpiresAt) < new Date() ? 'expired' : `expires ${formatTime(platform.tokenExpiresAt)}`}` : ''}`
+          : platform.required
+            ? 'Required for this role'
+            : 'Optional capability'
+        return `<div class="capability-row">
+          <div>
+            <div class="capability-name">${escapeHtml(platform.displayName)}</div>
+            <div class="capability-sub">${escapeHtml(detail)}</div>
+          </div>
+          <span class="${pillClass}">${platform.required ? 'Core' : 'Optional'} · ${formatStatus(platform.status)}</span>
+        </div>`
+      }).join('')
+    : '<p class="empty">This role does not rely on external platforms yet.</p>'
+
+  const automationRows = state.automations.length
+    ? state.automations.slice(0, 5).map((job) => {
+        const status = !job.enabled
+          ? 'Paused'
+          : job.lastRunStatus === 'error'
+            ? 'Attention'
+            : job.runCount > 0
+              ? 'Running'
+              : 'Armed'
+        const sub = `Runs: ${job.runCount} · Last run: ${formatTime(job.lastRunAt)}`
+        return `<div class="timeline-row">
+          <div>
+            <div class="timeline-title">${escapeHtml(job.title)}</div>
+            <div class="timeline-sub">${escapeHtml(sub)}</div>
+          </div>
+          <div class="timeline-note">${status}</div>
+        </div>`
+      }).join('')
+    : '<p class="empty">No automations are turned on yet.</p>'
+
+  const pendingApproval = state.pendingApproval
+    ? `<div class="timeline-row">
+        <div>
+          <div class="timeline-title">Waiting for approval</div>
+          <div class="timeline-sub">${escapeHtml(state.pendingApproval.summary)}</div>
+        </div>
+        <div class="timeline-note">${state.pendingApproval.approved ? 'Approved' : 'Awaiting YES/NO'} · ${formatTime(state.pendingApproval.createdAt)}</div>
+      </div>`
+    : '<p class="empty">No write actions are waiting for approval.</p>'
+
+  const alerts = state.alerts.length
+    ? state.alerts.map((alert) => `<div class="alert-row">
+        <div>
+          <div class="alert-title">${escapeHtml(alert.title)}</div>
+          <div class="alert-sub">${escapeHtml(alert.detail)}</div>
+        </div>
+        <span class="${alert.level === 'warn' ? 'pill pill-warn' : 'pill pill-quiet'}">${alert.level === 'warn' ? 'Needs attention' : 'FYI'}</span>
+      </div>`).join('')
+    : '<p class="empty">Nothing urgent. Your account is in a healthy baseline state.</p>'
 
   return layout('Dashboard', `
   <header class="topbar">
@@ -174,10 +374,10 @@ export function renderDashboardPage(user: User, state: {
   <main class="container">
     <div class="card">
       <div class="eyebrow">Overview</div>
-      <h1>${isLive ? 'Your agent is live' : 'Finish setup to go live'}</h1>
-      <p class="subtitle">
+      <h1>${isLive ? 'Your agent home' : 'Finish setup to go live'}</h1>
+      <p class="subtitle hero-copy">
         ${isLive
-          ? `${agentName} is running on WhatsApp and ready to assist.`
+          ? `${agentName} is live on WhatsApp. This page shows what it knows, what it can touch, and what needs your attention.`
           : `Complete ${setupStep < 6 ? `step ${setupStep} of 6 in` : ''} onboarding to connect your WhatsApp and go live.`}
       </p>
 
@@ -187,13 +387,27 @@ export function renderDashboardPage(user: User, state: {
           <div class="stat-value" style="color:${isLive ? 'var(--accent-ink)' : 'var(--ink-soft)'}">
             ${isLive ? 'Live' : 'Inactive'}
           </div>
-          <div class="stat-sub">${isLive ? 'Receiving WhatsApp messages' : 'WhatsApp not connected'}</div>
+          <div class="stat-sub">${isLive ? `WhatsApp via ${escapeHtml(providerLabel)}` : 'WhatsApp not connected'}</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">Account</div>
-          <div class="stat-value" style="font-size:.92rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${user.email}</div>
-          <div class="stat-sub">Google account</div>
+          <div class="stat-label">Assigned Role</div>
+          <div class="stat-value" style="font-size:.92rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(roleLabel)}</div>
+          <div class="stat-sub">${state.role ? escapeHtml(state.role.description) : 'Choose a role in onboarding'}</div>
         </div>
+        <div class="stat-card">
+          <div class="stat-label">Connected Surfaces</div>
+          <div class="stat-value">${connectedPlatforms} / ${state.platforms.length}</div>
+          <div class="stat-sub">${state.platforms.length ? 'Platforms the agent can use behind the scenes' : 'No external platforms required'}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Last Activity</div>
+          <div class="stat-value">${escapeHtml(lastActivity)}</div>
+          <div class="stat-sub">${state.automations.length ? `${state.automations.length} automation${state.automations.length === 1 ? '' : 's'} configured` : 'No scheduled work yet'}</div>
+        </div>
+      </div>
+
+      <div class="trust-note">
+        The dashboard shows verified state only. It does not expose raw chain-of-thought. Instead it shows what the agent knows, where it has access, and any actions waiting on you.
       </div>
 
       <hr class="divider" />
@@ -213,6 +427,58 @@ export function renderDashboardPage(user: User, state: {
           `
         }
         <a href="/api/auth/sign-out?callbackURL=/login" class="btn btn-outline" style="margin-left:auto">Sign out</a>
+      </div>
+
+      <div class="info-grid">
+        <section class="subcard stack">
+          <div>
+            <div class="section-title">What Your Agent Knows</div>
+            <div class="meta-list">
+              ${knowledgeRows.map((row) => `<div class="meta-row">
+                <div class="meta-key">${escapeHtml(row.key)}</div>
+                <div class="meta-value ${row.value === 'Missing' || row.value === 'Not added yet' ? 'muted' : ''}">${escapeHtml(row.value)}</div>
+              </div>`).join('')}
+            </div>
+          </div>
+          <div>
+            <div class="section-title">What It Can Touch</div>
+            <div class="capability-list">${capabilities}</div>
+          </div>
+        </section>
+
+        <section class="subcard stack">
+          <div>
+            <div class="section-title">Behind The Scenes</div>
+            <div class="timeline">
+              ${automationRows}
+            </div>
+          </div>
+          <div>
+            <div class="section-title">Pending Approval</div>
+            <div class="timeline">
+              ${pendingApproval}
+            </div>
+          </div>
+          <div>
+            <div class="section-title">What You Should Know</div>
+            <div class="alert-list">
+              ${alerts}
+            </div>
+          </div>
+          <div>
+            <div class="section-title">Account</div>
+            <div class="meta-list">
+              <div class="meta-row">
+                <div class="meta-key">Google account</div>
+                <div class="meta-value">${escapeHtml(user.email ?? 'Unknown')}</div>
+              </div>
+              <div class="meta-row">
+                <div class="meta-key">WhatsApp link</div>
+                <div class="meta-value ${state.whatsappJid ? '' : 'muted'}">${escapeHtml(state.whatsappJid ?? 'Not linked')}</div>
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   </main>`)

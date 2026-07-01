@@ -25,7 +25,7 @@ import { getConnections, getRole, updateClientMeta } from './store/client-store.
 import { clientIdForJid } from './tenant-store.js'
 import { broadcastLinked, broadcastLinkedToAll, broadcastQr, broadcastQrToAll } from './onboarding/server.js'
 import type { WhatsAppTransport } from './whatsapp-transport.js'
-import { shouldProcessBaileysInbound } from './baileys-gate.js'
+import { shouldProcessBaileysInbound, sameWhatsAppUser } from './baileys-gate.js'
 
 const STORE_ROOT = process.env.AGENT_STORE_DIR ?? './store'
 
@@ -123,6 +123,9 @@ export async function startBaileysWhatsApp(
     onLoggedOut?: (clientId: string) => void
     onConnected?: (clientId: string) => void
     onDisconnected?: (clientId: string) => void
+    /** Called when the owner types a stop command (stop/עצור) in the chat.
+     * Return true to confirm the agent should stop (logout the linked device). */
+    onStopCommand?: (clientId: string, senderJid: string) => Promise<boolean> | boolean
   } = {},
 ): Promise<BaileysSession> {
   const authDir = authDirFor(clientId)
@@ -243,11 +246,29 @@ export async function startBaileysWhatsApp(
 
       await socket.readMessages([msg.key])
 
-      const clientId = await clientIdForJid(jid)
-      await updateClientMeta(clientId, { whatsappProvider: 'baileys' })
-      const connections = await getConnections(clientId)
+      // Stop command: the owner can type "stop" / "עצור" to disconnect the
+      // agent and remove the linked device. Intercept before agent processing.
+      // Only the linked account owner (same user as socket.user) may stop —
+      // random group participants can't disable someone else's agent.
+      const ownerJid = socket.user?.id
+      const isOwner = ownerJid ? sameWhatsAppUser(jid, ownerJid) : false
+      const normalized = (gate.prompt ?? text ?? '').trim().toLowerCase()
+      const isStopCommand = ['stop', 'עצור', 'stop agent', 'disconnect', 'logout'].includes(normalized)
+      if (isStopCommand && isOwner && opts.onStopCommand) {
+        const shouldStop = await opts.onStopCommand(clientId, jid)
+        if (shouldStop) {
+          await transport.sendText(jid, 'Stopping the agent and removing the linked device from your phone. You can re-link anytime from the onboarding page. 👋')
+          stopped = true
+          try { await socket.logout() } catch { try { socket.end(undefined) } catch { /* already closed */ } }
+          return
+        }
+      }
+
+      const senderClientId = await clientIdForJid(jid)
+      await updateClientMeta(senderClientId, { whatsappProvider: 'baileys' })
+      const connections = await getConnections(senderClientId)
       const hasAnyConnection = Object.values(connections).some((c) => c?.status === 'connected')
-      const hasRole = (await getRole(clientId)) !== null
+      const hasRole = (await getRole(senderClientId)) !== null
       const onboarded = hasAnyConnection || hasRole
 
       // Value before integration: serve even un-onboarded senders with the default
@@ -278,7 +299,7 @@ export async function startBaileysWhatsApp(
         await runAndDeliver(transport, jid, prompt, { prepare })
 
         if (!onboarded) {
-          const nudge = await maybeOnboardingNudge(clientId, jid)
+          const nudge = await maybeOnboardingNudge(senderClientId, jid)
           if (nudge) await transport.sendText(jid, nudge)
         }
       } catch (err) {

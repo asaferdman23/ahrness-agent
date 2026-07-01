@@ -1,0 +1,4456 @@
+{
+  "projectRoot": "/Users/user/Desktop/ahrness-agent",
+  "totalFiles": 128,
+  "totalLOC": 18810,
+  "language": "typescript",
+  "files": {
+    ".agents/skills/ahrness-engineer/SKILL.md": {
+      "imports": [],
+      "exports": [],
+      "symbols": [],
+      "summary": "markdown (36 LOC)",
+      "loc": 36,
+      "language": "markdown",
+      "size": 2582
+    },
+    ".github/workflows/deploy.yml": {
+      "imports": [],
+      "exports": [],
+      "symbols": [],
+      "summary": "yaml (40 LOC)",
+      "loc": 40,
+      "language": "yaml",
+      "size": 1312
+    },
+    "AGENTS.md": {
+      "imports": [],
+      "exports": [],
+      "symbols": [],
+      "summary": "markdown (117 LOC)",
+      "loc": 117,
+      "language": "markdown",
+      "size": 7402
+    },
+    "ARCHITECTURE.md": {
+      "imports": [],
+      "exports": [],
+      "symbols": [],
+      "summary": "markdown (388 LOC)",
+      "loc": 388,
+      "language": "markdown",
+      "size": 19944
+    },
+    "DEVELOPMENT.md": {
+      "imports": [],
+      "exports": [],
+      "symbols": [],
+      "summary": "markdown (84 LOC)",
+      "loc": 84,
+      "language": "markdown",
+      "size": 3670
+    },
+    "README.md": {
+      "imports": [],
+      "exports": [],
+      "symbols": [],
+      "summary": "markdown (188 LOC)",
+      "loc": 188,
+      "language": "markdown",
+      "size": 10234
+    },
+    "docs/architecture.md": {
+      "imports": [],
+      "exports": [],
+      "symbols": [],
+      "summary": "markdown (178 LOC)",
+      "loc": 178,
+      "language": "markdown",
+      "size": 7156
+    },
+    "docs/superpowers/specs/2026-06-22-agent-memory-layer-design.md": {
+      "imports": [],
+      "exports": [],
+      "symbols": [],
+      "summary": "markdown (151 LOC)",
+      "loc": 151,
+      "language": "markdown",
+      "size": 12765
+    },
+    "docs/superpowers/specs/2026-06-23-fast-onboarding-and-trust-design.md": {
+      "imports": [],
+      "exports": [],
+      "symbols": [],
+      "summary": "markdown (110 LOC)",
+      "loc": 110,
+      "language": "markdown",
+      "size": 8854
+    },
+    "docs/superpowers/specs/2026-06-23-secure-autonomy-design.md": {
+      "imports": [],
+      "exports": [],
+      "symbols": [],
+      "summary": "markdown (73 LOC)",
+      "loc": 73,
+      "language": "markdown",
+      "size": 5656
+    },
+    "drizzle.config.ts": {
+      "imports": [],
+      "exports": [
+        "default"
+      ],
+      "symbols": [],
+      "summary": "typescript (9 LOC) — exports: default",
+      "loc": 9,
+      "language": "typescript",
+      "size": 283
+    },
+    "frontend/onboarding/index.html": {
+      "imports": [],
+      "exports": [],
+      "symbols": [],
+      "summary": "html (30 LOC)",
+      "loc": 30,
+      "language": "html",
+      "size": 1244
+    },
+    "frontend/onboarding/src/main.ts": {
+      "imports": [],
+      "exports": [],
+      "symbols": [],
+      "summary": "typescript (373 LOC)",
+      "loc": 373,
+      "language": "typescript",
+      "size": 18116
+    },
+    "frontend/onboarding/src/styles.css": {
+      "imports": [],
+      "exports": [],
+      "symbols": [],
+      "summary": "css (222 LOC)",
+      "loc": 222,
+      "language": "css",
+      "size": 10585
+    },
+    "frontend/onboarding/vite.config.ts": {
+      "imports": [],
+      "exports": [
+        "default"
+      ],
+      "symbols": [],
+      "summary": "typescript (21 LOC) — exports: default",
+      "loc": 21,
+      "language": "typescript",
+      "size": 501
+    },
+    "package-lock.json": {
+      "imports": [],
+      "exports": [],
+      "symbols": [],
+      "summary": "json (7123 LOC)",
+      "loc": 7123,
+      "language": "json",
+      "size": 244011
+    },
+    "package.json": {
+      "imports": [],
+      "exports": [],
+      "symbols": [],
+      "summary": "json (41 LOC)",
+      "loc": 41,
+      "language": "json",
+      "size": 1378
+    },
+    "src/@types/qrcode-terminal.d.ts": {
+      "imports": [],
+      "exports": [],
+      "symbols": [],
+      "summary": "typescript (4 LOC)",
+      "loc": 4,
+      "language": "typescript",
+      "size": 129
+    },
+    "src/access.test.ts": {
+      "imports": [
+        "src/access.ts"
+      ],
+      "exports": [],
+      "symbols": [],
+      "summary": "typescript (24 LOC)",
+      "loc": 24,
+      "language": "typescript",
+      "size": 1148
+    },
+    "src/access.ts": {
+      "imports": [
+        "src/whatsapp-address.ts",
+        "src/tenant-store.ts"
+      ],
+      "exports": [
+        "allowlistMode",
+        "isSenderAllowed",
+        "isInboundSenderAllowed",
+        "resetAccessWarningForTests"
+      ],
+      "symbols": [
+        {
+          "name": "allowlistMode",
+          "kind": "function",
+          "signature": "export function allowlistMode(): 'open' | 'restricted'",
+          "startLine": 20,
+          "endLine": 22
+        },
+        {
+          "name": "isSenderAllowed",
+          "kind": "function",
+          "signature": "export function isSenderAllowed(jid: string): boolean",
+          "startLine": 26,
+          "endLine": 44
+        },
+        {
+          "name": "isInboundSenderAllowed",
+          "kind": "function",
+          "signature": "export async function isInboundSenderAllowed(jid: string): Promise<boolean>",
+          "startLine": 53,
+          "endLine": 70
+        },
+        {
+          "name": "resetAccessWarningForTests",
+          "kind": "function",
+          "signature": "export function resetAccessWarningForTests(): void",
+          "startLine": 73,
+          "endLine": 75
+        }
+      ],
+      "summary": "typescript (66 LOC) — exports: allowlistMode, isSenderAllowed, isInboundSenderAllowed, resetAccessWarningForTests",
+      "loc": 66,
+      "language": "typescript",
+      "size": 2516
+    },
+    "src/agent.ts": {
+      "imports": [
+        "src/tenant-store.ts",
+        "src/roles/index.ts",
+        "src/mcps/index.ts",
+        "src/mcps/instagram-graph.ts",
+        "src/mcps/tiktok.ts",
+        "src/mcps/google.ts",
+        "src/mcps/web-search.ts",
+        "src/mcps/connect.ts",
+        "src/higgsfield-usage.ts",
+        "src/input-sharing.ts",
+        "src/scheduler/index.ts",
+        "src/sandbox.ts",
+        "src/plugins/business-context-plugin.ts",
+        "src/mcp.ts",
+        "src/store/types.ts",
+        "src/sessions/index.ts"
+      ],
+      "exports": [
+        "AGENT_MODEL",
+        "createModel",
+        "getHiggsfield",
+        "ClientAgentSession",
+        "buildClientAgent",
+        "createSummarizer",
+        "clientIdFromJid"
+      ],
+      "symbols": [
+        {
+          "name": "AGENT_MODEL",
+          "kind": "variable",
+          "signature": "export const AGENT_MODEL = process.env.AGENT_MODEL ?? 'claude-opus-4-8'",
+          "startLine": 37,
+          "endLine": 37
+        },
+        {
+          "name": "createModel",
+          "kind": "function",
+          "signature": "export function createModel(modelId: string = AGENT_MODEL): AnthropicModel",
+          "startLine": 44,
+          "endLine": 50
+        },
+        {
+          "name": "getHiggsfield",
+          "kind": "function",
+          "signature": "export async function getHiggsfield(): Promise<ReturnType<typeof createHiggsFieldMcpClient>>",
+          "startLine": 63,
+          "endLine": 69
+        },
+        {
+          "name": "ClientAgentSession",
+          "kind": "type",
+          "signature": "export type ClientAgentSession =",
+          "startLine": 96,
+          "endLine": 105
+        },
+        {
+          "name": "createSummarizer",
+          "kind": "function",
+          "signature": "export function createSummarizer(): Summarize",
+          "startLine": 284,
+          "endLine": 307
+        }
+      ],
+      "summary": "typescript (265 LOC) — exports: AGENT_MODEL, createModel, getHiggsfield, ClientAgentSession, buildClientAgent +2 more",
+      "loc": 265,
+      "language": "typescript",
+      "size": 14721
+    },
+    "src/auth.ts": {
+      "imports": [
+        "src/db/index.ts",
+        "src/db/schema.ts"
+      ],
+      "exports": [
+        "auth",
+        "Session",
+        "User"
+      ],
+      "symbols": [
+        {
+          "name": "auth",
+          "kind": "variable",
+          "signature": "export const auth = betterAuth({",
+          "startLine": 6,
+          "endLine": 6
+        },
+        {
+          "name": "Session",
+          "kind": "type",
+          "signature": "export type Session = typeof auth.$Infer.Session",
+          "startLine": 35,
+          "endLine": 36
+        },
+        {
+          "name": "User",
+          "kind": "type",
+          "signature": "export type User = typeof auth.$Infer.Session.user",
+          "startLine": 36,
+          "endLine": 37
+        }
+      ],
+      "summary": "typescript (34 LOC) — exports: auth, Session, User",
+      "loc": 34,
+      "language": "typescript",
+      "size": 1057
+    },
+    "src/baileys-gate.test.ts": {
+      "imports": [
+        "src/baileys-gate.ts"
+      ],
+      "exports": [],
+      "symbols": [],
+      "summary": "typescript (73 LOC)",
+      "loc": 73,
+      "language": "typescript",
+      "size": 2869
+    },
+    "src/baileys-gate.ts": {
+      "imports": [],
+      "exports": [
+        "BaileysInboundDecision",
+        "BaileysInboundGateInput",
+        "isWhatsAppGroupJid",
+        "shouldProcessBaileysInbound"
+      ],
+      "symbols": [
+        {
+          "name": "BaileysInboundDecision",
+          "kind": "type",
+          "signature": "export type BaileysInboundDecision =",
+          "startLine": 1,
+          "endLine": 7
+        },
+        {
+          "name": "BaileysInboundGateInput",
+          "kind": "type",
+          "signature": "export type BaileysInboundGateInput =",
+          "startLine": 9,
+          "endLine": 21
+        },
+        {
+          "name": "isWhatsAppGroupJid",
+          "kind": "function",
+          "signature": "export function isWhatsAppGroupJid(jid: string): boolean",
+          "startLine": 23,
+          "endLine": 25
+        },
+        {
+          "name": "shouldProcessBaileysInbound",
+          "kind": "function",
+          "signature": "export function shouldProcessBaileysInbound(input: BaileysInboundGateInput): BaileysInboundDecision",
+          "startLine": 27,
+          "endLine": 67
+        }
+      ],
+      "summary": "typescript (103 LOC) — exports: BaileysInboundDecision, BaileysInboundGateInput, isWhatsAppGroupJid, shouldProcessBaileysInbound",
+      "loc": 103,
+      "language": "typescript",
+      "size": 3865
+    },
+    "src/baileys-manager.ts": {
+      "imports": [
+        "src/whatsapp.ts"
+      ],
+      "exports": [
+        "EnsureSocketOptions",
+        "BaileysSessionManager",
+        "baileysSessionManager"
+      ],
+      "symbols": [
+        {
+          "name": "EnsureSocketOptions",
+          "kind": "type",
+          "signature": "export type EnsureSocketOptions =",
+          "startLine": 20,
+          "endLine": 25
+        },
+        {
+          "name": "BaileysSessionManager",
+          "kind": "class",
+          "signature": "export class BaileysSessionManager",
+          "startLine": 27,
+          "endLine": 163
+        },
+        {
+          "name": "baileysSessionManager",
+          "kind": "function",
+          "signature": "export function baileysSessionManager(): BaileysSessionManager",
+          "startLine": 168,
+          "endLine": 170
+        }
+      ],
+      "summary": "typescript (151 LOC) — exports: EnsureSocketOptions, BaileysSessionManager, baileysSessionManager",
+      "loc": 151,
+      "language": "typescript",
+      "size": 6179
+    },
+    "src/callback-server.ts": {
+      "imports": [
+        "src/oauth.ts",
+        "src/token-store.ts",
+        "src/input-sharing.ts",
+        "src/output-sharing.ts",
+        "src/onboarding/server.ts",
+        "src/twilio-whatsapp.ts",
+        "src/whatsapp-providers.ts",
+        "src/whatsapp-transport.ts",
+        "src/auth.ts",
+        "src/dashboard.ts",
+        "src/tenant-store.ts",
+        "src/onboarding/session.ts",
+        "src/db/index.ts",
+        "src/db/schema.ts"
+      ],
+      "exports": [
+        "startCallbackServer"
+      ],
+      "symbols": [
+        {
+          "name": "startCallbackServer",
+          "kind": "function",
+          "signature": "export function startCallbackServer(transport: WhatsAppTransport | null): void",
+          "startLine": 55,
+          "endLine": 263
+        }
+      ],
+      "summary": "typescript (240 LOC) — exports: startCallbackServer",
+      "loc": 240,
+      "language": "typescript",
+      "size": 10464
+    },
+    "src/config.ts": {
+      "imports": [],
+      "exports": [
+        "config"
+      ],
+      "symbols": [
+        {
+          "name": "config",
+          "kind": "variable",
+          "signature": "export const config = {",
+          "startLine": 1,
+          "endLine": 1
+        }
+      ],
+      "summary": "typescript (11 LOC) — exports: config",
+      "loc": 11,
+      "language": "typescript",
+      "size": 597
+    },
+    "src/confirmations.test.ts": {
+      "imports": [],
+      "exports": [],
+      "symbols": [],
+      "summary": "typescript (94 LOC)",
+      "loc": 94,
+      "language": "typescript",
+      "size": 4460
+    },
+    "src/confirmations.ts": {
+      "imports": [],
+      "exports": [
+        "PENDING_TTL_MS",
+        "PendingAction",
+        "ConfirmationStore",
+        "fingerprint",
+        "isAffirmative",
+        "isNegative",
+        "stageOrExecute",
+        "ApprovalDecision",
+        "resolvePendingApproval",
+        "makeMemoryStore",
+        "fileConfirmationStore"
+      ],
+      "symbols": [
+        {
+          "name": "PENDING_TTL_MS",
+          "kind": "variable",
+          "signature": "export const PENDING_TTL_MS = 10 * 60 * 1000",
+          "startLine": 17,
+          "endLine": 17
+        },
+        {
+          "name": "PendingAction",
+          "kind": "interface",
+          "signature": "export interface PendingAction",
+          "startLine": 19,
+          "endLine": 26
+        },
+        {
+          "name": "ConfirmationStore",
+          "kind": "interface",
+          "signature": "export interface ConfirmationStore",
+          "startLine": 28,
+          "endLine": 32
+        },
+        {
+          "name": "fingerprint",
+          "kind": "function",
+          "signature": "export function fingerprint(toolName: string, input: unknown): string",
+          "startLine": 44,
+          "endLine": 46
+        },
+        {
+          "name": "isAffirmative",
+          "kind": "function",
+          "signature": "export function isAffirmative(text: string): boolean",
+          "startLine": 48,
+          "endLine": 50
+        },
+        {
+          "name": "isNegative",
+          "kind": "function",
+          "signature": "export function isNegative(text: string): boolean",
+          "startLine": 52,
+          "endLine": 54
+        },
+        {
+          "name": "ApprovalDecision",
+          "kind": "type",
+          "signature": "export type ApprovalDecision =",
+          "startLine": 107,
+          "endLine": 108
+        },
+        {
+          "name": "resolvePendingApproval",
+          "kind": "function",
+          "signature": "export async function resolvePendingApproval(args: ResolveArgs): Promise<ApprovalDecision>",
+          "startLine": 113,
+          "endLine": 130
+        },
+        {
+          "name": "makeMemoryStore",
+          "kind": "function",
+          "signature": "export function makeMemoryStore(): ConfirmationStore",
+          "startLine": 135,
+          "endLine": 148
+        },
+        {
+          "name": "fileConfirmationStore",
+          "kind": "function",
+          "signature": "export function fileConfirmationStore(): ConfirmationStore",
+          "startLine": 151,
+          "endLine": 173
+        }
+      ],
+      "summary": "typescript (154 LOC) — exports: PENDING_TTL_MS, PendingAction, ConfirmationStore, fingerprint, isAffirmative +6 more",
+      "loc": 154,
+      "language": "typescript",
+      "size": 6039
+    },
+    "src/dashboard.ts": {
+      "imports": [
+        "src/auth.ts"
+      ],
+      "exports": [
+        "renderLoginPage",
+        "renderDashboardPage"
+      ],
+      "symbols": [
+        {
+          "name": "renderLoginPage",
+          "kind": "function",
+          "signature": "export function renderLoginPage(agentName: string, error?: string): string",
+          "startLine": 93,
+          "endLine": 134
+        }
+      ],
+      "summary": "typescript (207 LOC) — exports: renderLoginPage, renderDashboardPage",
+      "loc": 207,
+      "language": "typescript",
+      "size": 12142
+    },
+    "src/db/index.ts": {
+      "imports": [
+        "src/db/schema.ts"
+      ],
+      "exports": [
+        "db",
+        "initDb"
+      ],
+      "symbols": [
+        {
+          "name": "db",
+          "kind": "variable",
+          "signature": "export const db = drizzle(sqlite, { schema })",
+          "startLine": 13,
+          "endLine": 13
+        },
+        {
+          "name": "initDb",
+          "kind": "function",
+          "signature": "export function initDb(): void",
+          "startLine": 16,
+          "endLine": 76
+        }
+      ],
+      "summary": "entry point typescript (73 LOC) — exports: db, initDb",
+      "loc": 73,
+      "language": "typescript",
+      "size": 2271
+    },
+    "src/db/schema.ts": {
+      "imports": [],
+      "exports": [
+        "user",
+        "session",
+        "account",
+        "verification",
+        "tenant"
+      ],
+      "symbols": [
+        {
+          "name": "user",
+          "kind": "variable",
+          "signature": "export const user = sqliteTable('user', {",
+          "startLine": 5,
+          "endLine": 5
+        },
+        {
+          "name": "session",
+          "kind": "variable",
+          "signature": "export const session = sqliteTable('session', {",
+          "startLine": 15,
+          "endLine": 15
+        },
+        {
+          "name": "account",
+          "kind": "variable",
+          "signature": "export const account = sqliteTable('account', {",
+          "startLine": 26,
+          "endLine": 26
+        },
+        {
+          "name": "verification",
+          "kind": "variable",
+          "signature": "export const verification = sqliteTable('verification', {",
+          "startLine": 42,
+          "endLine": 42
+        },
+        {
+          "name": "tenant",
+          "kind": "variable",
+          "signature": "export const tenant = sqliteTable('tenant', {",
+          "startLine": 55,
+          "endLine": 55
+        }
+      ],
+      "summary": "typescript (53 LOC) — exports: user, session, account, verification, tenant",
+      "loc": 53,
+      "language": "typescript",
+      "size": 2863
+    },
+    "src/delivery.ts": {
+      "imports": [
+        "src/tenant-store.ts",
+        "src/confirmations.ts",
+        "src/whatsapp-transport.ts"
+      ],
+      "exports": [
+        "DeliverOptions",
+        "runAndDeliver"
+      ],
+      "symbols": [
+        {
+          "name": "DeliverOptions",
+          "kind": "interface",
+          "signature": "export interface DeliverOptions",
+          "startLine": 29,
+          "endLine": 32
+        }
+      ],
+      "summary": "typescript (122 LOC) — exports: DeliverOptions, runAndDeliver",
+      "loc": 122,
+      "language": "typescript",
+      "size": 5054
+    },
+    "src/egress-proxy-server.ts": {
+      "imports": [
+        "src/egress-proxy.ts"
+      ],
+      "exports": [],
+      "symbols": [],
+      "summary": "typescript (28 LOC)",
+      "loc": 28,
+      "language": "typescript",
+      "size": 1223
+    },
+    "src/egress-proxy.test.ts": {
+      "imports": [],
+      "exports": [],
+      "symbols": [],
+      "summary": "typescript (67 LOC)",
+      "loc": 67,
+      "language": "typescript",
+      "size": 3671
+    },
+    "src/egress-proxy.ts": {
+      "imports": [
+        "src/net-guard.ts"
+      ],
+      "exports": [
+        "hostMatchesAllowlist",
+        "assertEgressAllowed",
+        "RateLimiter",
+        "createWindowedRateLimiter",
+        "EgressProxyOptions",
+        "createEgressProxy"
+      ],
+      "symbols": [
+        {
+          "name": "hostMatchesAllowlist",
+          "kind": "function",
+          "signature": "export function hostMatchesAllowlist(host: string, patterns: string[]): boolean",
+          "startLine": 21,
+          "endLine": 33
+        },
+        {
+          "name": "assertEgressAllowed",
+          "kind": "function",
+          "signature": "export async function assertEgressAllowed(host: string, port: number, allowlist: string[]): Promise<void>",
+          "startLine": 36,
+          "endLine": 43
+        },
+        {
+          "name": "RateLimiter",
+          "kind": "interface",
+          "signature": "export interface RateLimiter",
+          "startLine": 45,
+          "endLine": 47
+        },
+        {
+          "name": "createWindowedRateLimiter",
+          "kind": "function",
+          "signature": "export function createWindowedRateLimiter(max: number, windowMs: number): RateLimiter",
+          "startLine": 50,
+          "endLine": 65
+        },
+        {
+          "name": "EgressProxyOptions",
+          "kind": "interface",
+          "signature": "export interface EgressProxyOptions",
+          "startLine": 67,
+          "endLine": 73
+        },
+        {
+          "name": "createEgressProxy",
+          "kind": "function",
+          "signature": "export function createEgressProxy(opts: EgressProxyOptions): http.Server",
+          "startLine": 75,
+          "endLine": 116
+        }
+      ],
+      "summary": "typescript (104 LOC) — exports: hostMatchesAllowlist, assertEgressAllowed, RateLimiter, createWindowedRateLimiter, EgressProxyOptions +1 more",
+      "loc": 104,
+      "language": "typescript",
+      "size": 4636
+    },
+    "src/higgsfield-auth.test.ts": {
+      "imports": [
+        "src/vault.ts",
+        "src/higgsfield-auth.ts"
+      ],
+      "exports": [],
+      "symbols": [],
+      "summary": "typescript (32 LOC)",
+      "loc": 32,
+      "language": "typescript",
+      "size": 1519
+    },
+    "src/higgsfield-auth.ts": {
+      "imports": [
+        "src/vault.ts"
+      ],
+      "exports": [
+        "HIGGSFIELD_MCP_URL",
+        "getHiggsfieldOAuthProvider",
+        "startHiggsfieldAuthorization",
+        "completeHiggsfieldAuthorization",
+        "isHiggsfieldAuthorized",
+        "verifyHiggsfieldSetupSecret"
+      ],
+      "symbols": [
+        {
+          "name": "HIGGSFIELD_MCP_URL",
+          "kind": "variable",
+          "signature": "export const HIGGSFIELD_MCP_URL = process.env.HIGGSFIELD_MCP_URL ?? 'https://mcp.higgsfield.ai/mcp'",
+          "startLine": 12,
+          "endLine": 12
+        },
+        {
+          "name": "getHiggsfieldOAuthProvider",
+          "kind": "function",
+          "signature": "export function getHiggsfieldOAuthProvider(): OAuthClientProvider",
+          "startLine": 137,
+          "endLine": 139
+        },
+        {
+          "name": "startHiggsfieldAuthorization",
+          "kind": "function",
+          "signature": "export async function startHiggsfieldAuthorization(): Promise<string | null>",
+          "startLine": 141,
+          "endLine": 150
+        },
+        {
+          "name": "completeHiggsfieldAuthorization",
+          "kind": "function",
+          "signature": "export async function completeHiggsfieldAuthorization(code: string, returnedState: string): Promise<void>",
+          "startLine": 152,
+          "endLine": 162
+        },
+        {
+          "name": "isHiggsfieldAuthorized",
+          "kind": "function",
+          "signature": "export async function isHiggsfieldAuthorized(): Promise<boolean>",
+          "startLine": 164,
+          "endLine": 166
+        },
+        {
+          "name": "verifyHiggsfieldSetupSecret",
+          "kind": "function",
+          "signature": "export function verifyHiggsfieldSetupSecret(candidate: string | null): boolean",
+          "startLine": 168,
+          "endLine": 172
+        }
+      ],
+      "summary": "typescript (153 LOC) — exports: HIGGSFIELD_MCP_URL, getHiggsfieldOAuthProvider, startHiggsfieldAuthorization, completeHiggsfieldAuthorization, isHiggsfieldAuthorized +1 more",
+      "loc": 153,
+      "language": "typescript",
+      "size": 6463
+    },
+    "src/higgsfield-usage.ts": {
+      "imports": [],
+      "exports": [
+        "limitHiggsfieldTools"
+      ],
+      "symbols": [
+        {
+          "name": "limitHiggsfieldTools",
+          "kind": "function",
+          "signature": "export function limitHiggsfieldTools(clientId: string, tools: Tool[]): Tool[]",
+          "startLine": 77,
+          "endLine": 79
+        }
+      ],
+      "summary": "typescript (68 LOC) — exports: limitHiggsfieldTools",
+      "loc": 68,
+      "language": "typescript",
+      "size": 2841
+    },
+    "src/higgsfield.test.ts": {
+      "imports": [
+        "src/higgsfield-auth.ts",
+        "src/input-sharing.ts",
+        "src/outputs.ts"
+      ],
+      "exports": [],
+      "symbols": [],
+      "summary": "typescript (42 LOC)",
+      "loc": 42,
+      "language": "typescript",
+      "size": 2196
+    },
+    "src/index.ts": {
+      "imports": [
+        "src/db/index.ts",
+        "src/callback-server.ts",
+        "src/scheduler/index.ts",
+        "src/twilio-whatsapp.ts",
+        "src/baileys-manager.ts",
+        "src/whatsapp-router.ts",
+        "src/whatsapp-providers.ts",
+        "src/startup-checks.ts",
+        "src/whatsapp-transport.ts"
+      ],
+      "exports": [],
+      "symbols": [],
+      "summary": "entry point typescript (53 LOC)",
+      "loc": 53,
+      "language": "typescript",
+      "size": 2150
+    },
+    "src/input-sharing.ts": {
+      "imports": [
+        "src/sandbox.ts"
+      ],
+      "exports": [
+        "createShareInputTool",
+        "serveSharedInput"
+      ],
+      "symbols": [
+        {
+          "name": "createShareInputTool",
+          "kind": "function",
+          "signature": "export function createShareInputTool(clientId: string): ReturnType<typeof tool>",
+          "startLine": 33,
+          "endLine": 61
+        },
+        {
+          "name": "serveSharedInput",
+          "kind": "function",
+          "signature": "export async function serveSharedInput(pathname: string, searchParams: URLSearchParams, res: ServerResponse): Promise<void>",
+          "startLine": 63,
+          "endLine": 117
+        }
+      ],
+      "summary": "typescript (124 LOC) — exports: createShareInputTool, serveSharedInput",
+      "loc": 124,
+      "language": "typescript",
+      "size": 5604
+    },
+    "src/mcp.ts": {
+      "imports": [
+        "src/higgsfield-auth.ts"
+      ],
+      "exports": [
+        "createMetaAdsMcpClient",
+        "createHiggsFieldMcpClient"
+      ],
+      "symbols": [
+        {
+          "name": "createMetaAdsMcpClient",
+          "kind": "function",
+          "signature": "export function createMetaAdsMcpClient(clientToken: string): McpClient",
+          "startLine": 15,
+          "endLine": 33
+        },
+        {
+          "name": "createHiggsFieldMcpClient",
+          "kind": "function",
+          "signature": "export function createHiggsFieldMcpClient(): McpClient",
+          "startLine": 39,
+          "endLine": 55
+        }
+      ],
+      "summary": "typescript (50 LOC) — exports: createMetaAdsMcpClient, createHiggsFieldMcpClient",
+      "loc": 50,
+      "language": "typescript",
+      "size": 1885
+    },
+    "src/mcps/connect.test.ts": {
+      "imports": [
+        "src/mcps/connect.ts"
+      ],
+      "exports": [],
+      "symbols": [],
+      "summary": "typescript (23 LOC)",
+      "loc": 23,
+      "language": "typescript",
+      "size": 1079
+    },
+    "src/mcps/connect.ts": {
+      "imports": [
+        "src/onboarding/client-link.ts",
+        "src/store/types.ts"
+      ],
+      "exports": [
+        "buildConnectResponse",
+        "createConnectTools"
+      ],
+      "symbols": [
+        {
+          "name": "createConnectTools",
+          "kind": "function",
+          "signature": "export function createConnectTools(jid: string, allowed: PlatformId[]): Array<ReturnType<typeof tool>>",
+          "startLine": 42,
+          "endLine": 67
+        }
+      ],
+      "summary": "typescript (63 LOC) — exports: buildConnectResponse, createConnectTools",
+      "loc": 63,
+      "language": "typescript",
+      "size": 2439
+    },
+    "src/mcps/google.ts": {
+      "imports": [
+        "src/mcps/types.ts",
+        "src/store/types.ts",
+        "src/store/client-store.ts"
+      ],
+      "exports": [
+        "googleMcp",
+        "createGoogleTools"
+      ],
+      "symbols": [
+        {
+          "name": "googleMcp",
+          "kind": "variable",
+          "signature": "export const googleMcp: McpDefinition = {",
+          "startLine": 33,
+          "endLine": 33
+        },
+        {
+          "name": "createGoogleTools",
+          "kind": "function",
+          "signature": "export function createGoogleTools(credentials: ConnectionRecord, clientId?: string)",
+          "startLine": 53,
+          "endLine": 181
+        }
+      ],
+      "summary": "typescript (172 LOC) — exports: googleMcp, createGoogleTools",
+      "loc": 172,
+      "language": "typescript",
+      "size": 7678
+    },
+    "src/mcps/higgsfield.ts": {
+      "imports": [
+        "src/higgsfield-auth.ts",
+        "src/mcps/types.ts",
+        "src/store/types.ts"
+      ],
+      "exports": [
+        "higgsfieldMcp"
+      ],
+      "symbols": [
+        {
+          "name": "higgsfieldMcp",
+          "kind": "variable",
+          "signature": "export const higgsfieldMcp: McpDefinition = {",
+          "startLine": 6,
+          "endLine": 6
+        }
+      ],
+      "summary": "typescript (30 LOC) — exports: higgsfieldMcp",
+      "loc": 30,
+      "language": "typescript",
+      "size": 1399
+    },
+    "src/mcps/index.ts": {
+      "imports": [
+        "src/mcps/registry.ts",
+        "src/mcps/types.ts",
+        "src/mcps/instagram-graph.ts",
+        "src/mcps/tiktok.ts",
+        "src/mcps/google.ts"
+      ],
+      "exports": [
+        "getMcp",
+        "getAllMcps",
+        "createInstagramTools",
+        "createTikTokTools",
+        "createGoogleTools"
+      ],
+      "symbols": [],
+      "summary": "entry point typescript (5 LOC) — exports: getMcp, getAllMcps, createInstagramTools, createTikTokTools, createGoogleTools",
+      "loc": 5,
+      "language": "typescript",
+      "size": 266
+    },
+    "src/mcps/instagram-graph.ts": {
+      "imports": [
+        "src/mcps/types.ts",
+        "src/store/types.ts",
+        "src/confirmations.ts"
+      ],
+      "exports": [
+        "instagramGraphMcp",
+        "createInstagramTools"
+      ],
+      "symbols": [
+        {
+          "name": "instagramGraphMcp",
+          "kind": "variable",
+          "signature": "export const instagramGraphMcp: McpDefinition = {",
+          "startLine": 20,
+          "endLine": 20
+        },
+        {
+          "name": "createInstagramTools",
+          "kind": "function",
+          "signature": "export function createInstagramTools(credentials: ConnectionRecord, clientId?: string)",
+          "startLine": 35,
+          "endLine": 151
+        }
+      ],
+      "summary": "typescript (145 LOC) — exports: instagramGraphMcp, createInstagramTools",
+      "loc": 145,
+      "language": "typescript",
+      "size": 6404
+    },
+    "src/mcps/meta-ads.ts": {
+      "imports": [
+        "src/mcps/types.ts",
+        "src/store/types.ts"
+      ],
+      "exports": [
+        "metaAdsMcp"
+      ],
+      "symbols": [
+        {
+          "name": "metaAdsMcp",
+          "kind": "variable",
+          "signature": "export const metaAdsMcp: McpDefinition = {",
+          "startLine": 12,
+          "endLine": 12
+        }
+      ],
+      "summary": "typescript (39 LOC) — exports: metaAdsMcp",
+      "loc": 39,
+      "language": "typescript",
+      "size": 1548
+    },
+    "src/mcps/registry.ts": {
+      "imports": [
+        "src/store/types.ts",
+        "src/mcps/types.ts",
+        "src/mcps/meta-ads.ts",
+        "src/mcps/higgsfield.ts",
+        "src/mcps/instagram-graph.ts",
+        "src/mcps/tiktok.ts",
+        "src/mcps/google.ts"
+      ],
+      "exports": [
+        "getMcp",
+        "getAllMcps"
+      ],
+      "symbols": [
+        {
+          "name": "getMcp",
+          "kind": "function",
+          "signature": "export function getMcp(id: PlatformId): McpDefinition",
+          "startLine": 13,
+          "endLine": 17
+        },
+        {
+          "name": "getAllMcps",
+          "kind": "function",
+          "signature": "export function getAllMcps(): McpDefinition[]",
+          "startLine": 19,
+          "endLine": 21
+        }
+      ],
+      "summary": "typescript (17 LOC) — exports: getMcp, getAllMcps",
+      "loc": 17,
+      "language": "typescript",
+      "size": 732
+    },
+    "src/mcps/tiktok.ts": {
+      "imports": [
+        "src/mcps/types.ts",
+        "src/store/types.ts",
+        "src/confirmations.ts"
+      ],
+      "exports": [
+        "tiktokMcp",
+        "createTikTokTools"
+      ],
+      "symbols": [
+        {
+          "name": "tiktokMcp",
+          "kind": "variable",
+          "signature": "export const tiktokMcp: McpDefinition = {",
+          "startLine": 19,
+          "endLine": 19
+        },
+        {
+          "name": "createTikTokTools",
+          "kind": "function",
+          "signature": "export function createTikTokTools(credentials: ConnectionRecord, clientId?: string)",
+          "startLine": 34,
+          "endLine": 136
+        }
+      ],
+      "summary": "typescript (130 LOC) — exports: tiktokMcp, createTikTokTools",
+      "loc": 130,
+      "language": "typescript",
+      "size": 5560
+    },
+    "src/mcps/types.ts": {
+      "imports": [
+        "src/store/types.ts"
+      ],
+      "exports": [
+        "OAuthFlow",
+        "McpDefinition"
+      ],
+      "symbols": [
+        {
+          "name": "OAuthFlow",
+          "kind": "type",
+          "signature": "export type OAuthFlow = 'redirect' | 'api-key' | 'none'",
+          "startLine": 4,
+          "endLine": 5
+        },
+        {
+          "name": "McpDefinition",
+          "kind": "interface",
+          "signature": "export interface McpDefinition",
+          "startLine": 6,
+          "endLine": 18
+        }
+      ],
+      "summary": "typescript (16 LOC) — exports: OAuthFlow, McpDefinition",
+      "loc": 16,
+      "language": "typescript",
+      "size": 716
+    },
+    "src/mcps/web-search.test.ts": {
+      "imports": [
+        "src/mcps/web-search.ts"
+      ],
+      "exports": [],
+      "symbols": [],
+      "summary": "typescript (40 LOC)",
+      "loc": 40,
+      "language": "typescript",
+      "size": 1641
+    },
+    "src/mcps/web-search.ts": {
+      "imports": [],
+      "exports": [
+        "SearchResult",
+        "SearchFn",
+        "formatResults",
+        "runWebSearch",
+        "createWebSearchTool"
+      ],
+      "symbols": [
+        {
+          "name": "SearchResult",
+          "kind": "interface",
+          "signature": "export interface SearchResult",
+          "startLine": 15,
+          "endLine": 19
+        },
+        {
+          "name": "SearchFn",
+          "kind": "type",
+          "signature": "export type SearchFn = (query: string, maxResults: number) => Promise<SearchResult[]>",
+          "startLine": 21,
+          "endLine": 22
+        },
+        {
+          "name": "formatResults",
+          "kind": "function",
+          "signature": "export function formatResults(query: string, results: SearchResult[]): string",
+          "startLine": 27,
+          "endLine": 32
+        },
+        {
+          "name": "runWebSearch",
+          "kind": "function",
+          "signature": "export async function runWebSearch(rawInput: unknown, searchFn: SearchFn): Promise<string>",
+          "startLine": 39,
+          "endLine": 45
+        },
+        {
+          "name": "createWebSearchTool",
+          "kind": "function",
+          "signature": "export function createWebSearchTool(searchFn: SearchFn = tavilySearch): ReturnType<typeof tool>",
+          "startLine": 66,
+          "endLine": 83
+        }
+      ],
+      "summary": "typescript (75 LOC) — exports: SearchResult, SearchFn, formatResults, runWebSearch, createWebSearchTool",
+      "loc": 75,
+      "language": "typescript",
+      "size": 3604
+    },
+    "src/net-guard.ts": {
+      "imports": [],
+      "exports": [
+        "isPrivateAddress"
+      ],
+      "symbols": [
+        {
+          "name": "isPrivateAddress",
+          "kind": "function",
+          "signature": "export function isPrivateAddress(address: string): boolean",
+          "startLine": 9,
+          "endLine": 27
+        }
+      ],
+      "summary": "typescript (26 LOC) — exports: isPrivateAddress",
+      "loc": 26,
+      "language": "typescript",
+      "size": 1077
+    },
+    "src/oauth.ts": {
+      "imports": [],
+      "exports": [
+        "buildAuthUrl",
+        "exchangeCodeForToken",
+        "decodeState"
+      ],
+      "symbols": [
+        {
+          "name": "buildAuthUrl",
+          "kind": "function",
+          "signature": "export function buildAuthUrl(jid: string): string",
+          "startLine": 21,
+          "endLine": 35
+        },
+        {
+          "name": "exchangeCodeForToken",
+          "kind": "function",
+          "signature": "export async function exchangeCodeForToken(code: string): Promise<",
+          "startLine": 41,
+          "endLine": 69
+        },
+        {
+          "name": "decodeState",
+          "kind": "function",
+          "signature": "export function decodeState(state: string): string",
+          "startLine": 72,
+          "endLine": 74
+        }
+      ],
+      "summary": "typescript (64 LOC) — exports: buildAuthUrl, exchangeCodeForToken, decodeState",
+      "loc": 64,
+      "language": "typescript",
+      "size": 2736
+    },
+    "src/onboarding-nudge.test.ts": {
+      "imports": [
+        "src/onboarding-nudge.ts"
+      ],
+      "exports": [],
+      "symbols": [],
+      "summary": "typescript (28 LOC)",
+      "loc": 28,
+      "language": "typescript",
+      "size": 1158
+    },
+    "src/onboarding-nudge.ts": {
+      "imports": [
+        "src/store/client-store.ts",
+        "src/onboarding/client-link.ts"
+      ],
+      "exports": [
+        "maybeOnboardingNudge"
+      ],
+      "symbols": [
+        {
+          "name": "maybeOnboardingNudge",
+          "kind": "function",
+          "signature": "export async function maybeOnboardingNudge(clientId: string, jid: string): Promise<string | null>",
+          "startLine": 15,
+          "endLine": 30
+        }
+      ],
+      "summary": "typescript (28 LOC) — exports: maybeOnboardingNudge",
+      "loc": 28,
+      "language": "typescript",
+      "size": 1391
+    },
+    "src/onboarding/client-link.ts": {
+      "imports": [
+        "src/store/types.ts"
+      ],
+      "exports": [
+        "signClientToken",
+        "verifyClientToken",
+        "onboardingUrlFor",
+        "oauthStateFor"
+      ],
+      "symbols": [
+        {
+          "name": "signClientToken",
+          "kind": "function",
+          "signature": "export function signClientToken(jid: string): string",
+          "startLine": 24,
+          "endLine": 27
+        },
+        {
+          "name": "verifyClientToken",
+          "kind": "function",
+          "signature": "export function verifyClientToken(token: string): string | null",
+          "startLine": 30,
+          "endLine": 48
+        },
+        {
+          "name": "onboardingUrlFor",
+          "kind": "function",
+          "signature": "export function onboardingUrlFor(base: string, jid: string, platform?: string): string",
+          "startLine": 55,
+          "endLine": 63
+        },
+        {
+          "name": "oauthStateFor",
+          "kind": "function",
+          "signature": "export function oauthStateFor(session: OnboardingSession): string",
+          "startLine": 70,
+          "endLine": 79
+        }
+      ],
+      "summary": "typescript (73 LOC) — exports: signClientToken, verifyClientToken, onboardingUrlFor, oauthStateFor",
+      "loc": 73,
+      "language": "typescript",
+      "size": 2818
+    },
+    "src/onboarding/dev-server.ts": {
+      "imports": [
+        "src/callback-server.ts"
+      ],
+      "exports": [],
+      "symbols": [],
+      "summary": "typescript (9 LOC)",
+      "loc": 9,
+      "language": "typescript",
+      "size": 342
+    },
+    "src/onboarding/server.ts": {
+      "imports": [
+        "src/onboarding/session.ts",
+        "src/roles/index.ts",
+        "src/mcps/index.ts",
+        "src/mcps/types.ts",
+        "src/onboarding/client-link.ts",
+        "src/scheduler/index.ts",
+        "src/store/types.ts",
+        "src/twilio-whatsapp.ts",
+        "src/tenant-store.ts",
+        "src/baileys-manager.ts"
+      ],
+      "exports": [
+        "broadcastQr",
+        "broadcastQrToAll",
+        "broadcastLinked",
+        "broadcastLinkedToAll",
+        "OnboardingHandler",
+        "createOnboardingHandler"
+      ],
+      "symbols": [
+        {
+          "name": "broadcastQr",
+          "kind": "function",
+          "signature": "export async function broadcastQr(sessionId: string, qrText: string): Promise<void>",
+          "startLine": 48,
+          "endLine": 59
+        },
+        {
+          "name": "broadcastQrToAll",
+          "kind": "function",
+          "signature": "export async function broadcastQrToAll(qrText: string): Promise<void>",
+          "startLine": 61,
+          "endLine": 69
+        },
+        {
+          "name": "broadcastLinked",
+          "kind": "function",
+          "signature": "export function broadcastLinked(jid: string, sessionId: string): void",
+          "startLine": 80,
+          "endLine": 88
+        },
+        {
+          "name": "broadcastLinkedToAll",
+          "kind": "function",
+          "signature": "export function broadcastLinkedToAll(jid: string): void",
+          "startLine": 90,
+          "endLine": 99
+        },
+        {
+          "name": "OnboardingHandler",
+          "kind": "type",
+          "signature": "export type OnboardingHandler = (req: IncomingMessage, res: ServerResponse) => Promise<void>",
+          "startLine": 850,
+          "endLine": 851
+        },
+        {
+          "name": "createOnboardingHandler",
+          "kind": "function",
+          "signature": "export function createOnboardingHandler(): OnboardingHandler",
+          "startLine": 852,
+          "endLine": 1201
+        }
+      ],
+      "summary": "typescript (1108 LOC) — exports: broadcastQr, broadcastQrToAll, broadcastLinked, broadcastLinkedToAll, OnboardingHandler +1 more",
+      "loc": 1108,
+      "language": "typescript",
+      "size": 53106
+    },
+    "src/onboarding/session.test.ts": {
+      "imports": [
+        "src/store/client-store.ts",
+        "src/onboarding/session.ts",
+        "src/store/types.ts"
+      ],
+      "exports": [],
+      "symbols": [],
+      "summary": "typescript (78 LOC)",
+      "loc": 78,
+      "language": "typescript",
+      "size": 3395
+    },
+    "src/onboarding/session.ts": {
+      "imports": [
+        "src/store/types.ts",
+        "src/store/client-store.ts",
+        "src/tenant-store.ts",
+        "src/whatsapp-providers.ts"
+      ],
+      "exports": [
+        "createSession",
+        "loadSession",
+        "saveSession",
+        "ensureWhatsAppConnectCode",
+        "bindSessionToWhatsAppCode",
+        "getOrCreateSession"
+      ],
+      "symbols": [
+        {
+          "name": "createSession",
+          "kind": "function",
+          "signature": "export async function createSession(): Promise<OnboardingSession>",
+          "startLine": 19,
+          "endLine": 31
+        },
+        {
+          "name": "loadSession",
+          "kind": "function",
+          "signature": "export async function loadSession(sessionId: string): Promise<OnboardingSession | null>",
+          "startLine": 33,
+          "endLine": 40
+        },
+        {
+          "name": "saveSession",
+          "kind": "function",
+          "signature": "export async function saveSession(session: OnboardingSession): Promise<void>",
+          "startLine": 42,
+          "endLine": 48
+        },
+        {
+          "name": "ensureWhatsAppConnectCode",
+          "kind": "function",
+          "signature": "export async function ensureWhatsAppConnectCode(session: OnboardingSession): Promise<string>",
+          "startLine": 50,
+          "endLine": 55
+        },
+        {
+          "name": "getOrCreateSession",
+          "kind": "function",
+          "signature": "export async function getOrCreateSession(sessionId?: string): Promise<OnboardingSession>",
+          "startLine": 93,
+          "endLine": 99
+        }
+      ],
+      "summary": "typescript (89 LOC) — exports: createSession, loadSession, saveSession, ensureWhatsAppConnectCode, bindSessionToWhatsAppCode +1 more",
+      "loc": 89,
+      "language": "typescript",
+      "size": 3540
+    },
+    "src/onboarding/views/layout.html": {
+      "imports": [],
+      "exports": [],
+      "symbols": [],
+      "summary": "UI html (333 LOC)",
+      "loc": 333,
+      "language": "html",
+      "size": 19004
+    },
+    "src/output-sharing.ts": {
+      "imports": [
+        "src/sandbox.ts"
+      ],
+      "exports": [
+        "signedOutputUrl",
+        "serveSharedOutput"
+      ],
+      "symbols": [
+        {
+          "name": "signedOutputUrl",
+          "kind": "function",
+          "signature": "export function signedOutputUrl(clientId: string, fileName: string, mimeType: string): string",
+          "startLine": 29,
+          "endLine": 36
+        }
+      ],
+      "summary": "typescript (89 LOC) — exports: signedOutputUrl, serveSharedOutput",
+      "loc": 89,
+      "language": "typescript",
+      "size": 3456
+    },
+    "src/outputs.ts": {
+      "imports": [
+        "src/sandbox.ts",
+        "src/net-guard.ts"
+      ],
+      "exports": [
+        "PublishedOutput",
+        "createPublishOutputTool",
+        "createImportRemoteOutputTool",
+        "readPublishedOutput",
+        "isPrivateAddress"
+      ],
+      "symbols": [
+        {
+          "name": "PublishedOutput",
+          "kind": "type",
+          "signature": "export type PublishedOutput =",
+          "startLine": 11,
+          "endLine": 17
+        },
+        {
+          "name": "readPublishedOutput",
+          "kind": "function",
+          "signature": "export async function readPublishedOutput(sandbox: DockerSandbox, output: PublishedOutput): Promise<Uint8Array>",
+          "startLine": 236,
+          "endLine": 253
+        }
+      ],
+      "summary": "typescript (232 LOC) — exports: PublishedOutput, createPublishOutputTool, createImportRemoteOutputTool, readPublishedOutput, isPrivateAddress",
+      "loc": 232,
+      "language": "typescript",
+      "size": 10086
+    },
+    "src/plugins/business-context-plugin.ts": {
+      "imports": [
+        "src/store/types.ts"
+      ],
+      "exports": [
+        "BusinessContextPlugin"
+      ],
+      "symbols": [
+        {
+          "name": "BusinessContextPlugin",
+          "kind": "class",
+          "signature": "export class BusinessContextPlugin implements Plugin",
+          "startLine": 62,
+          "endLine": 98
+        }
+      ],
+      "summary": "typescript (85 LOC) — exports: BusinessContextPlugin",
+      "loc": 85,
+      "language": "typescript",
+      "size": 4153
+    },
+    "src/roles/index.ts": {
+      "imports": [
+        "src/roles/registry.ts",
+        "src/roles/types.ts"
+      ],
+      "exports": [
+        "getRole",
+        "getAllRoles"
+      ],
+      "symbols": [],
+      "summary": "entry point typescript (2 LOC) — exports: getRole, getAllRoles",
+      "loc": 2,
+      "language": "typescript",
+      "size": 102
+    },
+    "src/roles/registry.test.ts": {
+      "imports": [
+        "src/roles/registry.ts"
+      ],
+      "exports": [],
+      "symbols": [],
+      "summary": "typescript (10 LOC)",
+      "loc": 10,
+      "language": "typescript",
+      "size": 447
+    },
+    "src/roles/registry.ts": {
+      "imports": [
+        "src/store/types.ts",
+        "src/roles/types.ts"
+      ],
+      "exports": [
+        "getRole",
+        "getAllRoles"
+      ],
+      "symbols": [
+        {
+          "name": "getRole",
+          "kind": "function",
+          "signature": "export function getRole(id: RoleId): RoleDefinition",
+          "startLine": 100,
+          "endLine": 104
+        },
+        {
+          "name": "getAllRoles",
+          "kind": "function",
+          "signature": "export function getAllRoles(): RoleDefinition[]",
+          "startLine": 106,
+          "endLine": 108
+        }
+      ],
+      "summary": "typescript (104 LOC) — exports: getRole, getAllRoles",
+      "loc": 104,
+      "language": "typescript",
+      "size": 6476
+    },
+    "src/roles/types.ts": {
+      "imports": [
+        "src/store/types.ts"
+      ],
+      "exports": [
+        "RoleDefinition"
+      ],
+      "symbols": [
+        {
+          "name": "RoleDefinition",
+          "kind": "interface",
+          "signature": "export interface RoleDefinition",
+          "startLine": 3,
+          "endLine": 12
+        }
+      ],
+      "summary": "typescript (11 LOC) — exports: RoleDefinition",
+      "loc": 11,
+      "language": "typescript",
+      "size": 278
+    },
+    "src/sandbox.test.ts": {
+      "imports": [
+        "src/sandbox.ts"
+      ],
+      "exports": [],
+      "symbols": [],
+      "summary": "typescript (18 LOC)",
+      "loc": 18,
+      "language": "typescript",
+      "size": 1074
+    },
+    "src/sandbox.ts": {
+      "imports": [],
+      "exports": [
+        "OUTPUTS_DIR",
+        "ClientSandbox",
+        "clientSandboxKey",
+        "resolvePublishedOutputPath",
+        "getClientSandbox",
+        "getClientSandboxByKey"
+      ],
+      "symbols": [
+        {
+          "name": "OUTPUTS_DIR",
+          "kind": "variable",
+          "signature": "export const OUTPUTS_DIR = `${CONTAINER_WORKSPACE}/outputs`",
+          "startLine": 8,
+          "endLine": 8
+        },
+        {
+          "name": "ClientSandbox",
+          "kind": "type",
+          "signature": "export type ClientSandbox =",
+          "startLine": 32,
+          "endLine": 36
+        },
+        {
+          "name": "clientSandboxKey",
+          "kind": "function",
+          "signature": "export function clientSandboxKey(clientId: string): string",
+          "startLine": 61,
+          "endLine": 63
+        },
+        {
+          "name": "resolvePublishedOutputPath",
+          "kind": "function",
+          "signature": "export function resolvePublishedOutputPath(requestedPath: string): string",
+          "startLine": 65,
+          "endLine": 74
+        },
+        {
+          "name": "getClientSandbox",
+          "kind": "function",
+          "signature": "export async function getClientSandbox(clientId: string): Promise<ClientSandbox>",
+          "startLine": 296,
+          "endLine": 301
+        },
+        {
+          "name": "getClientSandboxByKey",
+          "kind": "function",
+          "signature": "export async function getClientSandboxByKey(key: string): Promise<ClientSandbox>",
+          "startLine": 303,
+          "endLine": 308
+        }
+      ],
+      "summary": "typescript (278 LOC) — exports: OUTPUTS_DIR, ClientSandbox, clientSandboxKey, resolvePublishedOutputPath, getClientSandbox +1 more",
+      "loc": 278,
+      "language": "typescript",
+      "size": 10538
+    },
+    "src/scheduler-cron.test.ts": {
+      "imports": [
+        "src/scheduler/cron.ts"
+      ],
+      "exports": [],
+      "symbols": [],
+      "summary": "typescript (34 LOC)",
+      "loc": 34,
+      "language": "typescript",
+      "size": 1776
+    },
+    "src/scheduler/cron.ts": {
+      "imports": [],
+      "exports": [
+        "ParsedCron",
+        "parseCron",
+        "isValidCron",
+        "cronMatches"
+      ],
+      "symbols": [
+        {
+          "name": "ParsedCron",
+          "kind": "interface",
+          "signature": "export interface ParsedCron",
+          "startLine": 57,
+          "endLine": 65
+        },
+        {
+          "name": "parseCron",
+          "kind": "function",
+          "signature": "export function parseCron(expr: string): ParsedCron",
+          "startLine": 67,
+          "endLine": 78
+        },
+        {
+          "name": "isValidCron",
+          "kind": "function",
+          "signature": "export function isValidCron(expr: string): boolean",
+          "startLine": 80,
+          "endLine": 87
+        },
+        {
+          "name": "cronMatches",
+          "kind": "function",
+          "signature": "export function cronMatches(expr: string, date: Date, timezone: string): boolean",
+          "startLine": 130,
+          "endLine": 141
+        }
+      ],
+      "summary": "typescript (124 LOC) — exports: ParsedCron, parseCron, isValidCron, cronMatches",
+      "loc": 124,
+      "language": "typescript",
+      "size": 4533
+    },
+    "src/scheduler/index.ts": {
+      "imports": [
+        "src/scheduler/store.ts",
+        "src/scheduler/templates.ts",
+        "src/scheduler/tools.ts",
+        "src/scheduler/types.ts",
+        "src/scheduler/templates.ts",
+        "src/scheduler/tools.ts",
+        "src/scheduler/store.ts",
+        "src/scheduler/runner.ts"
+      ],
+      "exports": [
+        "materializeTemplates",
+        "SCHEDULER_TEMPLATES",
+        "getTemplate",
+        "getTemplatesForRole",
+        "createSchedulerTools",
+        "defaultTimezone",
+        "listJobs",
+        "listAllJobs",
+        "addJob",
+        "removeJob",
+        "updateJob",
+        "getJob",
+        "startScheduler"
+      ],
+      "symbols": [],
+      "summary": "entry point typescript (36 LOC) — exports: materializeTemplates, SCHEDULER_TEMPLATES, getTemplate, getTemplatesForRole, createSchedulerTools +8 more",
+      "loc": 36,
+      "language": "typescript",
+      "size": 1359
+    },
+    "src/scheduler/runner.ts": {
+      "imports": [
+        "src/whatsapp-transport.ts",
+        "src/delivery.ts",
+        "src/scheduler/cron.ts",
+        "src/scheduler/store.ts",
+        "src/scheduler/types.ts"
+      ],
+      "exports": [
+        "startScheduler"
+      ],
+      "symbols": [
+        {
+          "name": "startScheduler",
+          "kind": "function",
+          "signature": "export function startScheduler(transport: WhatsAppTransport): () => void",
+          "startLine": 37,
+          "endLine": 65
+        }
+      ],
+      "summary": "typescript (74 LOC) — exports: startScheduler",
+      "loc": 74,
+      "language": "typescript",
+      "size": 3144
+    },
+    "src/scheduler/store.test.ts": {
+      "imports": [
+        "src/scheduler/store.ts"
+      ],
+      "exports": [],
+      "symbols": [],
+      "summary": "typescript (28 LOC)",
+      "loc": 28,
+      "language": "typescript",
+      "size": 1003
+    },
+    "src/scheduler/store.ts": {
+      "imports": [
+        "src/scheduler/types.ts"
+      ],
+      "exports": [
+        "listJobs",
+        "getJob",
+        "hasTemplateJob",
+        "addJob",
+        "updateJob",
+        "removeJob",
+        "listAllJobs"
+      ],
+      "symbols": [
+        {
+          "name": "listJobs",
+          "kind": "function",
+          "signature": "export async function listJobs(clientId: string): Promise<ScheduledJob[]>",
+          "startLine": 30,
+          "endLine": 32
+        },
+        {
+          "name": "getJob",
+          "kind": "function",
+          "signature": "export async function getJob(clientId: string, jobId: string): Promise<ScheduledJob | null>",
+          "startLine": 34,
+          "endLine": 36
+        },
+        {
+          "name": "hasTemplateJob",
+          "kind": "function",
+          "signature": "export async function hasTemplateJob(clientId: string, templateId: string): Promise<boolean>",
+          "startLine": 39,
+          "endLine": 41
+        },
+        {
+          "name": "removeJob",
+          "kind": "function",
+          "signature": "export async function removeJob(clientId: string, jobId: string): Promise<boolean>",
+          "startLine": 75,
+          "endLine": 81
+        },
+        {
+          "name": "listAllJobs",
+          "kind": "function",
+          "signature": "export async function listAllJobs(): Promise<ScheduledJob[]>",
+          "startLine": 84,
+          "endLine": 96
+        }
+      ],
+      "summary": "typescript (85 LOC) — exports: listJobs, getJob, hasTemplateJob, addJob, updateJob +2 more",
+      "loc": 85,
+      "language": "typescript",
+      "size": 3080
+    },
+    "src/scheduler/templates.test.ts": {
+      "imports": [
+        "src/scheduler/templates.ts",
+        "src/scheduler/cron.ts"
+      ],
+      "exports": [],
+      "symbols": [],
+      "summary": "typescript (34 LOC)",
+      "loc": 34,
+      "language": "typescript",
+      "size": 1686
+    },
+    "src/scheduler/templates.ts": {
+      "imports": [
+        "src/store/types.ts",
+        "src/scheduler/types.ts"
+      ],
+      "exports": [
+        "SCHEDULER_TEMPLATES",
+        "getTemplate",
+        "getTemplatesForRole"
+      ],
+      "symbols": [
+        {
+          "name": "SCHEDULER_TEMPLATES",
+          "kind": "variable",
+          "signature": "export const SCHEDULER_TEMPLATES: SchedulerTemplate[] = [",
+          "startLine": 11,
+          "endLine": 11
+        },
+        {
+          "name": "getTemplate",
+          "kind": "function",
+          "signature": "export function getTemplate(id: string): SchedulerTemplate | undefined",
+          "startLine": 246,
+          "endLine": 248
+        },
+        {
+          "name": "getTemplatesForRole",
+          "kind": "function",
+          "signature": "export function getTemplatesForRole(roleId: RoleId): SchedulerTemplate[]",
+          "startLine": 250,
+          "endLine": 252
+        }
+      ],
+      "summary": "typescript (242 LOC) — exports: SCHEDULER_TEMPLATES, getTemplate, getTemplatesForRole",
+      "loc": 242,
+      "language": "typescript",
+      "size": 11882
+    },
+    "src/scheduler/tools.ts": {
+      "imports": [
+        "src/scheduler/cron.ts",
+        "src/scheduler/store.ts",
+        "src/scheduler/types.ts"
+      ],
+      "exports": [
+        "defaultTimezone",
+        "createSchedulerTools"
+      ],
+      "symbols": [
+        {
+          "name": "defaultTimezone",
+          "kind": "function",
+          "signature": "export function defaultTimezone(): string",
+          "startLine": 7,
+          "endLine": 9
+        },
+        {
+          "name": "createSchedulerTools",
+          "kind": "function",
+          "signature": "export function createSchedulerTools(clientId: string, jid: string): ReturnType<typeof tool>[]",
+          "startLine": 37,
+          "endLine": 145
+        }
+      ],
+      "summary": "typescript (134 LOC) — exports: defaultTimezone, createSchedulerTools",
+      "loc": 134,
+      "language": "typescript",
+      "size": 5745
+    },
+    "src/scheduler/types.ts": {
+      "imports": [
+        "src/store/types.ts"
+      ],
+      "exports": [
+        "ScheduleSpec",
+        "ScheduledJob",
+        "SchedulerTemplate"
+      ],
+      "symbols": [
+        {
+          "name": "ScheduleSpec",
+          "kind": "type",
+          "signature": "export type ScheduleSpec =",
+          "startLine": 8,
+          "endLine": 9
+        },
+        {
+          "name": "ScheduledJob",
+          "kind": "interface",
+          "signature": "export interface ScheduledJob",
+          "startLine": 17,
+          "endLine": 35
+        },
+        {
+          "name": "SchedulerTemplate",
+          "kind": "interface",
+          "signature": "export interface SchedulerTemplate",
+          "startLine": 41,
+          "endLine": 55
+        }
+      ],
+      "summary": "typescript (52 LOC) — exports: ScheduleSpec, ScheduledJob, SchedulerTemplate",
+      "loc": 52,
+      "language": "typescript",
+      "size": 1707
+    },
+    "src/sessions/agent-bridge.test.ts": {
+      "imports": [
+        "src/sessions/agent-bridge.ts",
+        "src/sessions/types.ts"
+      ],
+      "exports": [],
+      "symbols": [],
+      "summary": "typescript (82 LOC)",
+      "loc": 82,
+      "language": "typescript",
+      "size": 4073
+    },
+    "src/sessions/agent-bridge.ts": {
+      "imports": [
+        "src/sessions/types.ts"
+      ],
+      "exports": [
+        "ExtractContext",
+        "extractTurnMessages",
+        "SeedOptions",
+        "toSeedMessages"
+      ],
+      "symbols": [
+        {
+          "name": "ExtractContext",
+          "kind": "interface",
+          "signature": "export interface ExtractContext",
+          "startLine": 21,
+          "endLine": 25
+        },
+        {
+          "name": "extractTurnMessages",
+          "kind": "function",
+          "signature": "export function extractTurnMessages(result: unknown, ctx: ExtractContext): TurnMessage[]",
+          "startLine": 32,
+          "endLine": 48
+        },
+        {
+          "name": "SeedOptions",
+          "kind": "interface",
+          "signature": "export interface SeedOptions",
+          "startLine": 50,
+          "endLine": 53
+        },
+        {
+          "name": "toSeedMessages",
+          "kind": "function",
+          "signature": "export function toSeedMessages(ctx: WorkingContext, opts: SeedOptions =",
+          "startLine": 59,
+          "endLine": 73
+        }
+      ],
+      "summary": "typescript (62 LOC) — exports: ExtractContext, extractTurnMessages, SeedOptions, toSeedMessages",
+      "loc": 62,
+      "language": "typescript",
+      "size": 2623
+    },
+    "src/sessions/compaction.test.ts": {
+      "imports": [
+        "src/sessions/db.ts",
+        "src/sessions/store.ts",
+        "src/sessions/compaction.ts",
+        "src/sessions/compaction.ts"
+      ],
+      "exports": [],
+      "symbols": [],
+      "summary": "typescript (85 LOC)",
+      "loc": 85,
+      "language": "typescript",
+      "size": 2905
+    },
+    "src/sessions/compaction.ts": {
+      "imports": [
+        "src/sessions/tokens.ts",
+        "src/sessions/store.ts",
+        "src/sessions/types.ts"
+      ],
+      "exports": [
+        "SummarizeInput",
+        "Summarize",
+        "CompactOptions",
+        "CompactResult",
+        "PostCompactionGuardError",
+        "compactIfNeeded"
+      ],
+      "symbols": [
+        {
+          "name": "SummarizeInput",
+          "kind": "interface",
+          "signature": "export interface SummarizeInput",
+          "startLine": 15,
+          "endLine": 18
+        },
+        {
+          "name": "Summarize",
+          "kind": "type",
+          "signature": "export type Summarize = (input: SummarizeInput) => Promise<string>",
+          "startLine": 20,
+          "endLine": 21
+        },
+        {
+          "name": "CompactOptions",
+          "kind": "interface",
+          "signature": "export interface CompactOptions",
+          "startLine": 22,
+          "endLine": 31
+        },
+        {
+          "name": "CompactResult",
+          "kind": "interface",
+          "signature": "export interface CompactResult",
+          "startLine": 33,
+          "endLine": 35
+        },
+        {
+          "name": "PostCompactionGuardError",
+          "kind": "class",
+          "signature": "export class PostCompactionGuardError extends Error",
+          "startLine": 43,
+          "endLine": 48
+        },
+        {
+          "name": "compactIfNeeded",
+          "kind": "function",
+          "signature": "export async function compactIfNeeded(opts: CompactOptions): Promise<CompactResult>",
+          "startLine": 54,
+          "endLine": 72
+        }
+      ],
+      "summary": "typescript (62 LOC) — exports: SummarizeInput, Summarize, CompactOptions, CompactResult, PostCompactionGuardError +1 more",
+      "loc": 62,
+      "language": "typescript",
+      "size": 2491
+    },
+    "src/sessions/db.ts": {
+      "imports": [],
+      "exports": [
+        "Db",
+        "openDb"
+      ],
+      "symbols": [
+        {
+          "name": "Db",
+          "kind": "type",
+          "signature": "export type Db = Database.Database",
+          "startLine": 12,
+          "endLine": 13
+        },
+        {
+          "name": "openDb",
+          "kind": "function",
+          "signature": "export function openDb(path: string): Db",
+          "startLine": 49,
+          "endLine": 58
+        }
+      ],
+      "summary": "typescript (52 LOC) — exports: Db, openDb",
+      "loc": 52,
+      "language": "typescript",
+      "size": 1816
+    },
+    "src/sessions/index.ts": {
+      "imports": [
+        "src/sessions/types.ts",
+        "src/sessions/db.ts",
+        "src/sessions/store.ts",
+        "src/sessions/run-queue.ts",
+        "src/sessions/tokens.ts",
+        "src/sessions/run-with-failover.ts",
+        "src/sessions/agent-bridge.ts",
+        "src/sessions/runtime.ts"
+      ],
+      "exports": [
+        "openDb",
+        "type Db",
+        "createSessionStore",
+        "type SessionStore",
+        "createRunQueue",
+        "type RunQueue",
+        "estimateTokens",
+        "contextWindowFor",
+        "shouldCompact",
+        "compactIfNeeded",
+        "PostCompactionGuardError",
+        "type Summarize",
+        "type SummarizeInput",
+        "type CompactOptions",
+        "runWithFailover",
+        "classifyError",
+        "type FailoverClass",
+        "type FailoverDeps",
+        "extractTurnMessages",
+        "toSeedMessages",
+        "sessionStore",
+        "runQueue",
+        "sessionKeyFor",
+        "SESSION_CHANNEL"
+      ],
+      "symbols": [],
+      "summary": "entry point typescript (15 LOC) — exports: openDb, type Db, createSessionStore, type SessionStore, createRunQueue +19 more",
+      "loc": 15,
+      "language": "typescript",
+      "size": 762
+    },
+    "src/sessions/memory-e2e.ts": {
+      "imports": [
+        "src/agent.ts",
+        "src/sessions/db.ts",
+        "src/sessions/store.ts",
+        "src/sessions/agent-bridge.ts",
+        "src/sessions/compaction.ts"
+      ],
+      "exports": [],
+      "symbols": [],
+      "summary": "typescript (89 LOC)",
+      "loc": 89,
+      "language": "typescript",
+      "size": 4064
+    },
+    "src/sessions/run-queue.test.ts": {
+      "imports": [
+        "src/sessions/run-queue.ts"
+      ],
+      "exports": [],
+      "symbols": [],
+      "summary": "typescript (51 LOC)",
+      "loc": 51,
+      "language": "typescript",
+      "size": 1662
+    },
+    "src/sessions/run-queue.ts": {
+      "imports": [],
+      "exports": [
+        "RunQueue",
+        "createRunQueue"
+      ],
+      "symbols": [
+        {
+          "name": "RunQueue",
+          "kind": "interface",
+          "signature": "export interface RunQueue",
+          "startLine": 9,
+          "endLine": 11
+        },
+        {
+          "name": "createRunQueue",
+          "kind": "function",
+          "signature": "export function createRunQueue(): RunQueue",
+          "startLine": 13,
+          "endLine": 35
+        }
+      ],
+      "summary": "typescript (32 LOC) — exports: RunQueue, createRunQueue",
+      "loc": 32,
+      "language": "typescript",
+      "size": 1161
+    },
+    "src/sessions/run-with-failover.test.ts": {
+      "imports": [
+        "src/sessions/run-with-failover.ts",
+        "src/sessions/types.ts"
+      ],
+      "exports": [],
+      "symbols": [],
+      "summary": "typescript (134 LOC)",
+      "loc": 134,
+      "language": "typescript",
+      "size": 4055
+    },
+    "src/sessions/run-with-failover.ts": {
+      "imports": [
+        "src/sessions/types.ts"
+      ],
+      "exports": [
+        "FailoverClass",
+        "classifyError",
+        "FailoverDeps",
+        "runWithFailover"
+      ],
+      "symbols": [
+        {
+          "name": "FailoverClass",
+          "kind": "type",
+          "signature": "export type FailoverClass = 'context_overflow' | 'rate_limit' | 'model_unavailable' | 'auth' | 'unknown'",
+          "startLine": 10,
+          "endLine": 11
+        },
+        {
+          "name": "classifyError",
+          "kind": "function",
+          "signature": "export function classifyError(error: unknown): FailoverClass",
+          "startLine": 15,
+          "endLine": 29
+        },
+        {
+          "name": "FailoverDeps",
+          "kind": "interface",
+          "signature": "export interface FailoverDeps<T>",
+          "startLine": 36,
+          "endLine": 49
+        }
+      ],
+      "summary": "typescript (78 LOC) — exports: FailoverClass, classifyError, FailoverDeps, runWithFailover",
+      "loc": 78,
+      "language": "typescript",
+      "size": 3246
+    },
+    "src/sessions/runtime.ts": {
+      "imports": [
+        "src/sessions/db.ts",
+        "src/sessions/store.ts",
+        "src/sessions/run-queue.ts"
+      ],
+      "exports": [
+        "SESSION_CHANNEL",
+        "sessionStore",
+        "runQueue",
+        "sessionKeyFor"
+      ],
+      "symbols": [
+        {
+          "name": "SESSION_CHANNEL",
+          "kind": "variable",
+          "signature": "export const SESSION_CHANNEL = 'whatsapp'",
+          "startLine": 10,
+          "endLine": 10
+        },
+        {
+          "name": "sessionStore",
+          "kind": "function",
+          "signature": "export function sessionStore(): SessionStore",
+          "startLine": 17,
+          "endLine": 19
+        },
+        {
+          "name": "runQueue",
+          "kind": "function",
+          "signature": "export function runQueue(): RunQueue",
+          "startLine": 21,
+          "endLine": 23
+        },
+        {
+          "name": "sessionKeyFor",
+          "kind": "function",
+          "signature": "export function sessionKeyFor(clientId: string): string",
+          "startLine": 26,
+          "endLine": 28
+        }
+      ],
+      "summary": "typescript (22 LOC) — exports: SESSION_CHANNEL, sessionStore, runQueue, sessionKeyFor",
+      "loc": 22,
+      "language": "typescript",
+      "size": 924
+    },
+    "src/sessions/store.test.ts": {
+      "imports": [
+        "src/sessions/db.ts",
+        "src/sessions/store.ts"
+      ],
+      "exports": [],
+      "symbols": [],
+      "summary": "typescript (73 LOC)",
+      "loc": 73,
+      "language": "typescript",
+      "size": 3656
+    },
+    "src/sessions/store.ts": {
+      "imports": [
+        "src/sessions/db.ts",
+        "src/sessions/tokens.ts",
+        "src/sessions/types.ts"
+      ],
+      "exports": [
+        "EnsureSessionInput",
+        "SaveCompactionInput",
+        "SessionStore",
+        "createSessionStore"
+      ],
+      "symbols": [
+        {
+          "name": "EnsureSessionInput",
+          "kind": "interface",
+          "signature": "export interface EnsureSessionInput",
+          "startLine": 13,
+          "endLine": 17
+        },
+        {
+          "name": "SaveCompactionInput",
+          "kind": "interface",
+          "signature": "export interface SaveCompactionInput",
+          "startLine": 19,
+          "endLine": 22
+        },
+        {
+          "name": "SessionStore",
+          "kind": "interface",
+          "signature": "export interface SessionStore",
+          "startLine": 66,
+          "endLine": 75
+        },
+        {
+          "name": "createSessionStore",
+          "kind": "function",
+          "signature": "export function createSessionStore(db: Db): SessionStore",
+          "startLine": 77,
+          "endLine": 172
+        }
+      ],
+      "summary": "typescript (156 LOC) — exports: EnsureSessionInput, SaveCompactionInput, SessionStore, createSessionStore",
+      "loc": 156,
+      "language": "typescript",
+      "size": 5940
+    },
+    "src/sessions/tokens.test.ts": {
+      "imports": [
+        "src/sessions/tokens.ts"
+      ],
+      "exports": [],
+      "symbols": [],
+      "summary": "typescript (25 LOC)",
+      "loc": 25,
+      "language": "typescript",
+      "size": 1181
+    },
+    "src/sessions/tokens.ts": {
+      "imports": [],
+      "exports": [
+        "estimateTokens",
+        "contextWindowFor",
+        "shouldCompact"
+      ],
+      "symbols": [
+        {
+          "name": "estimateTokens",
+          "kind": "function",
+          "signature": "export function estimateTokens(text: string): number",
+          "startLine": 24,
+          "endLine": 26
+        },
+        {
+          "name": "contextWindowFor",
+          "kind": "function",
+          "signature": "export function contextWindowFor(model: string | null | undefined): number",
+          "startLine": 29,
+          "endLine": 35
+        }
+      ],
+      "summary": "typescript (42 LOC) — exports: estimateTokens, contextWindowFor, shouldCompact",
+      "loc": 42,
+      "language": "typescript",
+      "size": 1616
+    },
+    "src/sessions/types.ts": {
+      "imports": [],
+      "exports": [
+        "Role",
+        "TurnMessage",
+        "StoredMessage",
+        "SessionRecord",
+        "WorkingContext"
+      ],
+      "symbols": [
+        {
+          "name": "Role",
+          "kind": "type",
+          "signature": "export type Role = 'user' | 'assistant' | 'tool'",
+          "startLine": 2,
+          "endLine": 3
+        },
+        {
+          "name": "TurnMessage",
+          "kind": "interface",
+          "signature": "export interface TurnMessage",
+          "startLine": 5,
+          "endLine": 9
+        },
+        {
+          "name": "StoredMessage",
+          "kind": "interface",
+          "signature": "export interface StoredMessage extends TurnMessage",
+          "startLine": 12,
+          "endLine": 16
+        },
+        {
+          "name": "SessionRecord",
+          "kind": "interface",
+          "signature": "export interface SessionRecord",
+          "startLine": 19,
+          "endLine": 28
+        },
+        {
+          "name": "WorkingContext",
+          "kind": "interface",
+          "signature": "export interface WorkingContext",
+          "startLine": 31,
+          "endLine": 35
+        }
+      ],
+      "summary": "typescript (31 LOC) — exports: Role, TurnMessage, StoredMessage, SessionRecord, WorkingContext",
+      "loc": 31,
+      "language": "typescript",
+      "size": 941
+    },
+    "src/skills/ad-performance-analysis/SKILL.md": {
+      "imports": [],
+      "exports": [],
+      "symbols": [],
+      "summary": "markdown (38 LOC)",
+      "loc": 38,
+      "language": "markdown",
+      "size": 2703
+    },
+    "src/skills/business-context/SKILL.md": {
+      "imports": [],
+      "exports": [],
+      "symbols": [],
+      "summary": "markdown (35 LOC)",
+      "loc": 35,
+      "language": "markdown",
+      "size": 2706
+    },
+    "src/skills/gtm-operator/SKILL.md": {
+      "imports": [],
+      "exports": [],
+      "symbols": [],
+      "summary": "markdown (88 LOC)",
+      "loc": 88,
+      "language": "markdown",
+      "size": 3805
+    },
+    "src/skills/higgsfield-creative/SKILL.md": {
+      "imports": [],
+      "exports": [],
+      "symbols": [],
+      "summary": "markdown (31 LOC)",
+      "loc": 31,
+      "language": "markdown",
+      "size": 2660
+    },
+    "src/skills/meta-ads-expert/SKILL.md": {
+      "imports": [],
+      "exports": [],
+      "symbols": [],
+      "summary": "markdown (35 LOC)",
+      "loc": 35,
+      "language": "markdown",
+      "size": 2588
+    },
+    "src/skills/social-media-manager/SKILL.md": {
+      "imports": [],
+      "exports": [],
+      "symbols": [],
+      "summary": "markdown (51 LOC)",
+      "loc": 51,
+      "language": "markdown",
+      "size": 3290
+    },
+    "src/skills/software-developer/SKILL.md": {
+      "imports": [],
+      "exports": [],
+      "symbols": [],
+      "summary": "markdown (57 LOC)",
+      "loc": 57,
+      "language": "markdown",
+      "size": 2761
+    },
+    "src/skills/whatsapp-personal-assistant/SKILL.md": {
+      "imports": [],
+      "exports": [],
+      "symbols": [],
+      "summary": "markdown (37 LOC)",
+      "loc": 37,
+      "language": "markdown",
+      "size": 2650
+    },
+    "src/startup-checks.test.ts": {
+      "imports": [
+        "src/startup-checks.ts"
+      ],
+      "exports": [],
+      "symbols": [],
+      "summary": "typescript (17 LOC)",
+      "loc": 17,
+      "language": "typescript",
+      "size": 861
+    },
+    "src/startup-checks.ts": {
+      "imports": [
+        "src/access.ts"
+      ],
+      "exports": [
+        "validateCallbackUrl",
+        "runStartupChecks"
+      ],
+      "symbols": [
+        {
+          "name": "validateCallbackUrl",
+          "kind": "function",
+          "signature": "export function validateCallbackUrl(rawUrl: string | undefined, allowInsecure: boolean): void",
+          "startLine": 12,
+          "endLine": 22
+        },
+        {
+          "name": "runStartupChecks",
+          "kind": "function",
+          "signature": "export function runStartupChecks(): void",
+          "startLine": 25,
+          "endLine": 41
+        }
+      ],
+      "summary": "typescript (37 LOC) — exports: validateCallbackUrl, runStartupChecks",
+      "loc": 37,
+      "language": "typescript",
+      "size": 1616
+    },
+    "src/store/client-store.test.ts": {
+      "imports": [
+        "src/store/client-store.ts",
+        "src/vault.ts"
+      ],
+      "exports": [],
+      "symbols": [],
+      "summary": "typescript (71 LOC)",
+      "loc": 71,
+      "language": "typescript",
+      "size": 2920
+    },
+    "src/store/client-store.ts": {
+      "imports": [
+        "src/store/types.ts",
+        "src/vault.ts"
+      ],
+      "exports": [
+        "clientIdFromJid",
+        "saveProfile",
+        "getProfile",
+        "saveRole",
+        "getRole",
+        "getClientMeta",
+        "updateClientMeta",
+        "adoptClientData",
+        "getConnections",
+        "upsertConnection",
+        "migrateLegacyToken"
+      ],
+      "symbols": [
+        {
+          "name": "clientIdFromJid",
+          "kind": "function",
+          "signature": "export function clientIdFromJid(jid: string): string",
+          "startLine": 17,
+          "endLine": 19
+        },
+        {
+          "name": "saveProfile",
+          "kind": "function",
+          "signature": "export async function saveProfile(profile: ClientProfile): Promise<void>",
+          "startLine": 45,
+          "endLine": 48
+        },
+        {
+          "name": "getProfile",
+          "kind": "function",
+          "signature": "export async function getProfile(clientId: string): Promise<ClientProfile | null>",
+          "startLine": 50,
+          "endLine": 52
+        },
+        {
+          "name": "saveRole",
+          "kind": "function",
+          "signature": "export async function saveRole(clientId: string, role: RoleRecord): Promise<void>",
+          "startLine": 56,
+          "endLine": 59
+        },
+        {
+          "name": "getRole",
+          "kind": "function",
+          "signature": "export async function getRole(clientId: string): Promise<RoleRecord | null>",
+          "startLine": 61,
+          "endLine": 63
+        },
+        {
+          "name": "getClientMeta",
+          "kind": "function",
+          "signature": "export async function getClientMeta(clientId: string): Promise<ClientMeta>",
+          "startLine": 67,
+          "endLine": 69
+        },
+        {
+          "name": "updateClientMeta",
+          "kind": "function",
+          "signature": "export async function updateClientMeta(clientId: string, patch: Partial<ClientMeta>): Promise<void>",
+          "startLine": 71,
+          "endLine": 76
+        },
+        {
+          "name": "adoptClientData",
+          "kind": "function",
+          "signature": "export async function adoptClientData(fromClientId: string, jid: string): Promise<string>",
+          "startLine": 78,
+          "endLine": 99
+        },
+        {
+          "name": "getConnections",
+          "kind": "function",
+          "signature": "export async function getConnections(clientId: string): Promise<ConnectionsRecord>",
+          "startLine": 126,
+          "endLine": 146
+        },
+        {
+          "name": "migrateLegacyToken",
+          "kind": "function",
+          "signature": "export async function migrateLegacyToken(jid: string, clientId: string): Promise<void>",
+          "startLine": 174,
+          "endLine": 201
+        }
+      ],
+      "summary": "typescript (168 LOC) — exports: clientIdFromJid, saveProfile, getProfile, saveRole, getRole +6 more",
+      "loc": 168,
+      "language": "typescript",
+      "size": 8049
+    },
+    "src/store/types.ts": {
+      "imports": [],
+      "exports": [
+        "PlatformId",
+        "WhatsAppProvider",
+        "RoleId",
+        "GoalType",
+        "ConnectionRecord",
+        "ConnectionsRecord",
+        "ClientProfile",
+        "RoleRecord",
+        "ClientMeta",
+        "OnboardingSession"
+      ],
+      "symbols": [
+        {
+          "name": "PlatformId",
+          "kind": "type",
+          "signature": "export type PlatformId = 'meta-ads' | 'instagram-graph' | 'tiktok' | 'google' | 'higgsfield'",
+          "startLine": 1,
+          "endLine": 2
+        },
+        {
+          "name": "WhatsAppProvider",
+          "kind": "type",
+          "signature": "export type WhatsAppProvider = 'twilio' | 'baileys'",
+          "startLine": 2,
+          "endLine": 3
+        },
+        {
+          "name": "RoleId",
+          "kind": "type",
+          "signature": "export type RoleId =",
+          "startLine": 4,
+          "endLine": 5
+        },
+        {
+          "name": "GoalType",
+          "kind": "type",
+          "signature": "export type GoalType =",
+          "startLine": 12,
+          "endLine": 13
+        },
+        {
+          "name": "ConnectionRecord",
+          "kind": "interface",
+          "signature": "export interface ConnectionRecord",
+          "startLine": 20,
+          "endLine": 29
+        },
+        {
+          "name": "ConnectionsRecord",
+          "kind": "type",
+          "signature": "export type ConnectionsRecord = Partial<Record<PlatformId, ConnectionRecord>>",
+          "startLine": 31,
+          "endLine": 32
+        },
+        {
+          "name": "ClientProfile",
+          "kind": "interface",
+          "signature": "export interface ClientProfile",
+          "startLine": 33,
+          "endLine": 57
+        },
+        {
+          "name": "RoleRecord",
+          "kind": "interface",
+          "signature": "export interface RoleRecord",
+          "startLine": 59,
+          "endLine": 66
+        },
+        {
+          "name": "ClientMeta",
+          "kind": "interface",
+          "signature": "export interface ClientMeta",
+          "startLine": 69,
+          "endLine": 74
+        },
+        {
+          "name": "OnboardingSession",
+          "kind": "interface",
+          "signature": "export interface OnboardingSession",
+          "startLine": 76,
+          "endLine": 94
+        }
+      ],
+      "summary": "typescript (86 LOC) — exports: PlatformId, WhatsAppProvider, RoleId, GoalType, ConnectionRecord +5 more",
+      "loc": 86,
+      "language": "typescript",
+      "size": 2868
+    },
+    "src/tenant-store.test.ts": {
+      "imports": [
+        "src/db/index.ts",
+        "src/db/schema.ts",
+        "src/tenant-store.ts",
+        "src/store/client-store.ts"
+      ],
+      "exports": [],
+      "symbols": [],
+      "summary": "typescript (36 LOC)",
+      "loc": 36,
+      "language": "typescript",
+      "size": 1360
+    },
+    "src/tenant-store.ts": {
+      "imports": [
+        "src/db/index.ts",
+        "src/db/schema.ts"
+      ],
+      "exports": [
+        "clientIdForJid",
+        "linkWhatsAppToTenant",
+        "ensureTenant",
+        "tenantIdForJid"
+      ],
+      "symbols": [
+        {
+          "name": "clientIdForJid",
+          "kind": "function",
+          "signature": "export async function clientIdForJid(jid: string): Promise<string>",
+          "startLine": 27,
+          "endLine": 35
+        },
+        {
+          "name": "ensureTenant",
+          "kind": "function",
+          "signature": "export async function ensureTenant(tenantId: string): Promise<void>",
+          "startLine": 54,
+          "endLine": 59
+        },
+        {
+          "name": "tenantIdForJid",
+          "kind": "function",
+          "signature": "export async function tenantIdForJid(jid: string): Promise<string | null>",
+          "startLine": 62,
+          "endLine": 69
+        }
+      ],
+      "summary": "typescript (64 LOC) — exports: clientIdForJid, linkWhatsAppToTenant, ensureTenant, tenantIdForJid",
+      "loc": 64,
+      "language": "typescript",
+      "size": 2354
+    },
+    "src/token-store.ts": {
+      "imports": [],
+      "exports": [
+        "saveToken",
+        "getToken",
+        "deleteToken"
+      ],
+      "symbols": [
+        {
+          "name": "saveToken",
+          "kind": "function",
+          "signature": "export async function saveToken(jid: string, accessToken: string, expiresIn: number): Promise<void>",
+          "startLine": 26,
+          "endLine": 34
+        },
+        {
+          "name": "getToken",
+          "kind": "function",
+          "signature": "export async function getToken(jid: string): Promise<string | null>",
+          "startLine": 36,
+          "endLine": 43
+        },
+        {
+          "name": "deleteToken",
+          "kind": "function",
+          "signature": "export async function deleteToken(jid: string): Promise<void>",
+          "startLine": 45,
+          "endLine": 49
+        }
+      ],
+      "summary": "typescript (41 LOC) — exports: saveToken, getToken, deleteToken",
+      "loc": 41,
+      "language": "typescript",
+      "size": 1437
+    },
+    "src/twilio-whatsapp.ts": {
+      "imports": [
+        "src/agent.ts",
+        "src/access.ts",
+        "src/delivery.ts",
+        "src/onboarding-nudge.ts",
+        "src/onboarding/session.ts",
+        "src/store/client-store.ts",
+        "src/tenant-store.ts",
+        "src/output-sharing.ts",
+        "src/whatsapp-address.ts",
+        "src/whatsapp-providers.ts",
+        "src/whatsapp-transport.ts",
+        "src/sandbox.ts"
+      ],
+      "exports": [
+        "DEFAULT_TWILIO_WHATSAPP_NUMBER",
+        "createTwilioTransport",
+        "validateTwilioConfig",
+        "twilioWebhookUrl",
+        "handleTwilioWebhook",
+        "twilioBusinessNumberDigits",
+        "isTwilioProvider"
+      ],
+      "symbols": [
+        {
+          "name": "DEFAULT_TWILIO_WHATSAPP_NUMBER",
+          "kind": "variable",
+          "signature": "export const DEFAULT_TWILIO_WHATSAPP_NUMBER = '+15558136169'",
+          "startLine": 21,
+          "endLine": 21
+        },
+        {
+          "name": "createTwilioTransport",
+          "kind": "function",
+          "signature": "export function createTwilioTransport(): WhatsAppTransport",
+          "startLine": 66,
+          "endLine": 115
+        },
+        {
+          "name": "validateTwilioConfig",
+          "kind": "function",
+          "signature": "export function validateTwilioConfig(): void",
+          "startLine": 132,
+          "endLine": 139
+        },
+        {
+          "name": "twilioWebhookUrl",
+          "kind": "function",
+          "signature": "export function twilioWebhookUrl(): string",
+          "startLine": 141,
+          "endLine": 144
+        },
+        {
+          "name": "twilioBusinessNumberDigits",
+          "kind": "function",
+          "signature": "export function twilioBusinessNumberDigits(): string",
+          "startLine": 324,
+          "endLine": 327
+        },
+        {
+          "name": "isTwilioProvider",
+          "kind": "function",
+          "signature": "export function isTwilioProvider(): boolean",
+          "startLine": 329,
+          "endLine": 331
+        }
+      ],
+      "summary": "typescript (283 LOC) — exports: DEFAULT_TWILIO_WHATSAPP_NUMBER, createTwilioTransport, validateTwilioConfig, twilioWebhookUrl, handleTwilioWebhook +2 more",
+      "loc": 283,
+      "language": "typescript",
+      "size": 11484
+    },
+    "src/vault.test.ts": {
+      "imports": [
+        "src/vault.ts"
+      ],
+      "exports": [],
+      "symbols": [],
+      "summary": "typescript (69 LOC)",
+      "loc": 69,
+      "language": "typescript",
+      "size": 2919
+    },
+    "src/vault.ts": {
+      "imports": [],
+      "exports": [
+        "encryptSecret",
+        "decryptSecret",
+        "isEncrypted",
+        "resetVaultForTests"
+      ],
+      "symbols": [
+        {
+          "name": "encryptSecret",
+          "kind": "function",
+          "signature": "export function encryptSecret(plaintext: string): string",
+          "startLine": 60,
+          "endLine": 67
+        },
+        {
+          "name": "decryptSecret",
+          "kind": "function",
+          "signature": "export function decryptSecret(blob: string): string",
+          "startLine": 69,
+          "endLine": 77
+        },
+        {
+          "name": "isEncrypted",
+          "kind": "function",
+          "signature": "export function isEncrypted(value: string): boolean",
+          "startLine": 80,
+          "endLine": 82
+        },
+        {
+          "name": "resetVaultForTests",
+          "kind": "function",
+          "signature": "export function resetVaultForTests(): void",
+          "startLine": 85,
+          "endLine": 88
+        }
+      ],
+      "summary": "typescript (79 LOC) — exports: encryptSecret, decryptSecret, isEncrypted, resetVaultForTests",
+      "loc": 79,
+      "language": "typescript",
+      "size": 3212
+    },
+    "src/whatsapp-address.ts": {
+      "imports": [],
+      "exports": [
+        "normalizePhoneE164",
+        "phoneToJid",
+        "jidToTwilioAddress",
+        "toJid"
+      ],
+      "symbols": [
+        {
+          "name": "normalizePhoneE164",
+          "kind": "function",
+          "signature": "export function normalizePhoneE164(phone: string): string",
+          "startLine": 10,
+          "endLine": 14
+        },
+        {
+          "name": "phoneToJid",
+          "kind": "function",
+          "signature": "export function phoneToJid(phone: string): string",
+          "startLine": 17,
+          "endLine": 20
+        },
+        {
+          "name": "jidToTwilioAddress",
+          "kind": "function",
+          "signature": "export function jidToTwilioAddress(jid: string): string",
+          "startLine": 23,
+          "endLine": 26
+        },
+        {
+          "name": "toJid",
+          "kind": "function",
+          "signature": "export function toJid(address: string): string",
+          "startLine": 29,
+          "endLine": 32
+        }
+      ],
+      "summary": "typescript (28 LOC) — exports: normalizePhoneE164, phoneToJid, jidToTwilioAddress, toJid",
+      "loc": 28,
+      "language": "typescript",
+      "size": 1098
+    },
+    "src/whatsapp-providers.test.ts": {
+      "imports": [],
+      "exports": [],
+      "symbols": [],
+      "summary": "typescript (21 LOC)",
+      "loc": 21,
+      "language": "typescript",
+      "size": 885
+    },
+    "src/whatsapp-providers.ts": {
+      "imports": [],
+      "exports": [
+        "WhatsAppProvider",
+        "configuredWhatsAppProviders",
+        "defaultWhatsAppProvider",
+        "isWhatsAppProvider",
+        "isTwilioProvider",
+        "isBaileysProvider"
+      ],
+      "symbols": [
+        {
+          "name": "WhatsAppProvider",
+          "kind": "type",
+          "signature": "export type WhatsAppProvider = 'twilio' | 'baileys'",
+          "startLine": 1,
+          "endLine": 2
+        },
+        {
+          "name": "configuredWhatsAppProviders",
+          "kind": "function",
+          "signature": "export function configuredWhatsAppProviders(value = process.env.WHATSAPP_PROVIDER): WhatsAppProvider[]",
+          "startLine": 5,
+          "endLine": 17
+        },
+        {
+          "name": "defaultWhatsAppProvider",
+          "kind": "function",
+          "signature": "export function defaultWhatsAppProvider(value = process.env.WHATSAPP_PROVIDER): WhatsAppProvider",
+          "startLine": 19,
+          "endLine": 21
+        },
+        {
+          "name": "isWhatsAppProvider",
+          "kind": "function",
+          "signature": "export function isWhatsAppProvider(value: string): value is WhatsAppProvider",
+          "startLine": 23,
+          "endLine": 25
+        },
+        {
+          "name": "isTwilioProvider",
+          "kind": "function",
+          "signature": "export function isTwilioProvider(value = process.env.WHATSAPP_PROVIDER): boolean",
+          "startLine": 27,
+          "endLine": 29
+        },
+        {
+          "name": "isBaileysProvider",
+          "kind": "function",
+          "signature": "export function isBaileysProvider(value = process.env.WHATSAPP_PROVIDER): boolean",
+          "startLine": 31,
+          "endLine": 33
+        }
+      ],
+      "summary": "typescript (26 LOC) — exports: WhatsAppProvider, configuredWhatsAppProviders, defaultWhatsAppProvider, isWhatsAppProvider, isTwilioProvider +1 more",
+      "loc": 26,
+      "language": "typescript",
+      "size": 1231
+    },
+    "src/whatsapp-router.test.ts": {
+      "imports": [
+        "src/store/client-store.ts",
+        "src/whatsapp-router.ts",
+        "src/whatsapp-transport.ts"
+      ],
+      "exports": [],
+      "symbols": [],
+      "summary": "typescript (64 LOC)",
+      "loc": 64,
+      "language": "typescript",
+      "size": 2524
+    },
+    "src/whatsapp-router.ts": {
+      "imports": [
+        "src/store/client-store.ts",
+        "src/tenant-store.ts",
+        "src/whatsapp-providers.ts",
+        "src/whatsapp-transport.ts",
+        "src/baileys-manager.ts"
+      ],
+      "exports": [
+        "WhatsAppTransportMap",
+        "RoutingTransportOptions",
+        "createRoutingWhatsAppTransport"
+      ],
+      "symbols": [
+        {
+          "name": "WhatsAppTransportMap",
+          "kind": "type",
+          "signature": "export type WhatsAppTransportMap = Partial<Record<WhatsAppProvider, WhatsAppTransport>>",
+          "startLine": 7,
+          "endLine": 8
+        },
+        {
+          "name": "RoutingTransportOptions",
+          "kind": "type",
+          "signature": "export type RoutingTransportOptions =",
+          "startLine": 9,
+          "endLine": 13
+        }
+      ],
+      "summary": "typescript (50 LOC) — exports: WhatsAppTransportMap, RoutingTransportOptions, createRoutingWhatsAppTransport",
+      "loc": 50,
+      "language": "typescript",
+      "size": 2301
+    },
+    "src/whatsapp-transport.ts": {
+      "imports": [],
+      "exports": [
+        "WhatsAppTransport"
+      ],
+      "symbols": [
+        {
+          "name": "WhatsAppTransport",
+          "kind": "interface",
+          "signature": "export interface WhatsAppTransport",
+          "startLine": 5,
+          "endLine": 17
+        }
+      ],
+      "summary": "typescript (17 LOC) — exports: WhatsAppTransport",
+      "loc": 17,
+      "language": "typescript",
+      "size": 602
+    },
+    "src/whatsapp.ts": {
+      "imports": [
+        "src/agent.ts",
+        "src/access.ts",
+        "src/delivery.ts",
+        "src/onboarding-nudge.ts",
+        "src/store/client-store.ts",
+        "src/tenant-store.ts",
+        "src/onboarding/server.ts",
+        "src/whatsapp-transport.ts",
+        "src/baileys-gate.ts"
+      ],
+      "exports": [
+        "BaileysSession",
+        "startBaileysWhatsApp"
+      ],
+      "symbols": [
+        {
+          "name": "BaileysSession",
+          "kind": "type",
+          "signature": "export type BaileysSession =",
+          "startLine": 98,
+          "endLine": 104
+        }
+      ],
+      "summary": "typescript (335 LOC) — exports: BaileysSession, startBaileysWhatsApp",
+      "loc": 335,
+      "language": "typescript",
+      "size": 14375
+    },
+    "tsconfig.json": {
+      "imports": [],
+      "exports": [],
+      "symbols": [],
+      "summary": "json (13 LOC)",
+      "loc": 13,
+      "language": "json",
+      "size": 257
+    }
+  },
+  "graph": {
+    ".agents/skills/ahrness-engineer/SKILL.md": {
+      "imports": [],
+      "importedBy": []
+    },
+    ".github/workflows/deploy.yml": {
+      "imports": [],
+      "importedBy": []
+    },
+    "AGENTS.md": {
+      "imports": [],
+      "importedBy": []
+    },
+    "ARCHITECTURE.md": {
+      "imports": [],
+      "importedBy": []
+    },
+    "DEVELOPMENT.md": {
+      "imports": [],
+      "importedBy": []
+    },
+    "README.md": {
+      "imports": [],
+      "importedBy": []
+    },
+    "docs/architecture.md": {
+      "imports": [],
+      "importedBy": []
+    },
+    "docs/superpowers/specs/2026-06-22-agent-memory-layer-design.md": {
+      "imports": [],
+      "importedBy": []
+    },
+    "docs/superpowers/specs/2026-06-23-fast-onboarding-and-trust-design.md": {
+      "imports": [],
+      "importedBy": []
+    },
+    "docs/superpowers/specs/2026-06-23-secure-autonomy-design.md": {
+      "imports": [],
+      "importedBy": []
+    },
+    "drizzle.config.ts": {
+      "imports": [],
+      "importedBy": []
+    },
+    "frontend/onboarding/index.html": {
+      "imports": [],
+      "importedBy": []
+    },
+    "frontend/onboarding/src/main.ts": {
+      "imports": [],
+      "importedBy": []
+    },
+    "frontend/onboarding/src/styles.css": {
+      "imports": [],
+      "importedBy": []
+    },
+    "frontend/onboarding/vite.config.ts": {
+      "imports": [],
+      "importedBy": []
+    },
+    "package-lock.json": {
+      "imports": [],
+      "importedBy": []
+    },
+    "package.json": {
+      "imports": [],
+      "importedBy": []
+    },
+    "src/@types/qrcode-terminal.d.ts": {
+      "imports": [],
+      "importedBy": []
+    },
+    "src/access.test.ts": {
+      "imports": [
+        "src/access.ts"
+      ],
+      "importedBy": []
+    },
+    "src/access.ts": {
+      "imports": [
+        "src/whatsapp-address.ts",
+        "src/tenant-store.ts"
+      ],
+      "importedBy": [
+        "src/access.test.ts",
+        "src/startup-checks.ts",
+        "src/twilio-whatsapp.ts",
+        "src/whatsapp.ts"
+      ]
+    },
+    "src/whatsapp-address.ts": {
+      "imports": [],
+      "importedBy": [
+        "src/access.ts",
+        "src/twilio-whatsapp.ts"
+      ]
+    },
+    "src/tenant-store.ts": {
+      "imports": [
+        "src/db/index.ts",
+        "src/db/schema.ts"
+      ],
+      "importedBy": [
+        "src/access.ts",
+        "src/agent.ts",
+        "src/callback-server.ts",
+        "src/delivery.ts",
+        "src/onboarding/server.ts",
+        "src/onboarding/session.ts",
+        "src/tenant-store.test.ts",
+        "src/twilio-whatsapp.ts",
+        "src/whatsapp-router.ts",
+        "src/whatsapp.ts"
+      ]
+    },
+    "src/agent.ts": {
+      "imports": [
+        "src/tenant-store.ts",
+        "src/roles/index.ts",
+        "src/mcps/index.ts",
+        "src/mcps/instagram-graph.ts",
+        "src/mcps/tiktok.ts",
+        "src/mcps/google.ts",
+        "src/mcps/web-search.ts",
+        "src/mcps/connect.ts",
+        "src/higgsfield-usage.ts",
+        "src/input-sharing.ts",
+        "src/scheduler/index.ts",
+        "src/sandbox.ts",
+        "src/plugins/business-context-plugin.ts",
+        "src/mcp.ts",
+        "src/store/types.ts",
+        "src/sessions/index.ts"
+      ],
+      "importedBy": [
+        "src/sessions/memory-e2e.ts",
+        "src/twilio-whatsapp.ts",
+        "src/whatsapp.ts"
+      ]
+    },
+    "src/roles/index.ts": {
+      "imports": [
+        "src/roles/registry.ts",
+        "src/roles/types.ts"
+      ],
+      "importedBy": [
+        "src/agent.ts",
+        "src/onboarding/server.ts"
+      ]
+    },
+    "src/mcps/index.ts": {
+      "imports": [
+        "src/mcps/registry.ts",
+        "src/mcps/types.ts",
+        "src/mcps/instagram-graph.ts",
+        "src/mcps/tiktok.ts",
+        "src/mcps/google.ts"
+      ],
+      "importedBy": [
+        "src/agent.ts",
+        "src/onboarding/server.ts"
+      ]
+    },
+    "src/mcps/instagram-graph.ts": {
+      "imports": [
+        "src/mcps/types.ts",
+        "src/store/types.ts",
+        "src/confirmations.ts"
+      ],
+      "importedBy": [
+        "src/agent.ts",
+        "src/mcps/index.ts",
+        "src/mcps/registry.ts"
+      ]
+    },
+    "src/mcps/tiktok.ts": {
+      "imports": [
+        "src/mcps/types.ts",
+        "src/store/types.ts",
+        "src/confirmations.ts"
+      ],
+      "importedBy": [
+        "src/agent.ts",
+        "src/mcps/index.ts",
+        "src/mcps/registry.ts"
+      ]
+    },
+    "src/mcps/google.ts": {
+      "imports": [
+        "src/mcps/types.ts",
+        "src/store/types.ts",
+        "src/store/client-store.ts"
+      ],
+      "importedBy": [
+        "src/agent.ts",
+        "src/mcps/index.ts",
+        "src/mcps/registry.ts"
+      ]
+    },
+    "src/mcps/web-search.ts": {
+      "imports": [],
+      "importedBy": [
+        "src/agent.ts",
+        "src/mcps/web-search.test.ts"
+      ]
+    },
+    "src/mcps/connect.ts": {
+      "imports": [
+        "src/onboarding/client-link.ts",
+        "src/store/types.ts"
+      ],
+      "importedBy": [
+        "src/agent.ts",
+        "src/mcps/connect.test.ts"
+      ]
+    },
+    "src/higgsfield-usage.ts": {
+      "imports": [],
+      "importedBy": [
+        "src/agent.ts"
+      ]
+    },
+    "src/input-sharing.ts": {
+      "imports": [
+        "src/sandbox.ts"
+      ],
+      "importedBy": [
+        "src/agent.ts",
+        "src/callback-server.ts",
+        "src/higgsfield.test.ts"
+      ]
+    },
+    "src/scheduler/index.ts": {
+      "imports": [
+        "src/scheduler/store.ts",
+        "src/scheduler/templates.ts",
+        "src/scheduler/tools.ts",
+        "src/scheduler/types.ts",
+        "src/scheduler/templates.ts",
+        "src/scheduler/tools.ts",
+        "src/scheduler/store.ts",
+        "src/scheduler/runner.ts"
+      ],
+      "importedBy": [
+        "src/agent.ts",
+        "src/index.ts",
+        "src/onboarding/server.ts"
+      ]
+    },
+    "src/sandbox.ts": {
+      "imports": [],
+      "importedBy": [
+        "src/agent.ts",
+        "src/input-sharing.ts",
+        "src/output-sharing.ts",
+        "src/outputs.ts",
+        "src/sandbox.test.ts",
+        "src/twilio-whatsapp.ts"
+      ]
+    },
+    "src/plugins/business-context-plugin.ts": {
+      "imports": [
+        "src/store/types.ts"
+      ],
+      "importedBy": [
+        "src/agent.ts"
+      ]
+    },
+    "src/mcp.ts": {
+      "imports": [
+        "src/higgsfield-auth.ts"
+      ],
+      "importedBy": [
+        "src/agent.ts"
+      ]
+    },
+    "src/store/types.ts": {
+      "imports": [],
+      "importedBy": [
+        "src/agent.ts",
+        "src/mcps/connect.ts",
+        "src/mcps/google.ts",
+        "src/mcps/higgsfield.ts",
+        "src/mcps/instagram-graph.ts",
+        "src/mcps/meta-ads.ts",
+        "src/mcps/registry.ts",
+        "src/mcps/tiktok.ts",
+        "src/mcps/types.ts",
+        "src/onboarding/client-link.ts",
+        "src/onboarding/server.ts",
+        "src/onboarding/session.test.ts",
+        "src/onboarding/session.ts",
+        "src/plugins/business-context-plugin.ts",
+        "src/roles/registry.ts",
+        "src/roles/types.ts",
+        "src/scheduler/templates.ts",
+        "src/scheduler/types.ts",
+        "src/store/client-store.ts"
+      ]
+    },
+    "src/sessions/index.ts": {
+      "imports": [
+        "src/sessions/types.ts",
+        "src/sessions/db.ts",
+        "src/sessions/store.ts",
+        "src/sessions/run-queue.ts",
+        "src/sessions/tokens.ts",
+        "src/sessions/run-with-failover.ts",
+        "src/sessions/agent-bridge.ts",
+        "src/sessions/runtime.ts"
+      ],
+      "importedBy": [
+        "src/agent.ts"
+      ]
+    },
+    "src/auth.ts": {
+      "imports": [
+        "src/db/index.ts",
+        "src/db/schema.ts"
+      ],
+      "importedBy": [
+        "src/callback-server.ts",
+        "src/dashboard.ts"
+      ]
+    },
+    "src/db/index.ts": {
+      "imports": [
+        "src/db/schema.ts"
+      ],
+      "importedBy": [
+        "src/auth.ts",
+        "src/callback-server.ts",
+        "src/index.ts",
+        "src/tenant-store.test.ts",
+        "src/tenant-store.ts"
+      ]
+    },
+    "src/db/schema.ts": {
+      "imports": [],
+      "importedBy": [
+        "src/auth.ts",
+        "src/callback-server.ts",
+        "src/db/index.ts",
+        "src/tenant-store.test.ts",
+        "src/tenant-store.ts"
+      ]
+    },
+    "src/baileys-gate.test.ts": {
+      "imports": [
+        "src/baileys-gate.ts"
+      ],
+      "importedBy": []
+    },
+    "src/baileys-gate.ts": {
+      "imports": [],
+      "importedBy": [
+        "src/baileys-gate.test.ts",
+        "src/whatsapp.ts"
+      ]
+    },
+    "src/baileys-manager.ts": {
+      "imports": [
+        "src/whatsapp.ts"
+      ],
+      "importedBy": [
+        "src/index.ts",
+        "src/onboarding/server.ts",
+        "src/whatsapp-router.ts"
+      ]
+    },
+    "src/whatsapp.ts": {
+      "imports": [
+        "src/agent.ts",
+        "src/access.ts",
+        "src/delivery.ts",
+        "src/onboarding-nudge.ts",
+        "src/store/client-store.ts",
+        "src/tenant-store.ts",
+        "src/onboarding/server.ts",
+        "src/whatsapp-transport.ts",
+        "src/baileys-gate.ts"
+      ],
+      "importedBy": [
+        "src/baileys-manager.ts"
+      ]
+    },
+    "src/callback-server.ts": {
+      "imports": [
+        "src/oauth.ts",
+        "src/token-store.ts",
+        "src/input-sharing.ts",
+        "src/output-sharing.ts",
+        "src/onboarding/server.ts",
+        "src/twilio-whatsapp.ts",
+        "src/whatsapp-providers.ts",
+        "src/whatsapp-transport.ts",
+        "src/auth.ts",
+        "src/dashboard.ts",
+        "src/tenant-store.ts",
+        "src/onboarding/session.ts",
+        "src/db/index.ts",
+        "src/db/schema.ts"
+      ],
+      "importedBy": [
+        "src/index.ts",
+        "src/onboarding/dev-server.ts"
+      ]
+    },
+    "src/oauth.ts": {
+      "imports": [],
+      "importedBy": [
+        "src/callback-server.ts"
+      ]
+    },
+    "src/token-store.ts": {
+      "imports": [],
+      "importedBy": [
+        "src/callback-server.ts"
+      ]
+    },
+    "src/output-sharing.ts": {
+      "imports": [
+        "src/sandbox.ts"
+      ],
+      "importedBy": [
+        "src/callback-server.ts",
+        "src/twilio-whatsapp.ts"
+      ]
+    },
+    "src/onboarding/server.ts": {
+      "imports": [
+        "src/onboarding/session.ts",
+        "src/roles/index.ts",
+        "src/mcps/index.ts",
+        "src/mcps/types.ts",
+        "src/onboarding/client-link.ts",
+        "src/scheduler/index.ts",
+        "src/store/types.ts",
+        "src/twilio-whatsapp.ts",
+        "src/tenant-store.ts",
+        "src/baileys-manager.ts"
+      ],
+      "importedBy": [
+        "src/callback-server.ts",
+        "src/whatsapp.ts"
+      ]
+    },
+    "src/twilio-whatsapp.ts": {
+      "imports": [
+        "src/agent.ts",
+        "src/access.ts",
+        "src/delivery.ts",
+        "src/onboarding-nudge.ts",
+        "src/onboarding/session.ts",
+        "src/store/client-store.ts",
+        "src/tenant-store.ts",
+        "src/output-sharing.ts",
+        "src/whatsapp-address.ts",
+        "src/whatsapp-providers.ts",
+        "src/whatsapp-transport.ts",
+        "src/sandbox.ts"
+      ],
+      "importedBy": [
+        "src/callback-server.ts",
+        "src/index.ts",
+        "src/onboarding/server.ts"
+      ]
+    },
+    "src/whatsapp-providers.ts": {
+      "imports": [],
+      "importedBy": [
+        "src/callback-server.ts",
+        "src/index.ts",
+        "src/onboarding/session.ts",
+        "src/twilio-whatsapp.ts",
+        "src/whatsapp-router.ts"
+      ]
+    },
+    "src/whatsapp-transport.ts": {
+      "imports": [],
+      "importedBy": [
+        "src/callback-server.ts",
+        "src/delivery.ts",
+        "src/index.ts",
+        "src/scheduler/runner.ts",
+        "src/twilio-whatsapp.ts",
+        "src/whatsapp-router.test.ts",
+        "src/whatsapp-router.ts",
+        "src/whatsapp.ts"
+      ]
+    },
+    "src/dashboard.ts": {
+      "imports": [
+        "src/auth.ts"
+      ],
+      "importedBy": [
+        "src/callback-server.ts"
+      ]
+    },
+    "src/onboarding/session.ts": {
+      "imports": [
+        "src/store/types.ts",
+        "src/store/client-store.ts",
+        "src/tenant-store.ts",
+        "src/whatsapp-providers.ts"
+      ],
+      "importedBy": [
+        "src/callback-server.ts",
+        "src/onboarding/server.ts",
+        "src/onboarding/session.test.ts",
+        "src/twilio-whatsapp.ts"
+      ]
+    },
+    "src/config.ts": {
+      "imports": [],
+      "importedBy": []
+    },
+    "src/confirmations.test.ts": {
+      "imports": [],
+      "importedBy": []
+    },
+    "src/confirmations.ts": {
+      "imports": [],
+      "importedBy": [
+        "src/delivery.ts",
+        "src/mcps/instagram-graph.ts",
+        "src/mcps/tiktok.ts"
+      ]
+    },
+    "src/delivery.ts": {
+      "imports": [
+        "src/tenant-store.ts",
+        "src/confirmations.ts",
+        "src/whatsapp-transport.ts"
+      ],
+      "importedBy": [
+        "src/scheduler/runner.ts",
+        "src/twilio-whatsapp.ts",
+        "src/whatsapp.ts"
+      ]
+    },
+    "src/egress-proxy-server.ts": {
+      "imports": [
+        "src/egress-proxy.ts"
+      ],
+      "importedBy": []
+    },
+    "src/egress-proxy.ts": {
+      "imports": [
+        "src/net-guard.ts"
+      ],
+      "importedBy": [
+        "src/egress-proxy-server.ts"
+      ]
+    },
+    "src/egress-proxy.test.ts": {
+      "imports": [],
+      "importedBy": []
+    },
+    "src/net-guard.ts": {
+      "imports": [],
+      "importedBy": [
+        "src/egress-proxy.ts",
+        "src/outputs.ts"
+      ]
+    },
+    "src/higgsfield-auth.test.ts": {
+      "imports": [
+        "src/vault.ts",
+        "src/higgsfield-auth.ts"
+      ],
+      "importedBy": []
+    },
+    "src/vault.ts": {
+      "imports": [],
+      "importedBy": [
+        "src/higgsfield-auth.test.ts",
+        "src/higgsfield-auth.ts",
+        "src/store/client-store.test.ts",
+        "src/store/client-store.ts",
+        "src/vault.test.ts"
+      ]
+    },
+    "src/higgsfield-auth.ts": {
+      "imports": [
+        "src/vault.ts"
+      ],
+      "importedBy": [
+        "src/higgsfield-auth.test.ts",
+        "src/higgsfield.test.ts",
+        "src/mcp.ts",
+        "src/mcps/higgsfield.ts"
+      ]
+    },
+    "src/higgsfield.test.ts": {
+      "imports": [
+        "src/higgsfield-auth.ts",
+        "src/input-sharing.ts",
+        "src/outputs.ts"
+      ],
+      "importedBy": []
+    },
+    "src/outputs.ts": {
+      "imports": [
+        "src/sandbox.ts",
+        "src/net-guard.ts"
+      ],
+      "importedBy": [
+        "src/higgsfield.test.ts"
+      ]
+    },
+    "src/index.ts": {
+      "imports": [
+        "src/db/index.ts",
+        "src/callback-server.ts",
+        "src/scheduler/index.ts",
+        "src/twilio-whatsapp.ts",
+        "src/baileys-manager.ts",
+        "src/whatsapp-router.ts",
+        "src/whatsapp-providers.ts",
+        "src/startup-checks.ts",
+        "src/whatsapp-transport.ts"
+      ],
+      "importedBy": []
+    },
+    "src/whatsapp-router.ts": {
+      "imports": [
+        "src/store/client-store.ts",
+        "src/tenant-store.ts",
+        "src/whatsapp-providers.ts",
+        "src/whatsapp-transport.ts",
+        "src/baileys-manager.ts"
+      ],
+      "importedBy": [
+        "src/index.ts",
+        "src/whatsapp-router.test.ts"
+      ]
+    },
+    "src/startup-checks.ts": {
+      "imports": [
+        "src/access.ts"
+      ],
+      "importedBy": [
+        "src/index.ts",
+        "src/startup-checks.test.ts"
+      ]
+    },
+    "src/mcps/connect.test.ts": {
+      "imports": [
+        "src/mcps/connect.ts"
+      ],
+      "importedBy": []
+    },
+    "src/onboarding/client-link.ts": {
+      "imports": [
+        "src/store/types.ts"
+      ],
+      "importedBy": [
+        "src/mcps/connect.ts",
+        "src/onboarding-nudge.ts",
+        "src/onboarding/server.ts"
+      ]
+    },
+    "src/mcps/types.ts": {
+      "imports": [
+        "src/store/types.ts"
+      ],
+      "importedBy": [
+        "src/mcps/google.ts",
+        "src/mcps/higgsfield.ts",
+        "src/mcps/index.ts",
+        "src/mcps/instagram-graph.ts",
+        "src/mcps/meta-ads.ts",
+        "src/mcps/registry.ts",
+        "src/mcps/tiktok.ts",
+        "src/onboarding/server.ts"
+      ]
+    },
+    "src/store/client-store.ts": {
+      "imports": [
+        "src/store/types.ts",
+        "src/vault.ts"
+      ],
+      "importedBy": [
+        "src/mcps/google.ts",
+        "src/onboarding-nudge.ts",
+        "src/onboarding/session.test.ts",
+        "src/onboarding/session.ts",
+        "src/store/client-store.test.ts",
+        "src/tenant-store.test.ts",
+        "src/twilio-whatsapp.ts",
+        "src/whatsapp-router.test.ts",
+        "src/whatsapp-router.ts",
+        "src/whatsapp.ts"
+      ]
+    },
+    "src/mcps/higgsfield.ts": {
+      "imports": [
+        "src/higgsfield-auth.ts",
+        "src/mcps/types.ts",
+        "src/store/types.ts"
+      ],
+      "importedBy": [
+        "src/mcps/registry.ts"
+      ]
+    },
+    "src/mcps/registry.ts": {
+      "imports": [
+        "src/store/types.ts",
+        "src/mcps/types.ts",
+        "src/mcps/meta-ads.ts",
+        "src/mcps/higgsfield.ts",
+        "src/mcps/instagram-graph.ts",
+        "src/mcps/tiktok.ts",
+        "src/mcps/google.ts"
+      ],
+      "importedBy": [
+        "src/mcps/index.ts"
+      ]
+    },
+    "src/mcps/meta-ads.ts": {
+      "imports": [
+        "src/mcps/types.ts",
+        "src/store/types.ts"
+      ],
+      "importedBy": [
+        "src/mcps/registry.ts"
+      ]
+    },
+    "src/mcps/web-search.test.ts": {
+      "imports": [
+        "src/mcps/web-search.ts"
+      ],
+      "importedBy": []
+    },
+    "src/onboarding-nudge.test.ts": {
+      "imports": [
+        "src/onboarding-nudge.ts"
+      ],
+      "importedBy": []
+    },
+    "src/onboarding-nudge.ts": {
+      "imports": [
+        "src/store/client-store.ts",
+        "src/onboarding/client-link.ts"
+      ],
+      "importedBy": [
+        "src/onboarding-nudge.test.ts",
+        "src/twilio-whatsapp.ts",
+        "src/whatsapp.ts"
+      ]
+    },
+    "src/onboarding/dev-server.ts": {
+      "imports": [
+        "src/callback-server.ts"
+      ],
+      "importedBy": []
+    },
+    "src/onboarding/session.test.ts": {
+      "imports": [
+        "src/store/client-store.ts",
+        "src/onboarding/session.ts",
+        "src/store/types.ts"
+      ],
+      "importedBy": []
+    },
+    "src/onboarding/views/layout.html": {
+      "imports": [],
+      "importedBy": []
+    },
+    "src/roles/registry.ts": {
+      "imports": [
+        "src/store/types.ts",
+        "src/roles/types.ts"
+      ],
+      "importedBy": [
+        "src/roles/index.ts",
+        "src/roles/registry.test.ts"
+      ]
+    },
+    "src/roles/types.ts": {
+      "imports": [
+        "src/store/types.ts"
+      ],
+      "importedBy": [
+        "src/roles/index.ts",
+        "src/roles/registry.ts"
+      ]
+    },
+    "src/roles/registry.test.ts": {
+      "imports": [
+        "src/roles/registry.ts"
+      ],
+      "importedBy": []
+    },
+    "src/sandbox.test.ts": {
+      "imports": [
+        "src/sandbox.ts"
+      ],
+      "importedBy": []
+    },
+    "src/scheduler-cron.test.ts": {
+      "imports": [
+        "src/scheduler/cron.ts"
+      ],
+      "importedBy": []
+    },
+    "src/scheduler/cron.ts": {
+      "imports": [],
+      "importedBy": [
+        "src/scheduler-cron.test.ts",
+        "src/scheduler/runner.ts",
+        "src/scheduler/templates.test.ts",
+        "src/scheduler/tools.ts"
+      ]
+    },
+    "src/scheduler/store.ts": {
+      "imports": [
+        "src/scheduler/types.ts"
+      ],
+      "importedBy": [
+        "src/scheduler/index.ts",
+        "src/scheduler/runner.ts",
+        "src/scheduler/store.test.ts",
+        "src/scheduler/tools.ts"
+      ]
+    },
+    "src/scheduler/templates.ts": {
+      "imports": [
+        "src/store/types.ts",
+        "src/scheduler/types.ts"
+      ],
+      "importedBy": [
+        "src/scheduler/index.ts",
+        "src/scheduler/templates.test.ts"
+      ]
+    },
+    "src/scheduler/tools.ts": {
+      "imports": [
+        "src/scheduler/cron.ts",
+        "src/scheduler/store.ts",
+        "src/scheduler/types.ts"
+      ],
+      "importedBy": [
+        "src/scheduler/index.ts"
+      ]
+    },
+    "src/scheduler/types.ts": {
+      "imports": [
+        "src/store/types.ts"
+      ],
+      "importedBy": [
+        "src/scheduler/index.ts",
+        "src/scheduler/runner.ts",
+        "src/scheduler/store.ts",
+        "src/scheduler/templates.ts",
+        "src/scheduler/tools.ts"
+      ]
+    },
+    "src/scheduler/runner.ts": {
+      "imports": [
+        "src/whatsapp-transport.ts",
+        "src/delivery.ts",
+        "src/scheduler/cron.ts",
+        "src/scheduler/store.ts",
+        "src/scheduler/types.ts"
+      ],
+      "importedBy": [
+        "src/scheduler/index.ts"
+      ]
+    },
+    "src/scheduler/store.test.ts": {
+      "imports": [
+        "src/scheduler/store.ts"
+      ],
+      "importedBy": []
+    },
+    "src/scheduler/templates.test.ts": {
+      "imports": [
+        "src/scheduler/templates.ts",
+        "src/scheduler/cron.ts"
+      ],
+      "importedBy": []
+    },
+    "src/sessions/agent-bridge.test.ts": {
+      "imports": [
+        "src/sessions/agent-bridge.ts",
+        "src/sessions/types.ts"
+      ],
+      "importedBy": []
+    },
+    "src/sessions/agent-bridge.ts": {
+      "imports": [
+        "src/sessions/types.ts"
+      ],
+      "importedBy": [
+        "src/sessions/agent-bridge.test.ts",
+        "src/sessions/index.ts",
+        "src/sessions/memory-e2e.ts"
+      ]
+    },
+    "src/sessions/types.ts": {
+      "imports": [],
+      "importedBy": [
+        "src/sessions/agent-bridge.test.ts",
+        "src/sessions/agent-bridge.ts",
+        "src/sessions/compaction.ts",
+        "src/sessions/index.ts",
+        "src/sessions/run-with-failover.test.ts",
+        "src/sessions/run-with-failover.ts",
+        "src/sessions/store.ts"
+      ]
+    },
+    "src/sessions/compaction.test.ts": {
+      "imports": [
+        "src/sessions/db.ts",
+        "src/sessions/store.ts",
+        "src/sessions/compaction.ts",
+        "src/sessions/compaction.ts"
+      ],
+      "importedBy": []
+    },
+    "src/sessions/db.ts": {
+      "imports": [],
+      "importedBy": [
+        "src/sessions/compaction.test.ts",
+        "src/sessions/index.ts",
+        "src/sessions/memory-e2e.ts",
+        "src/sessions/runtime.ts",
+        "src/sessions/store.test.ts",
+        "src/sessions/store.ts"
+      ]
+    },
+    "src/sessions/store.ts": {
+      "imports": [
+        "src/sessions/db.ts",
+        "src/sessions/tokens.ts",
+        "src/sessions/types.ts"
+      ],
+      "importedBy": [
+        "src/sessions/compaction.test.ts",
+        "src/sessions/compaction.ts",
+        "src/sessions/index.ts",
+        "src/sessions/memory-e2e.ts",
+        "src/sessions/runtime.ts",
+        "src/sessions/store.test.ts"
+      ]
+    },
+    "src/sessions/compaction.ts": {
+      "imports": [
+        "src/sessions/tokens.ts",
+        "src/sessions/store.ts",
+        "src/sessions/types.ts"
+      ],
+      "importedBy": [
+        "src/sessions/compaction.test.ts",
+        "src/sessions/memory-e2e.ts"
+      ]
+    },
+    "src/sessions/tokens.ts": {
+      "imports": [],
+      "importedBy": [
+        "src/sessions/compaction.ts",
+        "src/sessions/index.ts",
+        "src/sessions/store.ts",
+        "src/sessions/tokens.test.ts"
+      ]
+    },
+    "src/sessions/run-queue.ts": {
+      "imports": [],
+      "importedBy": [
+        "src/sessions/index.ts",
+        "src/sessions/run-queue.test.ts",
+        "src/sessions/runtime.ts"
+      ]
+    },
+    "src/sessions/run-with-failover.ts": {
+      "imports": [
+        "src/sessions/types.ts"
+      ],
+      "importedBy": [
+        "src/sessions/index.ts",
+        "src/sessions/run-with-failover.test.ts"
+      ]
+    },
+    "src/sessions/runtime.ts": {
+      "imports": [
+        "src/sessions/db.ts",
+        "src/sessions/store.ts",
+        "src/sessions/run-queue.ts"
+      ],
+      "importedBy": [
+        "src/sessions/index.ts"
+      ]
+    },
+    "src/sessions/memory-e2e.ts": {
+      "imports": [
+        "src/agent.ts",
+        "src/sessions/db.ts",
+        "src/sessions/store.ts",
+        "src/sessions/agent-bridge.ts",
+        "src/sessions/compaction.ts"
+      ],
+      "importedBy": []
+    },
+    "src/sessions/run-queue.test.ts": {
+      "imports": [
+        "src/sessions/run-queue.ts"
+      ],
+      "importedBy": []
+    },
+    "src/sessions/run-with-failover.test.ts": {
+      "imports": [
+        "src/sessions/run-with-failover.ts",
+        "src/sessions/types.ts"
+      ],
+      "importedBy": []
+    },
+    "src/sessions/store.test.ts": {
+      "imports": [
+        "src/sessions/db.ts",
+        "src/sessions/store.ts"
+      ],
+      "importedBy": []
+    },
+    "src/sessions/tokens.test.ts": {
+      "imports": [
+        "src/sessions/tokens.ts"
+      ],
+      "importedBy": []
+    },
+    "src/skills/ad-performance-analysis/SKILL.md": {
+      "imports": [],
+      "importedBy": []
+    },
+    "src/skills/business-context/SKILL.md": {
+      "imports": [],
+      "importedBy": []
+    },
+    "src/skills/gtm-operator/SKILL.md": {
+      "imports": [],
+      "importedBy": []
+    },
+    "src/skills/higgsfield-creative/SKILL.md": {
+      "imports": [],
+      "importedBy": []
+    },
+    "src/skills/meta-ads-expert/SKILL.md": {
+      "imports": [],
+      "importedBy": []
+    },
+    "src/skills/social-media-manager/SKILL.md": {
+      "imports": [],
+      "importedBy": []
+    },
+    "src/skills/software-developer/SKILL.md": {
+      "imports": [],
+      "importedBy": []
+    },
+    "src/skills/whatsapp-personal-assistant/SKILL.md": {
+      "imports": [],
+      "importedBy": []
+    },
+    "src/startup-checks.test.ts": {
+      "imports": [
+        "src/startup-checks.ts"
+      ],
+      "importedBy": []
+    },
+    "src/store/client-store.test.ts": {
+      "imports": [
+        "src/store/client-store.ts",
+        "src/vault.ts"
+      ],
+      "importedBy": []
+    },
+    "src/tenant-store.test.ts": {
+      "imports": [
+        "src/db/index.ts",
+        "src/db/schema.ts",
+        "src/tenant-store.ts",
+        "src/store/client-store.ts"
+      ],
+      "importedBy": []
+    },
+    "src/vault.test.ts": {
+      "imports": [
+        "src/vault.ts"
+      ],
+      "importedBy": []
+    },
+    "src/whatsapp-providers.test.ts": {
+      "imports": [],
+      "importedBy": []
+    },
+    "src/whatsapp-router.test.ts": {
+      "imports": [
+        "src/store/client-store.ts",
+        "src/whatsapp-router.ts",
+        "src/whatsapp-transport.ts"
+      ],
+      "importedBy": []
+    },
+    "tsconfig.json": {
+      "imports": [],
+      "importedBy": []
+    }
+  },
+  "indexedAt": "2026-07-01T17:00:59.784Z"
+}

@@ -20,12 +20,18 @@ import type { WhatsAppTransport } from './whatsapp-transport.js'
 import { auth } from './auth.js'
 import { toNodeHandler, fromNodeHeaders } from 'better-auth/node'
 import { renderLoginPage, renderDashboardPage } from './dashboard.js'
-import { ensureTenant, tenantIdForJid } from './tenant-store.js'
-import { loadSession } from './onboarding/session.js'
+import { ensureTenant } from './tenant-store.js'
+import { getConnections, getProfile, getRole as getStoredRole } from './store/client-store.js'
+import { listJobs } from './scheduler/store.js'
+import { fileConfirmationStore } from './confirmations.js'
+import { getRole as getRoleDefinition } from './roles/registry.js'
+import { getAllMcps } from './mcps/index.js'
+import type { PlatformId } from './store/types.js'
 
 const authHandler = toNodeHandler(auth)
 
 const PORT = Number(process.env.CALLBACK_PORT ?? 3456)
+const confirmationStore = fileConfirmationStore()
 
 function readBody(req: IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {
@@ -50,6 +56,24 @@ async function getSession(req: IncomingMessage) {
   } catch {
     return null
   }
+}
+
+function computeOnboardingStep(input: {
+  hasProfile: boolean
+  hasRole: boolean
+  requiredPlatforms: PlatformId[]
+  connectedPlatforms: Set<PlatformId>
+  whatsappLinked: boolean
+}): number {
+  if (!input.hasProfile) return 1
+  if (!input.hasRole) return 2
+  if (input.requiredPlatforms.some((platform) => !input.connectedPlatforms.has(platform))) return 4
+  if (!input.whatsappLinked) return 5
+  return 6
+}
+
+function isExpired(iso: string | null): boolean {
+  return !!iso && Number.isFinite(Date.parse(iso)) && Date.parse(iso) <= Date.now()
 }
 
 export function startCallbackServer(transport: WhatsAppTransport | null): void {
@@ -84,24 +108,166 @@ export function startCallbackServer(transport: WhatsAppTransport | null): void {
         res.writeHead(302, { Location: '/login' }).end()
         return
       }
-      await ensureTenant(session.user.id)
+      const tenantId = session.user.id
+      await ensureTenant(tenantId)
 
-      // Look up WhatsApp link state from the tenant table + onboarding sessions
-      const jid = await (async () => {
+      const tenantRow = await (async () => {
         // Find the JID linked to this tenant
         const { db: database } = await import('./db/index.js')
         const { tenant: tenantTable } = await import('./db/schema.js')
         const { eq } = await import('drizzle-orm')
-        const row = await database.select().from(tenantTable).where(eq(tenantTable.userId, session.user.id)).get()
+        const row = await database.select().from(tenantTable).where(eq(tenantTable.userId, tenantId)).get()
         return row ?? null
       })()
 
+      const [profile, roleRecord, connections, jobs, pendingApproval] = await Promise.all([
+        getProfile(tenantId),
+        getStoredRole(tenantId),
+        getConnections(tenantId),
+        listJobs(tenantId),
+        confirmationStore.get(tenantId),
+      ])
+
+      let role = null
+      let requiredPlatforms: PlatformId[] = []
+      let optionalPlatforms: PlatformId[] = []
+      if (roleRecord) {
+        try {
+          const definition = getRoleDefinition(roleRecord.roleId)
+          role = {
+            id: definition.id,
+            displayName: definition.displayName,
+            description: definition.description,
+            emoji: definition.emoji,
+          }
+          requiredPlatforms = definition.requiredMcps
+          optionalPlatforms = definition.optionalMcps
+        } catch {
+          role = null
+        }
+      }
+
+      const connectedPlatforms = new Set(
+        Object.entries(connections)
+          .filter(([, record]) => record?.status === 'connected')
+          .map(([platform]) => platform as PlatformId),
+      )
+
+      const platformDefs = new Map(getAllMcps().map((platform) => [platform.id, platform]))
+      const visiblePlatforms = role
+        ? [...requiredPlatforms, ...optionalPlatforms]
+        : (Array.from(new Set(Object.keys(connections))) as PlatformId[])
+      const platforms = visiblePlatforms.map((platformId) => {
+        const definition = platformDefs.get(platformId)
+        const record = connections[platformId]
+        const status: 'connected' | 'pending' | 'error' | 'not-configured' = record?.status ?? 'not-configured'
+        return {
+          id: platformId,
+          displayName: definition?.displayName ?? platformId,
+          required: requiredPlatforms.includes(platformId),
+          status,
+          connectedAt: record?.connectedAt ?? null,
+          tokenExpiresAt: record?.tokenExpiresAt ?? null,
+        }
+      })
+
+      const alerts = []
+      if (!profile?.business?.name) {
+        alerts.push({
+          title: 'Business context is still thin',
+          detail: 'Add your business name and a few public links so the agent can reason from real context.',
+          level: 'info' as const,
+        })
+      }
+      if (requiredPlatforms.some((platformId) => !connectedPlatforms.has(platformId))) {
+        alerts.push({
+          title: 'Required connections are missing',
+          detail: 'Your current role has at least one required platform that is not connected yet.',
+          level: 'warn' as const,
+        })
+      }
+      if (!tenantRow?.whatsappJid) {
+        alerts.push({
+          title: 'WhatsApp is not linked',
+          detail: 'The dashboard exists, but the agent cannot talk to you until a WhatsApp transport is connected.',
+          level: 'warn' as const,
+        })
+      }
+      if (!jobs.length) {
+        alerts.push({
+          title: 'No automations are active',
+          detail: 'The agent will still respond in chat, but nothing is scheduled to run on its own yet.',
+          level: 'info' as const,
+        })
+      }
+      if (pendingApproval) {
+        alerts.push({
+          title: pendingApproval.approved ? 'Approved action is waiting to run' : 'Action is waiting for your approval',
+          detail: pendingApproval.summary,
+          level: 'warn' as const,
+        })
+      }
+      for (const platform of platforms) {
+        if (isExpired(platform.tokenExpiresAt)) {
+          alerts.push({
+            title: `${platform.displayName} token expired`,
+            detail: `Reconnect ${platform.displayName} so the agent can continue using it.`,
+            level: 'warn' as const,
+          })
+        }
+      }
+
+      const lastActivityAt = [pendingApproval?.createdAt ?? null, ...jobs.map((job) => job.lastRunAt), ...platforms.map((platform) => platform.connectedAt)]
+        .filter((value): value is string => !!value)
+        .sort()
+        .at(-1) ?? null
+
+      const onboardingStep = computeOnboardingStep({
+        hasProfile: !!profile,
+        hasRole: !!roleRecord,
+        requiredPlatforms,
+        connectedPlatforms,
+        whatsappLinked: !!tenantRow?.whatsappJid,
+      })
+
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
         .end(renderDashboardPage(session.user, {
-          whatsappLinked: !!jid?.whatsappJid,
-          whatsappJid: jid?.whatsappJid ?? null,
-          whatsappProvider: jid?.whatsappProvider ?? null,
-          onboardingStep: 1,
+          whatsappLinked: !!tenantRow?.whatsappJid,
+          whatsappJid: tenantRow?.whatsappJid ?? null,
+          whatsappProvider: tenantRow?.whatsappProvider ?? null,
+          onboardingStep,
+          role,
+          profile: profile ? {
+            businessName: profile.business.name || null,
+            website: profile.assets.website ?? null,
+            instagram: profile.assets.instagram?.handle ?? null,
+            tiktok: profile.assets.tiktok?.handle ?? null,
+            targetAudience: profile.business.targetAudience ?? null,
+            brandVoice: profile.business.brandVoice ?? null,
+            goals: profile.business.goals ?? [],
+          } : null,
+          platforms,
+          automations: jobs
+            .sort((a, b) => {
+              const aTime = a.lastRunAt ? Date.parse(a.lastRunAt) : 0
+              const bTime = b.lastRunAt ? Date.parse(b.lastRunAt) : 0
+              return bTime - aTime
+            })
+            .map((job) => ({
+              id: job.id,
+              title: job.title,
+              enabled: job.enabled,
+              runCount: job.runCount,
+              lastRunAt: job.lastRunAt,
+              lastRunStatus: job.lastRunStatus ?? null,
+            })),
+          pendingApproval: pendingApproval ? {
+            summary: pendingApproval.summary,
+            createdAt: new Date(pendingApproval.createdAt).toISOString(),
+            approved: pendingApproval.approved,
+          } : null,
+          alerts,
+          lastActivityAt,
         }))
       return
     }
