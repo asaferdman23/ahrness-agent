@@ -54,6 +54,31 @@ export async function ensureWhatsAppConnectCode(session: OnboardingSession): Pro
   return session.whatsappConnectCode
 }
 
+async function finalizeWhatsAppBinding(
+  session: OnboardingSession,
+  jid: string,
+  provider: WhatsAppProvider,
+): Promise<OnboardingSession> {
+  const oldClientId = session.clientId ?? session.sessionId
+  const legacyClientId = clientIdFromJid(jid)
+  const hasAuthenticatedTenant = Boolean(
+    session.clientId && session.clientId !== session.sessionId && session.clientId !== legacyClientId,
+  )
+  const clientId = hasAuthenticatedTenant ? oldClientId : await adoptClientData(oldClientId, jid)
+  session.clientId = clientId
+  session.whatsappJid = jid
+  session.whatsappProvider = provider
+  session.whatsappConnectCode = undefined
+  session.whatsappLinked = true
+  session.step = Math.max(session.step, 6)
+  await saveSession(session)
+  await updateClientMeta(clientId, { whatsappProvider: provider })
+  if (hasAuthenticatedTenant) {
+    await linkWhatsAppToTenant(clientId, jid, provider).catch(() => {})
+  }
+  return session
+}
+
 export async function bindSessionToWhatsAppCode(
   code: string,
   jid: string,
@@ -69,25 +94,19 @@ export async function bindSessionToWhatsAppCode(
     if (!file.endsWith('.json')) continue
     const session = await loadSession(file.slice(0, -'.json'.length))
     if (!session || session.whatsappConnectCode !== wanted) continue
-
-    const oldClientId = session.clientId ?? session.sessionId
-    const legacyClientId = clientIdFromJid(jid)
-    const hasAuthenticatedTenant = Boolean(session.clientId && session.clientId !== session.sessionId && session.clientId !== legacyClientId)
-    const clientId = hasAuthenticatedTenant ? oldClientId : await adoptClientData(oldClientId, jid)
-    session.clientId = clientId
-    session.whatsappJid = jid
-    session.whatsappProvider = provider
-    session.whatsappConnectCode = undefined
-    session.whatsappLinked = true
-    session.step = Math.max(session.step, 6)
-    await saveSession(session)
-    await updateClientMeta(clientId, { whatsappProvider: provider })
-    if (hasAuthenticatedTenant) {
-      await linkWhatsAppToTenant(clientId, jid, provider).catch(() => {})
-    }
-    return session
+    return finalizeWhatsAppBinding(session, jid, provider)
   }
   return null
+}
+
+export async function bindSessionToWhatsAppJid(
+  sessionId: string,
+  jid: string,
+  provider: WhatsAppProvider,
+): Promise<OnboardingSession | null> {
+  const session = await loadSession(sessionId)
+  if (!session) return null
+  return finalizeWhatsAppBinding(session, jid, provider)
 }
 
 export async function getOrCreateSession(sessionId?: string): Promise<OnboardingSession> {

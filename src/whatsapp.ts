@@ -24,6 +24,7 @@ import { maybeOnboardingNudge } from './onboarding-nudge.js'
 import { getConnections, getRole, updateClientMeta } from './store/client-store.js'
 import { clientIdForJid } from './tenant-store.js'
 import { broadcastLinked, broadcastLinkedToAll, broadcastQr, broadcastQrToAll } from './onboarding/server.js'
+import { bindSessionToWhatsAppJid } from './onboarding/session.js'
 import type { WhatsAppTransport } from './whatsapp-transport.js'
 import { shouldProcessBaileysInbound, sameWhatsAppUser } from './baileys-gate.js'
 
@@ -177,8 +178,17 @@ export async function startBaileysWhatsApp(
       reconnectAttempts = 0
       console.log(`✓ WhatsApp connected (Baileys) [client ${clientId}]`)
       opts.onConnected?.(clientId)
-      if (opts.onboardingSessionId) broadcastLinked(socket.user?.id ?? '', opts.onboardingSessionId)
-      else broadcastLinkedToAll(socket.user?.id ?? '')
+      const linkedJid = socket.user?.id ?? ''
+      if (opts.onboardingSessionId) {
+        if (linkedJid) {
+          await bindSessionToWhatsAppJid(opts.onboardingSessionId, linkedJid, 'baileys').catch((err) => {
+            console.error(`[client ${clientId}] failed to persist Baileys onboarding link:`, err)
+          })
+        }
+        broadcastLinked(linkedJid, opts.onboardingSessionId)
+      } else {
+        broadcastLinkedToAll(linkedJid)
+      }
     }
 
     if (connection === 'close') {
