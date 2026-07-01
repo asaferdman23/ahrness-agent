@@ -251,12 +251,16 @@ function renderWhatsApp(): string {
 function renderDone(): string {
   const role = data.roles.find((item) => item.id === data.session.roleId)
   const wa = data.whatsapp.twilio.digits ? `https://wa.me/${data.whatsapp.twilio.digits}` : null
+  const relinkHint = data.session.whatsappProvider === 'baileys' && !data.session.whatsappLinked
+    ? `<p class="muted" style="margin-top:1rem">Your WhatsApp link isn't active. <a href="/onboarding/step/5${location.search}" class="btn btn-secondary" style="display:inline-block;margin-left:.5rem">Re-link WhatsApp</a></p>`
+    : ''
   return `${stepDots()}<section class="card" style="text-align:center">
     <div class="eyebrow">Step 06</div>
     <div class="success-icon">✓</div>
     <h1>Your agent is live</h1>
     <p class="subtitle" style="margin-left:auto;margin-right:auto">${role ? `${role.emoji} <strong>${role.displayName}</strong> is set up and knows your business.` : 'Your agent is configured.'}</p>
     ${wa ? `<a href="${wa}" class="whatsapp-cta"><span aria-hidden="true">↗</span><span>Start chatting on WhatsApp</span></a>` : '<p class="muted">Message your agent on WhatsApp to get started.</p>'}
+    ${relinkHint}
   </section>`
 }
 

@@ -720,14 +720,27 @@ async function onboardingBootstrap(session: OnboardingSession): Promise<Record<s
     : null
   const twilioText = connectCode ? `connect ${connectCode}` : 'Hi'
 
+  // If the session thinks WhatsApp is linked but the Baileys socket for this
+  // client isn't actually connected (e.g. the user removed the linked device,
+  // or WhatsApp invalidated the session), treat it as not linked so the user
+  // can re-link from step 5 instead of being stuck on step 6.
+  let effectiveLinked = session.whatsappLinked
+  let effectiveStep = session.step
+  if (session.whatsappLinked && session.whatsappProvider === 'baileys' && session.clientId) {
+    if (!baileysSessionManager().isConnected(session.clientId)) {
+      effectiveLinked = false
+      if (effectiveStep > 5) effectiveStep = 5
+    }
+  }
+
   return {
     agentName: process.env.AGENT_NAME ?? 'BizzClaw',
     session: {
       sessionId: session.sessionId,
-      step: session.step,
+      step: effectiveStep,
       clientId: session.clientId ?? null,
       whatsappJid: session.whatsappJid ?? null,
-      whatsappLinked: session.whatsappLinked,
+      whatsappLinked: effectiveLinked,
       whatsappProvider: selectedProvider,
       profile: session.profile ?? null,
       roleId: session.roleId ?? null,
@@ -1035,10 +1048,17 @@ export function createOnboardingHandler(): OnboardingHandler {
     if (req.method === 'POST' && pathname === '/onboarding/step/5') {
       const body = await parseBody(req)
       const provider = str(body.whatsappProvider)
-      if (!isWhatsAppProvider(provider) || !configuredWhatsAppProviders().includes(provider)) {
+      // Accept any valid provider — Baileys is always available per-client even
+      // when the global WHATSAPP_PROVIDER env is twilio-only.
+      if (!isWhatsAppProvider(provider)) {
         return html(res, '<p>Unsupported WhatsApp provider.</p>', 400)
       }
       session.whatsappProvider = provider as WhatsAppProvider
+      // Reset link state so the user can re-link (e.g. after a disconnect or
+      // removing the linked device from their phone).
+      session.whatsappLinked = false
+      session.whatsappJid = undefined
+      if (session.step > 5) session.step = 5
       if (session.clientId) await updateClientMeta(session.clientId, { whatsappProvider: provider as WhatsAppProvider })
       await saveSession(session)
       return redirect(res, '/onboarding/step/5')
@@ -1056,7 +1076,15 @@ export function createOnboardingHandler(): OnboardingHandler {
       // Send current QR if already available
       const current = qrData.get(session.sessionId)
       if (current) res.write(`data: ${JSON.stringify({ type: 'qr', qr: current })}\n\n`)
-      if (linkedSessions.has(session.sessionId)) {
+
+      // Only treat as linked if the Baileys socket is actually connected right
+      // now. The in-memory linkedSessions set is populated on connect but never
+      // cleared on disconnect, so check the live socket state instead.
+      const clientId = session.clientId ?? session.sessionId
+      const isLiveLinked = session.whatsappProvider === 'baileys'
+        ? baileysSessionManager().isConnected(clientId)
+        : linkedSessions.has(session.sessionId)
+      if (isLiveLinked) {
         res.write(`data: ${JSON.stringify({ type: 'linked' })}\n\n`)
         res.end()
         return
@@ -1067,7 +1095,6 @@ export function createOnboardingHandler(): OnboardingHandler {
       // gets their own socket + auth state at store/clients/<clientId>/auth/.
       const wantsBaileys = (session.whatsappProvider ?? defaultWhatsAppProvider()) === 'baileys'
       if (wantsBaileys) {
-        const clientId = session.clientId ?? session.sessionId
         const manager = baileysSessionManager()
         // If already linked, tell the SSE client immediately. Otherwise force a
         // fresh QR (Baileys only emits QR on initial connect, so if a socket is
