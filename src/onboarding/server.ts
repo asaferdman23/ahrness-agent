@@ -931,6 +931,20 @@ export function createOnboardingHandler(): OnboardingHandler {
           await saveProviderFromJson(session, await parseJsonBody(req))
           return json(res, await onboardingBootstrap(session))
         }
+        if (req.method === 'POST' && pathname === '/api/onboarding/whatsapp-disconnect') {
+          // Log out the linked WhatsApp device (Baileys) and clear the session's
+          // link state so the user can re-link or switch providers.
+          if (session.clientId && session.whatsappProvider === 'baileys') {
+            await baileysSessionManager().disconnect(session.clientId).catch((err) => {
+              console.error(`[onboarding] baileys disconnect failed for ${session.clientId}:`, err)
+            })
+          }
+          session.whatsappLinked = false
+          session.whatsappJid = undefined
+          if (session.step > 5) session.step = 5
+          await saveSession(session)
+          return json(res, await onboardingBootstrap(session))
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown onboarding API error'
         return json(res, { error: message }, 400)

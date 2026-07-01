@@ -236,10 +236,16 @@ function renderWhatsApp(): string {
       </div>`
     : `<div class="connect-panel">
         <h2>Host in your 1:1 group</h2>
-        <div class="qr-box" id="qrBox">
-          ${data.whatsapp.baileys.latestQr ? `<img src="${data.whatsapp.baileys.latestQr}" alt="WhatsApp linking QR code" />` : '<span class="spinner" aria-hidden="true"></span>'}
-          <p class="muted" id="qrHint">${data.whatsapp.baileys.latestQr ? 'Scan with WhatsApp Linked Devices.' : 'Waiting for a QR code from the server.'}</p>
-        </div>
+        ${data.session.whatsappLinked
+          ? `<p class="muted" style="text-align:center">Your WhatsApp is linked. To stop the agent and remove the linked device from your phone:</p>
+             <div class="actions" style="justify-content:center;margin-top:1rem">
+               <button class="btn btn-outline" type="button" id="disconnectBtn">Disconnect WhatsApp</button>
+             </div>
+             <p class="muted" style="margin-top:1rem">After disconnecting you can re-link with a new QR code, or switch to "Use our number".</p>`
+          : `<div class="qr-box" id="qrBox">
+            ${data.whatsapp.baileys.latestQr ? `<img src="${data.whatsapp.baileys.latestQr}" alt="WhatsApp linking QR code" />` : '<span class="spinner" aria-hidden="true"></span>'}
+            <p class="muted" id="qrHint">${data.whatsapp.baileys.latestQr ? 'Scan with WhatsApp Linked Devices.' : 'Waiting for a QR code from the server.'}</p>
+          </div>`}
       </div>`
 
   return shell('Choose how WhatsApp connects', 'Use our number, or host the agent in a 1:1 group with your own number.', `
@@ -336,6 +342,16 @@ function bindEvents(): void {
   app.querySelector<HTMLFormElement>('#providerForm')?.addEventListener('submit', async (event) => {
     event.preventDefault()
     await submit(async () => api('/api/onboarding/whatsapp-provider', { whatsappProvider: formValue(event.currentTarget, 'whatsappProvider') }), 5)
+  })
+  app.querySelector<HTMLButtonElement>('#disconnectBtn')?.addEventListener('click', async () => {
+    if (!confirm('Disconnect WhatsApp? The linked device will be removed from your phone and the agent will stop responding.')) return
+    try {
+      data = await api('/api/onboarding/whatsapp-disconnect')
+      render()
+    } catch (err) {
+      errorMessage = err instanceof Error ? err.message : 'Disconnect failed'
+      render()
+    }
   })
 }
 

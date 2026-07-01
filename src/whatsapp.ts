@@ -101,6 +101,9 @@ export type BaileysSession = {
   transport: WhatsAppTransport
   /** Stop this client's socket and suppress further reconnect. */
   stop: () => void
+  /** Log out the linked device server-side (removes it from the user's phone)
+   * and stop the socket. Use when the user wants to disconnect WhatsApp. */
+  logout: () => Promise<void>
 }
 
 /**
@@ -297,6 +300,18 @@ export async function startBaileysWhatsApp(
         socket.end(undefined)
       } catch {
         // already closed
+      }
+    },
+    logout: async () => {
+      // Tell WhatsApp to remove this linked device server-side (it disappears
+      // from the user's phone), then stop the socket. The auth dir is left in
+      // place; the operator can delete it to fully clear state.
+      stopped = true
+      try {
+        await socket.logout()
+      } catch {
+        // best-effort — if logout fails, just end the socket
+        try { socket.end(undefined) } catch { /* already closed */ }
       }
     },
   }

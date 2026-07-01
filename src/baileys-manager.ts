@@ -70,6 +70,21 @@ export class BaileysSessionManager {
   }
 
   /**
+   * Disconnect a client's WhatsApp: log out the linked device server-side
+   * (so it disappears from the user's phone), stop the socket, and clear the
+   * connection state. The auth dir on disk is left in place — the user can
+   * re-link later, which overwrites it.
+   */
+  async disconnect(clientId: string): Promise<void> {
+    const session = this.sessions.get(clientId)
+    this._connected.delete(clientId)
+    if (session) {
+      this.sessions.delete(clientId)
+      await session.logout()
+    }
+  }
+
+  /**
    * Force a fresh QR for a client. Baileys only emits a QR on initial connect,
    * so if the socket is already running (but not yet linked) we restart it to
    * trigger a new QR. If it's already linked, the caller should send a
