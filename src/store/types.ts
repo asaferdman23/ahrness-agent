@@ -71,6 +71,10 @@ export interface ClientMeta {
   onboardingNudgedAt?: string
   /** Transport this client chose or last used for WhatsApp delivery. */
   whatsappProvider?: WhatsAppProvider
+  /** Per-client Baileys home group for customer-facing group-only mode. */
+  baileysHomeGroupJid?: string
+  /** ISO timestamp for when the Baileys home group was first bound. */
+  baileysHomeGroupBoundAt?: string
 }
 
 export interface OnboardingSession {

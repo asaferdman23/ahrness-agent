@@ -21,12 +21,12 @@ import type { ClientAgentSession } from './agent.js'
 import { isInboundSenderAllowed } from './access.js'
 import { runAndDeliver } from './delivery.js'
 import { maybeOnboardingNudge } from './onboarding-nudge.js'
-import { getConnections, getRole, updateClientMeta } from './store/client-store.js'
+import { getClientMeta, getConnections, getRole, updateClientMeta } from './store/client-store.js'
 import { clientIdForJid } from './tenant-store.js'
 import { broadcastLinked, broadcastLinkedToAll, broadcastQr, broadcastQrToAll } from './onboarding/server.js'
 import { bindSessionToWhatsAppJid } from './onboarding/session.js'
 import type { WhatsAppTransport } from './whatsapp-transport.js'
-import { shouldProcessBaileysInbound, sameWhatsAppUser } from './baileys-gate.js'
+import { effectiveAllowedGroupJids, isWhatsAppGroupJid, shouldProcessBaileysInbound, sameWhatsAppUser } from './baileys-gate.js'
 
 const STORE_ROOT = process.env.AGENT_STORE_DIR ?? './store'
 
@@ -229,6 +229,21 @@ export async function startBaileysWhatsApp(
       const media = extractMedia(msg)
       if (!text && !media) continue
 
+      const meta = await getClientMeta(clientId)
+      const explicitAllowedGroups = process.env.BAILEYS_ALLOWED_GROUP_JIDS
+      if (
+        isWhatsAppGroupJid(jid) &&
+        !explicitAllowedGroups?.trim() &&
+        !meta.baileysHomeGroupJid
+      ) {
+        await updateClientMeta(clientId, {
+          baileysHomeGroupJid: jid,
+          baileysHomeGroupBoundAt: new Date().toISOString(),
+        })
+        meta.baileysHomeGroupJid = jid
+        console.log(`[baileys] bound home group ${jid} for client ${clientId}`)
+      }
+
       const gate = shouldProcessBaileysInbound({
         remoteJid: jid,
         participantJid: msg.key.participant,
@@ -236,11 +251,12 @@ export async function startBaileysWhatsApp(
         hasMedia: Boolean(media),
         mentionedJids: extractMentionedJids(msg),
         botJid: socket.user?.id,
+        allowedGroupJids: effectiveAllowedGroupJids(explicitAllowedGroups, meta.baileysHomeGroupJid),
       })
       if (!gate.allowed) {
         if (gate.triggered && (gate.reason === 'group-not-configured' || gate.reason === 'group-not-allowed')) {
           console.log(
-            `[baileys] blocked group ${jid}; set BAILEYS_ALLOWED_GROUP_JIDS=${jid} to make this the agent home group` +
+            `[baileys] blocked group ${jid}; set BAILEYS_ALLOWED_GROUP_JIDS=${jid} to force this as the global home group override` +
               (msg.key.participant ? `; optional BAILEYS_ALLOWED_GROUP_PARTICIPANTS=${msg.key.participant}` : ''),
           )
         }

@@ -1,6 +1,6 @@
 import { afterEach, test } from 'node:test'
 import assert from 'node:assert/strict'
-import { shouldProcessBaileysInbound } from './baileys-gate.js'
+import { effectiveAllowedGroupJids, shouldProcessBaileysInbound } from './baileys-gate.js'
 
 afterEach(() => {
   delete process.env.BAILEYS_GROUP_ONLY
@@ -40,6 +40,7 @@ test('allowed group still requires the BizzClaw trigger', () => {
     remoteJid: '120363111111111111@g.us',
     text: 'hi',
     hasMedia: false,
+    allowedGroupJids: effectiveAllowedGroupJids(process.env.BAILEYS_ALLOWED_GROUP_JIDS),
   })
 
   assert.equal(decision.allowed, false)
@@ -53,6 +54,7 @@ test('allowed group strips the trigger before sending text to the agent', () => 
     remoteJid: '120363111111111111@g.us',
     text: '@bizzclaw write a launch post',
     hasMedia: false,
+    allowedGroupJids: effectiveAllowedGroupJids(process.env.BAILEYS_ALLOWED_GROUP_JIDS),
   })
 
   assert.equal(decision.allowed, true)
@@ -68,6 +70,7 @@ test('participant allowlist restricts who can trigger inside the home group', ()
     participantJid: '15559990000@s.whatsapp.net',
     text: '@bizzclaw hi',
     hasMedia: false,
+    allowedGroupJids: effectiveAllowedGroupJids(process.env.BAILEYS_ALLOWED_GROUP_JIDS),
   })
 
   assert.equal(decision.allowed, false)
@@ -83,6 +86,19 @@ test('a real WhatsApp mention of the bot can trigger even when visible text uses
     hasMedia: false,
     mentionedJids: ['15558136169@s.whatsapp.net'],
     botJid: '15558136169:17@s.whatsapp.net',
+    allowedGroupJids: effectiveAllowedGroupJids(process.env.BAILEYS_ALLOWED_GROUP_JIDS),
+  })
+
+  assert.equal(decision.allowed, true)
+  assert.equal(decision.prompt, 'hi')
+})
+
+test('a per-client home group works without a global env allowlist', () => {
+  const decision = shouldProcessBaileysInbound({
+    remoteJid: '120363222222222222@g.us',
+    text: '@bizzclaw hi',
+    hasMedia: false,
+    allowedGroupJids: effectiveAllowedGroupJids(undefined, '120363222222222222@g.us'),
   })
 
   assert.equal(decision.allowed, true)

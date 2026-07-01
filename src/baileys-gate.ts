@@ -24,6 +24,15 @@ export function isWhatsAppGroupJid(jid: string): boolean {
   return jid.endsWith('@g.us')
 }
 
+export function effectiveAllowedGroupJids(
+  configuredAllowedGroupJids: string | undefined,
+  clientHomeGroupJid?: string,
+): string | undefined {
+  const configured = configuredAllowedGroupJids?.trim()
+  if (configured) return configured
+  return clientHomeGroupJid?.trim() || undefined
+}
+
 export function shouldProcessBaileysInbound(input: BaileysInboundGateInput): BaileysInboundDecision {
   const groupOnly = input.groupOnly ?? process.env.BAILEYS_GROUP_ONLY ?? 'true'
   const groupMode = groupOnly !== 'false'
@@ -40,7 +49,7 @@ export function shouldProcessBaileysInbound(input: BaileysInboundGateInput): Bai
       return { allowed: false, reason: 'direct-chat-blocked', groupMode, triggered: trigger.triggered }
     }
 
-    const allowedGroups = parseCsv(input.allowedGroupJids ?? process.env.BAILEYS_ALLOWED_GROUP_JIDS)
+    const allowedGroups = parseCsv(input.allowedGroupJids)
     if (allowedGroups.size === 0) {
       return { allowed: false, reason: 'group-not-configured', groupMode, triggered: trigger.triggered }
     }
