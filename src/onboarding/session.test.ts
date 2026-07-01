@@ -123,7 +123,7 @@ test('binds a Baileys QR-linked session to the authenticated tenant and JID', as
     mcpOverrides: { disabled: [], extra: [] },
   })
 
-  const jid = '15559876543@s.whatsapp.net'
+  const jid = `1555${Date.now()}@s.whatsapp.net`
   const bound = await bindSessionToWhatsAppJid(session.sessionId, jid, 'baileys')
 
   assert.equal(bound?.clientId, tenantId)

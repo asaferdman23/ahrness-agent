@@ -388,6 +388,12 @@ function startWhatsAppLiveUpdates(): void {
       }
       if (payload.type === 'linked') setStep(6)
     }
+    qrEvents.onerror = () => {
+      const box = document.querySelector('#qrBox')
+      if (box) {
+        box.innerHTML = '<p class="muted">Could not load the WhatsApp QR right now. Refresh this step and try again.</p>'
+      }
+    }
   }
   if (data.session.whatsappProvider === 'twilio' && data.whatsapp.twilio.connectCode) {
     statusTimer = window.setInterval(async () => {

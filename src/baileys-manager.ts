@@ -151,9 +151,10 @@ export class BaileysSessionManager {
     clientId: string,
     opts: EnsureSocketOptions,
   ): Promise<BaileysSession> {
-    // Resolve the phone number: explicit override > env. (Per-client phone
-    // numbers are passed via onboarding opts, not stored on the profile.)
-    const phoneNumber = opts.phoneNumber ?? process.env.WHATSAPP_PHONE_NUMBER
+    // Only use pairing-code mode when a phone number is explicitly provided.
+    // The onboarding QR screen expects a scannable QR, and falling back to a
+    // global env phone number can block QR emission entirely.
+    const phoneNumber = opts.phoneNumber
 
     return startBaileysWhatsApp(clientId, {
       phoneNumber,
