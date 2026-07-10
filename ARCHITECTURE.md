@@ -8,6 +8,7 @@ A WhatsApp-first AI marketing agent platform. Clients onboard via a web UI, pick
 
 - [Overview](#overview)
 - [Onboarding Flow](#onboarding-flow)
+- [Messaging Channels](#messaging-channels)
 - [Roles](#roles)
 - [Skills](#skills)
 - [MCP Platform Registry](#mcp-platform-registry)
@@ -61,11 +62,48 @@ Step 4 — Connect Platforms
 Step 5 — Link WhatsApp
   └─ QR code rendered via SSE stream from Baileys.
      Page auto-advances on scan.
-     (Slack / Google Chat — coming soon)
+     (Telegram is available as an additional channel for an already-onboarded
+     client — see "Messaging Channels" below. Not yet wired into this step;
+     Slack is planned but not implemented.)
 
 Step 6 — Ready
   └─ Summary of role + connected platforms + WhatsApp deep link.
 ```
+
+## Messaging Channels
+
+WhatsApp is the primary channel; a client can additionally connect a personal
+Telegram bot so the *same* agent (same profile, role, connections, memory) is
+reachable there too.
+
+- **Identity**: `runAndDeliver`/`buildClientAgent` resolve a client from a
+  "jid" string via `clientIdForJid` (`src/tenant-store.ts`). For WhatsApp that
+  is a real JID looked up in the tenant table (or hashed, pre-auth). Telegram
+  (and, later, Slack) instead pass a synthetic address encoded by
+  `src/channel-address.ts` — `agent-client:<clientId>:<channel>:<channelAddress>`
+  — which `clientIdForJid` decodes directly, short-circuiting the WhatsApp
+  lookup. This is what lets a Telegram conversation share the client's
+  existing profile/role/connections/session memory without a schema change.
+- **Transport**: `src/whatsapp-transport.ts`'s `WhatsAppTransport` interface
+  (`sendText`/`sendImage`/`sendVideo`/`sendAudio`/`sendDocument`) is
+  channel-agnostic in shape; `src/telegram-transport.ts` implements it against
+  the raw Telegram Bot HTTPS API (`src/telegram-client.ts` — no SDK
+  dependency, plain `fetch`/`FormData`).
+- **Connecting a bot**: each client brings their own bot (BotFather token).
+  There's no self-serve UI yet — an operator runs
+  `npm run connect:telegram -- <clientId> <botToken>` (`scripts/connect-telegram.ts`),
+  which validates the token and stores it encrypted at
+  `store/clients/<clientId>/telegram.json` (`src/telegram-store.ts`, same
+  vault as OAuth tokens). The bot locks itself to whichever chat messages it
+  first (`ownerChatId`) — a personal-assistant lockdown mirroring Baileys'
+  "home group" binding — so it isn't a public bot.
+- **Runtime**: `src/telegram.ts` long-polls `getUpdates` per client;
+  `src/telegram-manager.ts`'s `TelegramSessionManager` (mirrors
+  `BaileysSessionManager`) starts one poller per connected client at boot
+  (`src/index.ts`) and isolates one client's errors from another's.
+- **Slack**: planned, not implemented. The same address/transport pattern
+  applies; Slack's added complexity is multi-workspace OAuth install instead
+  of a single bot token.
 
 ## Scheduler
 
@@ -369,6 +407,12 @@ src/
 ├── index.ts                          # Entry point
 ├── agent.ts                          # buildClientAgent() — assembles agent from store + registries
 ├── whatsapp.ts                       # Baileys connection, routes inbound messages
+├── channel-address.ts                # Synthetic clientId-bearing address for non-WhatsApp channels
+├── telegram.ts                       # Per-client Telegram bot polling + inbound routing
+├── telegram-manager.ts               # TelegramSessionManager — one poller per client
+├── telegram-store.ts                 # Encrypted bot token + owner-chat binding
+├── telegram-transport.ts             # WhatsAppTransport-shaped send API over the Telegram Bot HTTP API
+├── telegram-client.ts                # Minimal Telegram Bot API client (fetch/FormData, no SDK)
 ├── callback-server.ts                # Express server, mounts onboarding + oauth routes
 ├── token-store.ts                    # Legacy shim → delegates to client-store
 ├── mcp.ts                            # Legacy shim → re-exports from src/mcps/
