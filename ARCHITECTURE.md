@@ -62,9 +62,10 @@ Step 4 — Connect Platforms
 Step 5 — Link WhatsApp
   └─ QR code rendered via SSE stream from Baileys.
      Page auto-advances on scan.
-     (Telegram is available as an additional channel for an already-onboarded
-     client — see "Messaging Channels" below. Not yet wired into this step;
-     Slack is planned but not implemented.)
+     (Telegram is available as an additional channel via a "Connect Telegram"
+     button on the dashboard, post-onboarding — see "Messaging Channels"
+     below. Not wired into this onboarding step itself; Slack is planned but
+     not implemented.)
 
 Step 6 — Ready
   └─ Summary of role + connected platforms + WhatsApp deep link.
@@ -89,18 +90,40 @@ reachable there too.
   channel-agnostic in shape; `src/telegram-transport.ts` implements it against
   the raw Telegram Bot HTTPS API (`src/telegram-client.ts` — no SDK
   dependency, plain `fetch`/`FormData`).
-- **Connecting a bot**: each client brings their own bot (BotFather token).
-  There's no self-serve UI yet — an operator runs
-  `npm run connect:telegram -- <clientId> <botToken>` (`scripts/connect-telegram.ts`),
-  which validates the token and stores it encrypted at
-  `store/clients/<clientId>/telegram.json` (`src/telegram-store.ts`, same
-  vault as OAuth tokens). The bot locks itself to whichever chat messages it
-  first (`ownerChatId`) — a personal-assistant lockdown mirroring Baileys'
-  "home group" binding — so it isn't a public bot.
-- **Runtime**: `src/telegram.ts` long-polls `getUpdates` per client;
-  `src/telegram-manager.ts`'s `TelegramSessionManager` (mirrors
-  `BaileysSessionManager`) starts one poller per connected client at boot
-  (`src/index.ts`) and isolates one client's errors from another's.
+- **Connecting a bot — two supported models**:
+  1. **Shared platform bot (self-serve, recommended)**: set `TELEGRAM_BOT_TOKEN`
+     to one bot you own; the dashboard (`src/dashboard.ts`, wired in
+     `callback-server.ts`) shows a "Connect Telegram" button that opens
+     `t.me/<bot>?start=<signed clientId>` (`src/telegram-shared-bot.ts`). The
+     signature reuses the same HMAC helper as onboarding links
+     (`signClientToken`/`verifyClientToken` in `onboarding/client-link.ts`).
+     Tapping Start sends `/start <token>` as the chat's first message; the bot
+     verifies it and binds that chat to the client (`bindSharedTelegramChat` in
+     `telegram-store.ts` — a global chatId→clientId index at
+     `store/telegram-shared-chats.json`, plus `ClientMeta.telegramChatId` as a
+     forward pointer for the dashboard's connected/not status).
+  2. **BYO per-client bot**: each client brings their own bot (BotFather
+     token). There's no self-serve UI for this path — an operator runs
+     `npm run connect:telegram -- <clientId> <botToken>`
+     (`scripts/connect-telegram.ts`), which validates the token and stores it
+     encrypted at `store/clients/<clientId>/telegram.json`
+     (`src/telegram-store.ts`, same vault as OAuth tokens). The bot locks
+     itself to whichever chat messages it first (`ownerChatId`) — a
+     personal-assistant lockdown mirroring Baileys' "home group" binding.
+
+  Both models funnel into the same `deliverTelegramMessage` (`telegram.ts`)
+  once a chat is bound to a clientId, so the reply/media/scheduler behavior is
+  identical either way.
+- **Runtime**: `src/telegram.ts` exports `runTelegramPollLoop`, a shared
+  `getUpdates` long-poller. `src/telegram-manager.ts`'s
+  `TelegramSessionManager` (mirrors `BaileysSessionManager`) runs one poller
+  per BYO-connected client at boot; `src/telegram-shared-bot.ts` runs a single
+  poller for the shared bot, if configured. Both are started from
+  `src/index.ts`, and errors in one client's/bot's loop don't affect another's.
+- **Caveat**: the connect link never expires (same as the existing
+  `onboardingUrlFor` links) — a leaked link binds whoever taps it. Fine for
+  now given it mirrors an already-accepted pattern in this codebase; revisit
+  if Telegram connect links start getting shared outside a 1:1 context.
 - **Slack**: planned, not implemented. The same address/transport pattern
   applies; Slack's added complexity is multi-workspace OAuth install instead
   of a single bot token.
@@ -408,9 +431,10 @@ src/
 ├── agent.ts                          # buildClientAgent() — assembles agent from store + registries
 ├── whatsapp.ts                       # Baileys connection, routes inbound messages
 ├── channel-address.ts                # Synthetic clientId-bearing address for non-WhatsApp channels
-├── telegram.ts                       # Per-client Telegram bot polling + inbound routing
-├── telegram-manager.ts               # TelegramSessionManager — one poller per client
-├── telegram-store.ts                 # Encrypted bot token + owner-chat binding
+├── telegram.ts                       # Poll loop + inbound routing/delivery, shared by both bot models
+├── telegram-manager.ts               # TelegramSessionManager — one poller per BYO-connected client
+├── telegram-shared-bot.ts            # Single platform bot + /start deep-link connect flow
+├── telegram-store.ts                 # Encrypted bot token + owner-chat binding + shared-chat index
 ├── telegram-transport.ts             # WhatsAppTransport-shaped send API over the Telegram Bot HTTP API
 ├── telegram-client.ts                # Minimal Telegram Bot API client (fetch/FormData, no SDK)
 ├── callback-server.ts                # Express server, mounts onboarding + oauth routes

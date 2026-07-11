@@ -9,6 +9,7 @@
  */
 import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { updateClientMeta } from './store/client-store.js'
 import { decryptSecret, encryptSecret, isEncrypted } from './vault.js'
 
 export interface TelegramConnection {
@@ -108,4 +109,26 @@ export async function listConnectedTelegramClients(): Promise<string[]> {
     if (record?.botTokenEncrypted) connected.push(clientId)
   }
   return connected
+}
+
+// ── Shared platform bot (one bot, many clients, /start deep link) ─────────────
+
+type SharedChatIndex = Record<string, string> // chatId -> clientId
+
+function sharedChatIndexPath(): string {
+  return path.resolve(storeRoot(), 'telegram-shared-chats.json')
+}
+
+/** Bind a chat opened via the shared platform bot's /start deep link to a clientId. */
+export async function bindSharedTelegramChat(clientId: string, chatId: string): Promise<void> {
+  const index = (await readJson<SharedChatIndex>(sharedChatIndexPath())) ?? {}
+  index[chatId] = clientId
+  await atomicWrite(sharedChatIndexPath(), index)
+  await updateClientMeta(clientId, { telegramChatId: chatId, telegramChatBoundAt: new Date().toISOString() })
+}
+
+/** Resolve a chat opened via the shared platform bot back to its clientId, or null if unbound. */
+export async function clientIdForSharedTelegramChat(chatId: string): Promise<string | null> {
+  const index = (await readJson<SharedChatIndex>(sharedChatIndexPath())) ?? {}
+  return index[chatId] ?? null
 }

@@ -75,6 +75,10 @@ export interface ClientMeta {
   baileysHomeGroupJid?: string
   /** ISO timestamp for when the Baileys home group was first bound. */
   baileysHomeGroupBoundAt?: string
+  /** Telegram chat id bound via the shared platform bot's /start deep link (see telegram-shared-bot.ts). */
+  telegramChatId?: string
+  /** ISO timestamp for when the Telegram chat was bound. */
+  telegramChatBoundAt?: string
 }
 
 export interface OnboardingSession {

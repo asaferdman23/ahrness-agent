@@ -21,8 +21,9 @@ import { auth } from './auth.js'
 import { toNodeHandler, fromNodeHeaders } from 'better-auth/node'
 import { renderLoginPage, renderDashboardPage } from './dashboard.js'
 import { ensureTenant } from './tenant-store.js'
-import { getConnections, getProfile, getRole as getStoredRole } from './store/client-store.js'
+import { getClientMeta, getConnections, getProfile, getRole as getStoredRole } from './store/client-store.js'
 import { listJobs } from './scheduler/store.js'
+import { sharedTelegramBotUsername, telegramConnectUrl } from './telegram-shared-bot.js'
 import { fileConfirmationStore } from './confirmations.js'
 import { getRole as getRoleDefinition } from './roles/registry.js'
 import { getAllMcps } from './mcps/index.js'
@@ -120,13 +121,16 @@ export function startCallbackServer(transport: WhatsAppTransport | null): void {
         return row ?? null
       })()
 
-      const [profile, roleRecord, connections, jobs, pendingApproval] = await Promise.all([
+      const [profile, roleRecord, connections, jobs, pendingApproval, clientMeta] = await Promise.all([
         getProfile(tenantId),
         getStoredRole(tenantId),
         getConnections(tenantId),
         listJobs(tenantId),
         confirmationStore.get(tenantId),
+        getClientMeta(tenantId),
       ])
+
+      const botUsername = sharedTelegramBotUsername()
 
       let role = null
       let requiredPlatforms: PlatformId[] = []
@@ -235,6 +239,8 @@ export function startCallbackServer(transport: WhatsAppTransport | null): void {
           whatsappLinked: !!tenantRow?.whatsappJid,
           whatsappJid: tenantRow?.whatsappJid ?? null,
           whatsappProvider: tenantRow?.whatsappProvider ?? null,
+          telegramLinked: !!clientMeta.telegramChatId,
+          telegramConnectUrl: botUsername ? telegramConnectUrl(botUsername, tenantId) : null,
           onboardingStep,
           role,
           profile: profile ? {

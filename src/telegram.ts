@@ -78,6 +78,93 @@ function positiveInteger(value: string | undefined, fallback: number): number {
 }
 
 /**
+ * Run one inbound Telegram message through the agent and deliver the reply.
+ * Shared by the per-client (BYO bot) poller below and the shared platform bot
+ * (telegram-shared-bot.ts) — both already know which clientId a chat belongs
+ * to by the time they call this; only *how* they learn that differs.
+ */
+export async function deliverTelegramMessage(params: {
+  clientId: string
+  chatId: string
+  botToken: string
+  transport: WhatsAppTransport
+  msg: TelegramMessage
+}): Promise<void> {
+  const { clientId, chatId, botToken, transport, msg } = params
+
+  const text = msg.text ?? msg.caption ?? null
+  const media = extractMedia(msg)
+  if (!text && !media) return
+
+  const address = encodeClientChannelAddress(clientId, 'telegram', chatId)
+  let prompt = text ?? 'Hi'
+
+  let prepare: ((session: ClientAgentSession) => Promise<void>) | undefined
+  if (media) {
+    const inputPath = `/workspace/inbox/${Date.now()}-${sanitizeFileName(media.fileName)}`
+    prompt += `\n\nAttached file: ${inputPath}\nMIME type: ${media.mimeType}`
+    prepare = async (session) => {
+      const bytes = await tg.downloadFile(botToken, media.fileId)
+      const maxInputBytes = positiveInteger(process.env.AGENT_MAX_INPUT_BYTES, 26_214_400)
+      if (bytes.length > maxInputBytes) throw new Error(`Telegram attachment exceeds ${maxInputBytes} bytes`)
+      await session.writeInput(inputPath, bytes)
+    }
+  }
+
+  console.log(`[telegram][${chatId}] ${msg.from?.username ?? chatId}: ${text ?? `[${media?.mimeType ?? 'attachment'}]`}`)
+
+  try {
+    await tg.sendChatAction(botToken, chatId, 'typing').catch(() => {})
+    await runAndDeliver(transport, address, prompt, { prepare })
+  } catch (err) {
+    console.error(`[telegram][client ${clientId}] agent error:`, err)
+    await transport.sendText(address, 'Something went wrong. Please try again.').catch(() => {})
+  }
+}
+
+/**
+ * Long-poll one bot's `getUpdates` until `stop()` is called. Shared by the
+ * per-client BYO pollers and the single shared platform bot.
+ */
+export function runTelegramPollLoop(
+  botToken: string,
+  onMessage: (msg: TelegramMessage) => Promise<void>,
+  label: string,
+): { stop: () => void } {
+  const controller = new AbortController()
+  let stopped = false
+  let offset = 0
+
+  async function poll(): Promise<void> {
+    let backoff = POLL_ERROR_BACKOFF_MS
+    while (!stopped) {
+      try {
+        const updates = await tg.getUpdates(botToken, offset, POLL_TIMEOUT_SEC, controller.signal)
+        backoff = POLL_ERROR_BACKOFF_MS
+        for (const update of updates) {
+          offset = update.update_id + 1
+          if (update.message) await onMessage(update.message)
+        }
+      } catch (err) {
+        if (stopped) return
+        console.error(`[telegram][${label}] poll error:`, err instanceof Error ? err.message : err)
+        await sleep(backoff)
+        backoff = Math.min(backoff * 2, POLL_ERROR_BACKOFF_CAP_MS)
+      }
+    }
+  }
+
+  void poll()
+
+  return {
+    stop: () => {
+      stopped = true
+      controller.abort()
+    },
+  }
+}
+
+/**
  * Start polling one client's Telegram bot. Resolves once the bot's identity
  * is confirmed (getMe); inbound handling then runs in the background until
  * `stop()` is called.
@@ -93,9 +180,6 @@ export async function startTelegramBot(
   console.log(`✓ Telegram bot connected [client ${clientId}]: @${me.username ?? me.id}`)
 
   const transport = createTelegramTransport(botToken)
-  const controller = new AbortController()
-  let stopped = false
-  let offset = 0
 
   async function handleMessage(msg: TelegramMessage): Promise<void> {
     const chatId = String(msg.chat.id)
@@ -109,63 +193,10 @@ export async function startTelegramBot(
       return
     }
 
-    const text = msg.text ?? msg.caption ?? null
-    const media = extractMedia(msg)
-    if (!text && !media) return
-
-    const address = encodeClientChannelAddress(clientId, 'telegram', chatId)
-    let prompt = text ?? 'Hi'
-
-    let prepare: ((session: ClientAgentSession) => Promise<void>) | undefined
-    if (media) {
-      const inputPath = `/workspace/inbox/${Date.now()}-${sanitizeFileName(media.fileName)}`
-      prompt += `\n\nAttached file: ${inputPath}\nMIME type: ${media.mimeType}`
-      prepare = async (session) => {
-        const bytes = await tg.downloadFile(botToken, media.fileId)
-        const maxInputBytes = positiveInteger(process.env.AGENT_MAX_INPUT_BYTES, 26_214_400)
-        if (bytes.length > maxInputBytes) throw new Error(`Telegram attachment exceeds ${maxInputBytes} bytes`)
-        await session.writeInput(inputPath, bytes)
-      }
-    }
-
-    console.log(`[telegram][${chatId}] ${msg.from?.username ?? chatId}: ${text ?? `[${media?.mimeType ?? 'attachment'}]`}`)
-
-    try {
-      await tg.sendChatAction(botToken, chatId, 'typing').catch(() => {})
-      await runAndDeliver(transport, address, prompt, { prepare })
-    } catch (err) {
-      console.error(`[telegram][client ${clientId}] agent error:`, err)
-      await transport.sendText(address, 'Something went wrong. Please try again.').catch(() => {})
-    }
+    await deliverTelegramMessage({ clientId, chatId, botToken, transport, msg })
   }
 
-  async function poll(): Promise<void> {
-    let backoff = POLL_ERROR_BACKOFF_MS
-    while (!stopped) {
-      try {
-        const updates = await tg.getUpdates(botToken, offset, POLL_TIMEOUT_SEC, controller.signal)
-        backoff = POLL_ERROR_BACKOFF_MS
-        for (const update of updates) {
-          offset = update.update_id + 1
-          if (update.message) await handleMessage(update.message)
-        }
-      } catch (err) {
-        if (stopped) return
-        console.error(`[telegram][client ${clientId}] poll error:`, err instanceof Error ? err.message : err)
-        await sleep(backoff)
-        backoff = Math.min(backoff * 2, POLL_ERROR_BACKOFF_CAP_MS)
-      }
-    }
-  }
+  const { stop } = runTelegramPollLoop(botToken, handleMessage, `client ${clientId}`)
 
-  void poll()
-
-  return {
-    clientId,
-    transport,
-    stop: () => {
-      stopped = true
-      controller.abort()
-    },
-  }
+  return { clientId, transport, stop }
 }

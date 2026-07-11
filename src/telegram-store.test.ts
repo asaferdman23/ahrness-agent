@@ -68,6 +68,20 @@ test('lists only clients with a stored bot token', async () => {
   assert.deepEqual(clients, ['client-a', 'client-b'])
 })
 
+test('bindSharedTelegramChat resolves via clientIdForSharedTelegramChat and updates ClientMeta', async () => {
+  const { bindSharedTelegramChat, clientIdForSharedTelegramChat } = await freshStore()
+  const { getClientMeta } = await import('./store/client-store.js')
+
+  await bindSharedTelegramChat('client-1', 'chat-999')
+
+  assert.equal(await clientIdForSharedTelegramChat('chat-999'), 'client-1')
+  assert.equal(await clientIdForSharedTelegramChat('chat-unknown'), null)
+
+  const meta = await getClientMeta('client-1')
+  assert.equal(meta.telegramChatId, 'chat-999')
+  assert.ok(meta.telegramChatBoundAt)
+})
+
 test('removeTelegramConnection clears the stored token', async () => {
   const { saveTelegramBotToken, removeTelegramConnection, getTelegramConnection, listConnectedTelegramClients } =
     await freshStore()
