@@ -24,6 +24,10 @@ import { ensureTenant } from './tenant-store.js'
 import { getClientMeta, getConnections, getProfile, getRole as getStoredRole } from './store/client-store.js'
 import { listJobs } from './scheduler/store.js'
 import { sharedTelegramBotUsername, telegramConnectUrl } from './telegram-shared-bot.js'
+import { exchangeOAuthCode as exchangeSlackOAuthCode } from './slack-client.js'
+import { slackInstallUrl, slackRedirectUri, verifySlackState } from './slack-oauth.js'
+import { saveSlackConnection } from './slack-store.js'
+import { handleSlackEventsRequest } from './slack.js'
 import { fileConfirmationStore } from './confirmations.js'
 import { getRole as getRoleDefinition } from './roles/registry.js'
 import { getAllMcps } from './mcps/index.js'
@@ -241,6 +245,8 @@ export function startCallbackServer(transport: WhatsAppTransport | null): void {
           whatsappProvider: tenantRow?.whatsappProvider ?? null,
           telegramLinked: !!clientMeta.telegramChatId,
           telegramConnectUrl: botUsername ? telegramConnectUrl(botUsername, tenantId) : null,
+          slackLinked: !!clientMeta.slackTeamId,
+          slackConnectUrl: slackInstallUrl(tenantId),
           onboardingStep,
           role,
           profile: profile ? {
@@ -287,6 +293,19 @@ export function startCallbackServer(transport: WhatsAppTransport | null): void {
       } else {
         res.writeHead(503).end('WhatsApp transport not ready')
       }
+      return
+    }
+
+    // ── Slack Events API webhook ──────────────────────────────────────────────
+    if (req.method === 'POST' && url.pathname === '/webhooks/slack/events') {
+      const signingSecret = process.env.SLACK_SIGNING_SECRET
+      if (!signingSecret) {
+        res.writeHead(503).end('Slack is not configured on this server.')
+        return
+      }
+      const raw = await readBody(req)
+      const result = await handleSlackEventsRequest(raw, req.headers, signingSecret)
+      res.writeHead(result.status, result.contentType ? { 'Content-Type': result.contentType } : undefined).end(result.body)
       return
     }
 
@@ -417,6 +436,50 @@ export function startCallbackServer(transport: WhatsAppTransport | null): void {
       return
     }
 
+    // ── Slack OAuth v2 install callback ───────────────────────────────────────
+    if (url.pathname === '/auth/slack/callback') {
+      const code = url.searchParams.get('code')
+      const state = url.searchParams.get('state')
+      const error = url.searchParams.get('error')
+
+      if (error || !code || !state) {
+        console.error('[slack-oauth] callback error:', error ?? 'missing code/state')
+        res.writeHead(400).end(`Slack authorization failed: ${error ?? 'missing parameters'}`)
+        return
+      }
+
+      const oauthClientId = verifySlackState(state)
+      if (!oauthClientId) {
+        res.writeHead(400).end('Invalid or expired state parameter')
+        return
+      }
+
+      const slackClientId = process.env.SLACK_CLIENT_ID
+      const slackClientSecret = process.env.SLACK_CLIENT_SECRET
+      if (!slackClientId || !slackClientSecret) {
+        res.writeHead(500).end('Slack is not configured on this server.')
+        return
+      }
+
+      try {
+        const exchange = await exchangeSlackOAuthCode(code, slackClientId, slackClientSecret, slackRedirectUri())
+        await saveSlackConnection(oauthClientId, {
+          botToken: exchange.accessToken,
+          teamId: exchange.teamId,
+          teamName: exchange.teamName,
+          installerUserId: exchange.installerUserId,
+        })
+        console.log(`[slack-oauth] workspace ${exchange.teamId} connected for client ${oauthClientId}`)
+        res.writeHead(200, { 'Content-Type': 'text/html' }).end(
+          successPage('Slack is connected. You can close this tab and return to your dashboard.'),
+        )
+      } catch (err) {
+        console.error('[slack-oauth] token exchange failed:', err)
+        res.writeHead(500).end('Slack authorization failed. Please try again.')
+      }
+      return
+    }
+
     res.writeHead(404).end('Not found')
   })
 
@@ -427,6 +490,10 @@ export function startCallbackServer(transport: WhatsAppTransport | null): void {
     console.log(`  Meta OAuth callback: ${base}/auth/meta/callback`)
     if (isTwilioProvider()) {
       console.log(`  Twilio webhook: ${base}/webhooks/twilio/whatsapp`)
+    }
+    if (process.env.SLACK_CLIENT_ID) {
+      console.log(`  Slack OAuth callback: ${base}/auth/slack/callback`)
+      console.log(`  Slack Events request URL: ${base}/webhooks/slack/events`)
     }
     if (process.env.HIGGSFIELD_SETUP_SECRET) {
       console.log('  Higgsfield setup: /auth/higgsfield/start?key=...')

@@ -79,6 +79,10 @@ export interface ClientMeta {
   telegramChatId?: string
   /** ISO timestamp for when the Telegram chat was bound. */
   telegramChatBoundAt?: string
+  /** Slack team id, set once the client installs the app into their workspace (see slack-store.ts). */
+  slackTeamId?: string
+  /** ISO timestamp for when the Slack workspace was connected. */
+  slackConnectedAt?: string
 }
 
 export interface OnboardingSession {

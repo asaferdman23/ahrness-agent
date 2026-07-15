@@ -2,6 +2,7 @@
  * Minimal Telegram Bot API client over the platform `fetch`/`FormData` — no
  * SDK dependency. https://core.telegram.org/bots/api
  */
+import { extensionForMime } from './mime-utils.js'
 
 const API_ROOT = 'https://api.telegram.org'
 
@@ -172,8 +173,4 @@ export async function downloadFile(botToken: string, fileId: string): Promise<Bu
   return Buffer.from(await res.arrayBuffer())
 }
 
-export function extensionForMime(mimeType: string): string {
-  const subtype = mimeType.split('/', 2)[1]?.split(';', 1)[0]?.toLowerCase() ?? 'bin'
-  const aliases: Record<string, string> = { jpeg: 'jpg', quicktime: 'mov', mpeg: 'mp3', plain: 'txt' }
-  return aliases[subtype] ?? (subtype.replace(/[^a-z0-9]+/g, '') || 'bin')
-}
+export { extensionForMime } from './mime-utils.js'

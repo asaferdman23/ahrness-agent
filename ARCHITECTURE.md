@@ -62,10 +62,10 @@ Step 4 — Connect Platforms
 Step 5 — Link WhatsApp
   └─ QR code rendered via SSE stream from Baileys.
      Page auto-advances on scan.
-     (Telegram is available as an additional channel via a "Connect Telegram"
-     button on the dashboard, post-onboarding — see "Messaging Channels"
-     below. Not wired into this onboarding step itself; Slack is planned but
-     not implemented.)
+     (Telegram and Slack are both available as additional channels via
+     "Connect Telegram" / "Connect Slack" buttons on the dashboard,
+     post-onboarding — see "Messaging Channels" below. Neither is wired into
+     this onboarding step itself.)
 
 Step 6 — Ready
   └─ Summary of role + connected platforms + WhatsApp deep link.
@@ -124,9 +124,21 @@ reachable there too.
   `onboardingUrlFor` links) — a leaked link binds whoever taps it. Fine for
   now given it mirrors an already-accepted pattern in this codebase; revisit
   if Telegram connect links start getting shared outside a 1:1 context.
-- **Slack**: planned, not implemented. The same address/transport pattern
-  applies; Slack's added complexity is multi-workspace OAuth install instead
-  of a single bot token.
+- **Slack**: multi-tenant — each client installs your Slack App into their own
+  workspace via a "Connect Slack" dashboard button (OAuth v2,
+  `src/slack-oauth.ts`). `state` reuses the same `signClientToken` HMAC helper
+  as the Telegram deep link. `src/slack-client.ts` is a minimal Web API client
+  (fetch-based, same no-SDK rationale as Telegram) including Slack's 3-step
+  external file upload flow. Inbound DMs arrive at a single
+  `POST /webhooks/slack/events` (`src/slack.ts`), signature-verified per
+  Slack's request-signing spec, deduped by `event_id` (Slack retries
+  deliveries), and resolved to a clientId via `team_id` →
+  `slack-store.ts`'s reverse index (`store/slack-team-index.json`) —
+  mirroring the Telegram shared-bot's chat index. Only 1:1 DMs are handled
+  (`channel_type === 'im'`), matching Telegram's owner-only lockdown; bot's
+  own messages are filtered via `event.bot_id` to avoid reply loops. Requires
+  a Slack App you create at api.slack.com/apps — see `.env.example` for the
+  exact Redirect URL / Event Subscriptions URL to configure there.
 
 ## Scheduler
 
@@ -437,6 +449,12 @@ src/
 ├── telegram-store.ts                 # Encrypted bot token + owner-chat binding + shared-chat index
 ├── telegram-transport.ts             # WhatsAppTransport-shaped send API over the Telegram Bot HTTP API
 ├── telegram-client.ts                # Minimal Telegram Bot API client (fetch/FormData, no SDK)
+├── mime-utils.ts                     # extensionForMime — shared by Telegram/Slack transports
+├── slack.ts                          # Events API webhook: verify, dedup, route, deliver
+├── slack-oauth.ts                    # Slack OAuth v2 install URL + signed state
+├── slack-store.ts                    # Encrypted bot token + team_id -> clientId index
+├── slack-transport.ts                # WhatsAppTransport-shaped send API over the Slack Web API
+├── slack-client.ts                   # Minimal Slack Web API client (fetch, no SDK)
 ├── callback-server.ts                # Express server, mounts onboarding + oauth routes
 ├── token-store.ts                    # Legacy shim → delegates to client-store
 ├── mcp.ts                            # Legacy shim → re-exports from src/mcps/
