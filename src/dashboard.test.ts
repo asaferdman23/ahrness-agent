@@ -18,6 +18,10 @@ test('dashboard renders the minimal agent home sections', () => {
     whatsappLinked: true,
     whatsappJid: '15551234567@s.whatsapp.net',
     whatsappProvider: 'twilio',
+    telegramLinked: false,
+    telegramConnectUrl: null,
+    slackLinked: false,
+    slackConnectUrl: null,
     onboardingStep: 6,
     role: {
       id: 'marketing-manager',
