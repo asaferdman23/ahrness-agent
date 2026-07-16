@@ -49,11 +49,12 @@ jobs:
         env:
           SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           SERVER: root@138.68.165.109
+          SSH_PORT: ${{ vars.DEPLOY_SSH_PORT || '2222' }}
           APP_DIR: /opt/ahrness
         run: |
           echo "$SSH_KEY" > /tmp/deploy_key
           chmod 600 /tmp/deploy_key
-          SSH="ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no"
+          SSH="ssh -p $SSH_PORT -i /tmp/deploy_key -o StrictHostKeyChecking=no"
 
           # rsync source + built frontend. node_modules is rebuilt on the
           # server with --omit=dev (vite not needed at runtime).
@@ -63,7 +64,7 @@ jobs:
             --exclude '.env' \
             --exclude 'store/' \
             --exclude '.env.local' \
-            -e "ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no" \
+            -e "ssh -p $SSH_PORT -i /tmp/deploy_key -o StrictHostKeyChecking=no" \
             . $SERVER:$APP_DIR/
 
           $SSH $SERVER "cd $APP_DIR && npm ci --omit=dev && systemctl restart ahrness"
