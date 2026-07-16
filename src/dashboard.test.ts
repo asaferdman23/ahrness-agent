@@ -71,6 +71,7 @@ test('dashboard renders the minimal agent home sections', () => {
       },
     ],
     lastActivityAt: '2026-07-01T11:00:00.000Z',
+    latestRun: { status: 'completed', startedAt: '2026-07-01T11:00:00.000Z' },
   })
 
   assert.match(html, /Your agent home/)
@@ -81,4 +82,29 @@ test('dashboard renders the minimal agent home sections', () => {
   assert.match(html, /What You Should Know/)
   assert.match(html, /Weekly ROAS digest/)
   assert.match(html, /Publish an Instagram post for the July launch/)
+  assert.match(html, /Agent Activity/)
+  assert.match(html, /Current Activity/)
+})
+
+test('dashboard shows "No runs yet" when there is no run history', () => {
+  const html = renderDashboardPage(user, {
+    whatsappLinked: false,
+    whatsappJid: null,
+    whatsappProvider: null,
+    telegramLinked: false,
+    telegramConnectUrl: null,
+    slackLinked: false,
+    slackConnectUrl: null,
+    onboardingStep: 1,
+    role: null,
+    profile: null,
+    platforms: [],
+    automations: [],
+    pendingApproval: null,
+    alerts: [],
+    lastActivityAt: null,
+    latestRun: null,
+  })
+
+  assert.match(html, /No runs yet/)
 })

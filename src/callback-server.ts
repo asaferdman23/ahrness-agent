@@ -20,6 +20,9 @@ import type { WhatsAppTransport } from './whatsapp-transport.js'
 import { auth } from './auth.js'
 import { toNodeHandler, fromNodeHeaders } from 'better-auth/node'
 import { renderLoginPage, renderDashboardPage } from './dashboard.js'
+import { openDb, createSqliteStore } from '@agent-live/sdk'
+import { mountAgentLiveDashboard } from '@agent-live/dashboard'
+import path from 'node:path'
 import { ensureTenant } from './tenant-store.js'
 import { getClientMeta, getConnections, getProfile, getRole as getStoredRole } from './store/client-store.js'
 import { listJobs } from './scheduler/store.js'
@@ -37,6 +40,19 @@ const authHandler = toNodeHandler(auth)
 
 const PORT = Number(process.env.CALLBACK_PORT ?? 3456)
 const confirmationStore = fileConfirmationStore()
+
+const agentLiveDbPath = process.env.AGENT_LIVE_DB ?? path.join(process.env.AGENT_STORE_DIR ?? './store', 'agent-live.sqlite')
+const agentLiveStore = createSqliteStore(openDb(agentLiveDbPath))
+
+const handleAgentLiveDashboard = mountAgentLiveDashboard({
+  store: agentLiveStore,
+  resolveTenant: async (req) => {
+    const session = await getSession(req)
+    return session?.user?.id ?? null
+  },
+  sseHeartbeatMs: Number.parseInt(process.env.AGENT_ACTIVITY_SSE_HEARTBEAT_MS ?? '15000', 10),
+  title: `${process.env.AGENT_NAME ?? 'BizzClaw'} Activity`,
+})
 
 function readBody(req: IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {
@@ -133,6 +149,7 @@ export function startCallbackServer(transport: WhatsAppTransport | null): void {
         confirmationStore.get(tenantId),
         getClientMeta(tenantId),
       ])
+      const [latestRun] = agentLiveStore.listRuns(tenantId, { limit: 1 })
 
       const botUsername = sharedTelegramBotUsername()
 
@@ -280,9 +297,13 @@ export function startCallbackServer(transport: WhatsAppTransport | null): void {
           } : null,
           alerts,
           lastActivityAt,
+          latestRun: latestRun ? { status: latestRun.status, startedAt: latestRun.startedAt } : null,
         }))
       return
     }
+
+    // ── Agent Live dashboard (mounted from @agent-live/dashboard) ────────────
+    if (await handleAgentLiveDashboard(req, res, url)) return
 
     // ── Twilio WhatsApp webhook ───────────────────────────────────────────────
     if (req.method === 'POST' && url.pathname === '/webhooks/twilio/whatsapp') {
