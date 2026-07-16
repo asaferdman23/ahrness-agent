@@ -249,6 +249,10 @@ export function renderDashboardPage(user: User, state: {
   whatsappLinked: boolean
   whatsappJid: string | null
   whatsappProvider: string | null
+  telegramLinked: boolean
+  telegramConnectUrl: string | null
+  slackLinked: boolean
+  slackConnectUrl: string | null
   onboardingStep: number
   role: DashboardRole | null
   profile: DashboardProfileSummary | null
@@ -475,6 +479,26 @@ export function renderDashboardPage(user: User, state: {
               <div class="meta-row">
                 <div class="meta-key">WhatsApp link</div>
                 <div class="meta-value ${state.whatsappJid ? '' : 'muted'}">${escapeHtml(state.whatsappJid ?? 'Not linked')}</div>
+              </div>
+              <div class="meta-row">
+                <div class="meta-key">Telegram link</div>
+                <div class="meta-value ${state.telegramLinked ? '' : 'muted'}">
+                  ${state.telegramLinked
+                    ? 'Connected'
+                    : state.telegramConnectUrl
+                      ? `<a class="btn btn-outline" href="${escapeHtml(state.telegramConnectUrl)}" target="_blank" rel="noopener">Connect Telegram</a>`
+                      : 'Not available'}
+                </div>
+              </div>
+              <div class="meta-row">
+                <div class="meta-key">Slack link</div>
+                <div class="meta-value ${state.slackLinked ? '' : 'muted'}">
+                  ${state.slackLinked
+                    ? 'Connected'
+                    : state.slackConnectUrl
+                      ? `<a class="btn btn-outline" href="${escapeHtml(state.slackConnectUrl)}" target="_blank" rel="noopener">Connect Slack</a>`
+                      : 'Not available'}
+                </div>
               </div>
             </div>
           </div>

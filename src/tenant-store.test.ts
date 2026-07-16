@@ -42,3 +42,10 @@ test('unlinked WhatsApp JIDs fall back to the legacy isolated JID hash', async (
 
   assert.equal(await clientIdForJid(jid), clientIdFromJid(jid))
 })
+
+test('synthetic channel addresses resolve to their embedded clientId directly', async () => {
+  const { encodeClientChannelAddress } = await import('./channel-address.js')
+  const address = encodeClientChannelAddress('client-abc', 'telegram', '555111222')
+
+  assert.equal(await clientIdForJid(address), 'client-abc')
+})

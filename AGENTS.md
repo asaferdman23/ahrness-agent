@@ -98,6 +98,9 @@ These are the things that silently break if you ignore them.
 | Scheduled automations | `src/scheduler/` (`templates.ts`, `cron.ts`, `runner.ts`, `tools.ts`) |
 | Conversation memory / compaction | `src/sessions/` |
 | WhatsApp transport / inbound routing | `src/whatsapp.ts` (+ `whatsapp-transport.ts`) |
+| Telegram transport / inbound routing | `src/telegram.ts` (+ `telegram-transport.ts`, `telegram-store.ts`, `telegram-manager.ts`). Shared platform bot + dashboard "Connect Telegram" button → `telegram-shared-bot.ts` (needs `TELEGRAM_BOT_TOKEN`). BYO per-client bot → `npm run connect:telegram` |
+| Slack transport / inbound routing | `src/slack.ts` (+ `slack-transport.ts`, `slack-store.ts`, `slack-client.ts`, `slack-oauth.ts`). Multi-tenant OAuth install, dashboard "Connect Slack" button. Needs `SLACK_CLIENT_ID`/`SLACK_CLIENT_SECRET`/`SLACK_SIGNING_SECRET` + a Slack App you create at api.slack.com/apps |
+| Cross-channel client identity (non-WhatsApp) | `src/channel-address.ts` — encodes/decodes the synthetic address `clientIdForJid` (`tenant-store.ts`) short-circuits on |
 | Persisted client data shape | `src/store/types.ts` + `store/client-store.ts` |
 
 **Registry pattern:** roles, MCPs, and skills are each a registry mapping an id →

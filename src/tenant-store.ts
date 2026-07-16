@@ -13,6 +13,7 @@ import { createHash } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import { db } from './db/index.js'
 import { tenant } from './db/schema.js'
+import { decodeClientChannelAddress } from './channel-address.js'
 
 /** Legacy hash for senders not yet linked to a Google account. */
 function jidHash(jid: string): string {
@@ -20,11 +21,15 @@ function jidHash(jid: string): string {
 }
 
 /**
- * Resolve a WhatsApp JID to its tenant's clientId.
- * Returns the tenantId (UUID) if the JID is linked, otherwise falls back to
- * sha256(jid) so pre-auth behaviour is preserved.
+ * Resolve a WhatsApp JID (or a synthetic channel address — see
+ * channel-address.ts) to its clientId.
+ * Returns the tenantId (UUID) if the JID is linked, a directly-embedded
+ * clientId for non-WhatsApp channels, or sha256(jid) so pre-auth behaviour is
+ * preserved for unlinked WhatsApp senders.
  */
 export async function clientIdForJid(jid: string): Promise<string> {
+  const synthetic = decodeClientChannelAddress(jid)
+  if (synthetic) return synthetic.clientId
   try {
     const row = await db.select({ userId: tenant.userId }).from(tenant).where(eq(tenant.whatsappJid, jid)).get()
     if (row) return row.userId

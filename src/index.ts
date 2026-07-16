@@ -11,6 +11,9 @@ import { createRoutingWhatsAppTransport, type WhatsAppTransportMap } from './wha
 import { configuredWhatsAppProviders, defaultWhatsAppProvider } from './whatsapp-providers.js'
 import { runStartupChecks } from './startup-checks.js'
 import type { WhatsAppTransport } from './whatsapp-transport.js'
+import { telegramSessionManager } from './telegram-manager.js'
+import { listConnectedTelegramClients } from './telegram-store.js'
+import { startSharedTelegramBot } from './telegram-shared-bot.js'
 
 async function main(): Promise<void> {
   console.log(`Starting ${process.env.AGENT_NAME ?? 'BizzClaw'} Agent…`)
@@ -45,9 +48,33 @@ async function main(): Promise<void> {
   startCallbackServer(transport)
   startScheduler(transport)
 
-  // Graceful shutdown — stop all Baileys sockets.
+  // Telegram: one bot per client (BYO token via BotFather, connected out of
+  // band — see telegram-store.ts). Start polling for everyone already
+  // connected; new connections start their own bot when saved.
+  const telegramManager = telegramSessionManager()
+  const telegramClients = await listConnectedTelegramClients()
+  if (telegramClients.length) {
+    console.log(`✓ Starting ${telegramClients.length} Telegram bot(s)…`)
+    for (const clientId of telegramClients) {
+      telegramManager.ensureBot(clientId).catch((err) => {
+        console.error(`[telegram][client ${clientId}] failed to start:`, err)
+      })
+    }
+  }
+
+  // Shared Telegram bot (optional): one platform-owned bot clients connect to
+  // via a "Connect Telegram" deep link from the dashboard, instead of bringing
+  // their own bot token.
+  let sharedTelegramBot: { stop: () => void } | null = null
+  if (process.env.TELEGRAM_BOT_TOKEN) {
+    sharedTelegramBot = await startSharedTelegramBot(process.env.TELEGRAM_BOT_TOKEN)
+  }
+
+  // Graceful shutdown — stop all Baileys sockets and Telegram bots.
   const shutdown = () => {
     baileysManager?.stopAll()
+    telegramManager.stopAll()
+    sharedTelegramBot?.stop()
     process.exit(0)
   }
   process.on('SIGINT', shutdown)
