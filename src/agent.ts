@@ -29,6 +29,7 @@ import { createShareInputTool } from './input-sharing.js'
 import { createSchedulerTools, materializeTemplates } from './scheduler/index.js'
 import { getClientSandbox } from './sandbox.js'
 import { BusinessContextPlugin } from './plugins/business-context-plugin.js'
+import { RunObservabilityPlugin, type RunObservabilityContext } from '@agent-live/sdk/adapters/strands'
 import { createHiggsFieldMcpClient } from './mcp.js'
 import type { PlatformId } from './store/types.js'
 import type { TurnMessage, Summarize } from './sessions/index.js'
@@ -113,6 +114,7 @@ export async function buildClientAgent(
   jid: string,
   seedMessages: TurnMessage[] = [],
   modelOverride?: string | null,
+  observability?: RunObservabilityContext,
 ): Promise<ClientAgentSession> {
   const model = modelOverride ?? AGENT_MODEL
   const clientId = await clientIdForJid(jid)
@@ -225,6 +227,19 @@ export async function buildClientAgent(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const plugins: any[] = [skillsPlugin]
   if (profile) plugins.push(new BusinessContextPlugin(profile))
+  if (observability) {
+    plugins.push(
+      new RunObservabilityPlugin({
+        ...observability,
+        toolArgAllowlists: {
+          publish_output: ['fileName', 'mimeType'],
+          import_remote_output: ['fileName', 'mimeType'],
+          schedule_task: ['cron', 'description'],
+          get_business_context: [],
+        },
+      }),
+    )
+  }
 
   // ── System prompt ─────────────────────────────────────────────────────────
 
