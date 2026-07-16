@@ -3,6 +3,8 @@
  */
 import 'dotenv/config'
 import { initDb } from './db/index.js'
+import { openDb, createSqliteStore } from '@agent-live/sdk'
+import path from 'node:path'
 import { startCallbackServer } from './callback-server.js'
 import { startScheduler } from './scheduler/index.js'
 import { createTwilioTransport, twilioWebhookUrl, validateTwilioConfig } from './twilio-whatsapp.js'
@@ -19,6 +21,11 @@ async function main(): Promise<void> {
   console.log(`Starting ${process.env.AGENT_NAME ?? 'BizzClaw'} Agent…`)
   initDb()
   runStartupChecks()
+
+  // Recover from a crash: any run left `running` from a prior process is stale.
+  const agentLiveDbPath = process.env.AGENT_LIVE_DB ?? path.join(process.env.AGENT_STORE_DIR ?? './store', 'agent-live.sqlite')
+  const staleRuns = createSqliteStore(openDb(agentLiveDbPath)).markStaleRunsOnStartup()
+  if (staleRuns > 0) console.log(`✓ Marked ${staleRuns} interrupted run(s) as stale`)
 
   const providers = configuredWhatsAppProviders()
   const transports: WhatsAppTransportMap = {}
