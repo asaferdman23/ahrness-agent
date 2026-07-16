@@ -7,6 +7,7 @@ A single **DigitalOcean Droplet** (London, `lon1`):
 | Detail | Value |
 |--------|-------|
 | IP | `138.68.165.109` |
+| SSH port | `2222` |
 | Size | 2 vCPU / 4 GB RAM / 80 GB SSD |
 | Cost | ~$24/mo |
 | OS | Ubuntu 24.04 |
@@ -214,13 +215,14 @@ Message flow:
 ```bash
 # From local machine — sync changed files and restart
 rsync -avz --exclude node_modules --exclude .git \
+  -e 'ssh -p 2222' \
   /Users/user/Desktop/ahrness-agent/ root@138.68.165.109:/opt/ahrness/
 
-ssh root@138.68.165.109 'cd /opt/ahrness && npm ci && systemctl restart ahrness'
+ssh -p 2222 root@138.68.165.109 'cd /opt/ahrness && npm ci && systemctl restart ahrness'
 ```
 
 Or for a single file:
 ```bash
-rsync -avz src/dashboard.ts root@138.68.165.109:/opt/ahrness/src/
-ssh root@138.68.165.109 'systemctl restart ahrness'
+rsync -avz -e 'ssh -p 2222' src/dashboard.ts root@138.68.165.109:/opt/ahrness/src/
+ssh -p 2222 root@138.68.165.109 'systemctl restart ahrness'
 ```
