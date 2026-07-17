@@ -5,7 +5,7 @@
 import type { User } from './auth.js'
 import type { PlatformId } from './store/types.js'
 
-const STYLES = `
+export const STYLES = `
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -94,7 +94,7 @@ const STYLES = `
     }
   </style>`
 
-function layout(title: string, body: string, agentName = process.env.AGENT_NAME ?? 'BizzClaw'): string {
+export function layout(title: string, body: string, agentName = process.env.AGENT_NAME ?? 'BizzClaw'): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -232,6 +232,21 @@ function formatTime(value: string | null): string {
   }).format(date)
 }
 
+function currentActivityLabel(status: string): string {
+  switch (status) {
+    case 'running':
+      return 'Working'
+    case 'completed':
+      return 'Completed'
+    case 'failed':
+      return 'Failed'
+    case 'stale':
+      return 'Interrupted'
+    default:
+      return status
+  }
+}
+
 function formatStatus(status: DashboardPlatformSummary['status']): string {
   switch (status) {
     case 'connected':
@@ -261,6 +276,7 @@ export function renderDashboardPage(user: User, state: {
   pendingApproval: DashboardPendingApproval | null
   alerts: DashboardAlert[]
   lastActivityAt: string | null
+  latestRun: { status: string; startedAt: string } | null
 }): string {
   const agentName = process.env.AGENT_NAME ?? 'BizzClaw'
   const initials = (user.name ?? user.email ?? '?').slice(0, 2).toUpperCase()
@@ -408,6 +424,14 @@ export function renderDashboardPage(user: User, state: {
           <div class="stat-value">${escapeHtml(lastActivity)}</div>
           <div class="stat-sub">${state.automations.length ? `${state.automations.length} automation${state.automations.length === 1 ? '' : 's'} configured` : 'No scheduled work yet'}</div>
         </div>
+        <div class="stat-card">
+          <div class="stat-label">Current Activity</div>
+          <div class="stat-value" style="display:flex;align-items:center;gap:.4rem">
+            <span class="${state.latestRun?.status === 'running' ? 'dot dot-live' : 'dot'}" aria-hidden="true"></span>
+            ${escapeHtml(state.latestRun ? currentActivityLabel(state.latestRun.status) : 'No runs yet')}
+          </div>
+          <div class="stat-sub">${state.latestRun ? formatTime(state.latestRun.startedAt) : 'The agent has not run yet'}</div>
+        </div>
       </div>
 
       <div class="trust-note">
@@ -423,6 +447,7 @@ export function renderDashboardPage(user: User, state: {
             💬 Open WhatsApp
           </a>
           <a href="/onboarding/step/4" class="btn btn-outline">Manage Connections</a>
+          <a href="/dashboard/activity" class="btn btn-outline">Agent Activity</a>
           `
           : `
           <a href="/onboarding/step/${Math.min(setupStep, 6)}" class="btn btn-primary">
