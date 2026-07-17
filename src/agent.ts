@@ -1,4 +1,11 @@
-import { Agent, tool } from '@strands-agents/sdk'
+import {
+  Agent,
+  tool,
+  BeforeModelCallEvent,
+  AfterModelCallEvent,
+  BeforeToolCallEvent,
+  AfterToolCallEvent,
+} from '@strands-agents/sdk'
 import { AnthropicModel } from '@strands-agents/sdk/models/anthropic'
 import { AgentSkills } from '@strands-agents/sdk/vended-plugins/skills'
 import { resolve } from 'node:path'
@@ -237,6 +244,12 @@ export async function buildClientAgent(
           schedule_task: ['cron', 'description'],
           get_business_context: [],
         },
+        // Must be THIS process's own @strands-agents/sdk event classes, not
+        // @agent-live/sdk's — the hook registry dispatches by class identity
+        // (event.constructor), and @agent-live/sdk is linked via `file:`
+        // rather than a shared npm workspace, so it resolves its own,
+        // separate copy of the SDK. See adapters/strands.ts's file header.
+        hookEvents: { BeforeModelCallEvent, AfterModelCallEvent, BeforeToolCallEvent, AfterToolCallEvent },
       }),
     )
   }
