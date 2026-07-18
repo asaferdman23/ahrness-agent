@@ -16,6 +16,7 @@
  * is isolated from the others.
  */
 import { startBaileysWhatsApp, type BaileysSession } from './whatsapp.js'
+import { broadcastLoggedOut, broadcastLoggedOutToAll } from './onboarding/server.js'
 
 export type EnsureSocketOptions = {
   /** Onboarding session id to route QR/pairing broadcasts to. */
@@ -170,8 +171,31 @@ export class BaileysSessionManager {
         })
       },
       onLoggedOut: (id) => {
-        // Logged out / max reconnect attempts — drop the session. Operator
-        // must delete the auth dir and re-link to recover.
+        // 401 loggedOut: WhatsApp invalidated the linked device (user removed
+        // it from their phone). whatsapp.ts already wiped the auth dir, so the
+        // creds are gone. Drop the session and tell the onboarding UI to flip
+        // back to the QR screen.
+        this._connected.delete(id)
+        this.sessions.delete(id)
+        if (opts.onboardingSessionId) {
+          broadcastLoggedOut(opts.onboardingSessionId)
+          // A user is on the QR screen waiting — start a fresh socket so the
+          // clean auth dir makes Baileys emit a new QR, which the SSE stream
+          // delivers. (With no onboarding session we stay stopped; the next
+          // qr-stream/refreshQr call will start the socket on demand instead,
+          // avoiding a pointless unattended connection.)
+          this.ensureSocket(id, opts).catch((err) => {
+            console.error(`[client ${id}] re-link socket start failed:`, err)
+          })
+        } else {
+          broadcastLoggedOutToAll()
+        }
+      },
+      onReconnectExhausted: (id) => {
+        // Ban-risk reconnect loop gave up. Keep the creds (they may still be
+        // valid) and do NOT surface a fresh QR — require manual operator
+        // intervention. Just drop the in-memory session so nothing spins.
+        this._connected.delete(id)
         this.sessions.delete(id)
       },
       onStopCommand: (id) => {

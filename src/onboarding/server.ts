@@ -98,6 +98,31 @@ export function broadcastLinkedToAll(jid: string): void {
   qrSseClients.clear()
 }
 
+/**
+ * Push a "logged out / scan again" event so the QR screen flips back to a
+ * re-link state. The linked session marker is cleared so this client can link
+ * again; the next socket start (fresh auth dir) will emit a new QR which the
+ * existing qr-stream connection then delivers.
+ */
+export function broadcastLoggedOut(sessionId: string): void {
+  linkedSessions.delete(sessionId)
+  qrData.delete(sessionId)
+  latestQrDataUri = null
+  const client = qrSseClients.get(sessionId)
+  if (client && !client.destroyed) {
+    client.write(`data: ${JSON.stringify({ type: 'loggedOut' })}\n\n`)
+  }
+}
+
+export function broadcastLoggedOutToAll(): void {
+  linkedSessions.clear()
+  qrData.clear()
+  latestQrDataUri = null
+  for (const [, client] of qrSseClients.entries()) {
+    if (!client.destroyed) client.write(`data: ${JSON.stringify({ type: 'loggedOut' })}\n\n`)
+  }
+}
+
 // ── HTML rendering ─────────────────────────────────────────────────────────────
 
 async function layout(title: string, content: string): Promise<string> {
@@ -585,6 +610,15 @@ async function renderStep5(session: OnboardingSession): Promise<string> {
           es.close()
           document.getElementById('linkStatus').innerHTML = '<span style="color:#276749;font-weight:700">✓ Linked! Redirecting…</span>'
           setTimeout(() => { location.href = '/onboarding/step/6' }, 1200)
+        }
+        if (data.type === 'loggedOut') {
+          // The linked device was removed from the phone. Flip back to a
+          // waiting state; the cleared auth dir makes the next socket emit a
+          // fresh QR, which arrives on this same stream as a 'qr' event.
+          document.getElementById('qrHint').textContent = 'WhatsApp was logged out on your phone — waiting for a new code…'
+          document.getElementById('linkStatus').innerHTML = '<span style="color:#c53030;font-weight:600">Logged out — scan the new code to re-link</span>'
+          const d = document.getElementById('qrDisplay')
+          d.innerHTML = '<div class="spinner" id="qrSpinner"></div>'
         }
       }
     </script>
