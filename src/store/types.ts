@@ -56,6 +56,15 @@ export interface ClientProfile {
   }
 }
 
+export interface OnboardingPreview {
+  headline: string
+  insight: string
+  opportunities: [string, string, string]
+  suggestedFirstBrief: string
+  generatedAt: string
+  source: 'ai' | 'fallback'
+}
+
 export interface RoleRecord {
   roleId: RoleId
   assignedAt: string
@@ -97,6 +106,11 @@ export interface OnboardingSession {
   /** Short code the client sends to the Twilio number to bind this web session. */
   whatsappConnectCode?: string
   profile?: ClientProfile
+  /** Cached first-value preview, invalidated when the saved profile changes. */
+  preview?: OnboardingPreview
+  previewProfileFingerprint?: string
+  /** ISO timestamps used to enforce the per-session preview attempt limit. */
+  previewAttempts?: string[]
   roleId?: RoleId
   /** Simplified per-platform status strings used during the onboarding flow */
   connections: Partial<Record<PlatformId, string>>

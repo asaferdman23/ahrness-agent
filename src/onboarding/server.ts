@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
 import { parse as parseUrl } from 'node:url'
 import { parse as parseQs } from 'node:querystring'
 import path from 'node:path'
@@ -17,6 +18,7 @@ import {
   upsertConnection,
   clientIdFromJid,
   updateClientMeta,
+  getClientMeta,
 } from '../store/client-store.js'
 import type { ClientProfile, GoalType, PlatformId, RoleId, OnboardingSession } from '../store/types.js'
 import type { IncomingMessage, ServerResponse } from 'node:http'
@@ -30,10 +32,25 @@ import {
   type WhatsAppProvider,
 } from '../whatsapp-providers.js'
 import { baileysSessionManager } from '../baileys-manager.js'
+import { deriveOnboardingProgress, type OnboardingProgress } from './progress.js'
+import { currentPreview, generatePreview, profileFingerprint, registerPreviewAttempt } from './preview.js'
+import {
+  isActivationEventName,
+  recordActivationEvent,
+  sanitizeActivationProperties,
+} from './activation-events.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const VIEWS_DIR = path.join(__dirname, 'views')
 const FRONTEND_DIST_DIR = path.resolve('dist/onboarding')
+
+function activationV2Enabled(sessionId: string): boolean {
+  if (process.env.ONBOARDING_ACTIVATION_V2 === 'false') return false
+  const configured = Number.parseInt(process.env.ONBOARDING_ACTIVATION_V2_PERCENT ?? '100', 10)
+  const percentage = Number.isFinite(configured) ? Math.max(0, Math.min(configured, 100)) : 100
+  const bucket = Number.parseInt(createHash('sha256').update(sessionId).digest('hex').slice(0, 8), 16) % 100
+  return bucket < percentage
+}
 
 // SSE clients waiting for QR updates
 const qrSseClients = new Map<string, ServerResponse>()
@@ -585,6 +602,16 @@ async function renderStep5(session: OnboardingSession): Promise<string> {
         <p class="qr-hint" id="qrHint">Waiting for QR code…</p>
       </div>
       </div>
+      <div class="connect-panel" id="groupPanel" style="display:none;">
+        <h2>Pick the agent's group</h2>
+        <p class="subtitle">The agent will only listen and reply in the one group you choose. Add your number to the group first, then it appears below.</p>
+        <div id="groupList" style="margin:1rem 0;text-align:left;"></div>
+        <p class="qr-hint" id="groupStatus"></p>
+        <div class="actions" style="margin-top:1rem;">
+          <button type="button" class="btn btn-secondary" id="refreshGroups">↻ Refresh groups</button>
+          <button type="button" class="btn btn-primary" id="confirmGroup" disabled>Confirm group →</button>
+        </div>
+      </div>
       <div class="actions" style="margin-top:1.5rem;">
         <a href="/onboarding/step/4" class="btn btn-secondary">← Back</a>
         <span id="linkStatus"></span>
@@ -592,7 +619,60 @@ async function renderStep5(session: OnboardingSession): Promise<string> {
     </div>
     <script>
       const sessionId = '${session.sessionId}'
+      let selectedGroup = null
       const es = new EventSource('/onboarding/qr-stream?session=' + sessionId)
+
+      async function loadGroups() {
+        const status = document.getElementById('groupStatus')
+        const list = document.getElementById('groupList')
+        const confirmBtn = document.getElementById('confirmGroup')
+        status.textContent = 'Loading your groups…'
+        list.innerHTML = ''
+        confirmBtn.disabled = true
+        try {
+          const r = await fetch('/api/onboarding/baileys-groups')
+          const data = await r.json()
+          if (!r.ok) { status.textContent = data.error || 'Could not load groups'; return }
+          const groups = data.groups || []
+          if (!groups.length) {
+            status.textContent = 'No groups found. Add your WhatsApp number to a group, then tap Refresh.'
+            return
+          }
+          status.textContent = 'Choose the one group the agent is allowed in.'
+          list.innerHTML = groups.map(g =>
+            '<label style="display:flex;align-items:center;gap:.6rem;padding:.55rem .75rem;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:.5rem;cursor:pointer;">' +
+              '<input type="radio" name="homeGroup" value="' + g.jid + '">' +
+              '<span style="font-weight:600;flex:1;">' + (g.subject || g.jid) + '</span>' +
+              '<span style="color:#718096;font-size:.85rem;">' + g.size + ' members</span>' +
+            '</label>').join('')
+          list.querySelectorAll('input[name="homeGroup"]').forEach(inp => {
+            inp.addEventListener('change', () => { selectedGroup = inp.value; confirmBtn.disabled = false })
+          })
+        } catch (err) {
+          status.textContent = 'Could not load groups — tap Refresh to try again.'
+        }
+      }
+
+      document.getElementById('refreshGroups').addEventListener('click', loadGroups)
+      document.getElementById('confirmGroup').addEventListener('click', async () => {
+        if (!selectedGroup) return
+        const status = document.getElementById('groupStatus')
+        status.textContent = 'Saving…'
+        try {
+          const r = await fetch('/api/onboarding/baileys-group', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ groupJid: selectedGroup }),
+          })
+          const data = await r.json()
+          if (!r.ok) { status.textContent = data.error || 'Could not save group'; return }
+          status.innerHTML = '<span style="color:#276749;font-weight:700">✓ Group set! Redirecting…</span>'
+          setTimeout(() => { location.href = '/onboarding/step/6' }, 1000)
+        } catch (err) {
+          status.textContent = 'Could not save group — try again.'
+        }
+      })
+
       es.onmessage = (e) => {
         const data = JSON.parse(e.data)
         if (data.type === 'qr') {
@@ -608,8 +688,11 @@ async function renderStep5(session: OnboardingSession): Promise<string> {
         }
         if (data.type === 'linked') {
           es.close()
-          document.getElementById('linkStatus').innerHTML = '<span style="color:#276749;font-weight:700">✓ Linked! Redirecting…</span>'
-          setTimeout(() => { location.href = '/onboarding/step/6' }, 1200)
+          document.getElementById('linkStatus').innerHTML = '<span style="color:#276749;font-weight:700">✓ Linked!</span>'
+          // Reveal the required group picker instead of auto-advancing.
+          document.getElementById('groupPanel').style.display = 'block'
+          document.getElementById('groupPanel').scrollIntoView({ behavior: 'smooth', block: 'start' })
+          loadGroups()
         }
         if (data.type === 'loggedOut') {
           // The linked device was removed from the phone. Flip back to a
@@ -617,6 +700,7 @@ async function renderStep5(session: OnboardingSession): Promise<string> {
           // fresh QR, which arrives on this same stream as a 'qr' event.
           document.getElementById('qrHint').textContent = 'WhatsApp was logged out on your phone — waiting for a new code…'
           document.getElementById('linkStatus').innerHTML = '<span style="color:#c53030;font-weight:600">Logged out — scan the new code to re-link</span>'
+          document.getElementById('groupPanel').style.display = 'none'
           const d = document.getElementById('qrDisplay')
           d.innerHTML = '<div class="spinner" id="qrSpinner"></div>'
         }
@@ -695,6 +779,8 @@ function mimeTypeFor(filePath: string): string {
 async function serveOnboardingFrontend(pathname: string, res: ServerResponse): Promise<void> {
   const relative = pathname.startsWith('/onboarding/assets/')
     ? pathname.replace('/onboarding/', '')
+    : pathname === '/onboarding/bizzclaw-mascot.png'
+      ? 'bizzclaw-mascot.png'
     : 'index.html'
   const filePath = path.resolve(FRONTEND_DIST_DIR, relative)
   if (!filePath.startsWith(FRONTEND_DIST_DIR)) {
@@ -737,6 +823,53 @@ function rolePayload(session: OnboardingSession): Record<string, unknown>[] {
   }))
 }
 
+function effectiveWhatsAppLinked(session: OnboardingSession): boolean {
+  if (!session.whatsappLinked) return false
+  if (session.whatsappProvider !== 'baileys' || !session.clientId) return true
+  return baileysSessionManager().isConnected(session.clientId)
+}
+
+/**
+ * For Baileys, WhatsApp setup is only complete once the user has also picked
+ * their home group — the agent is group-scoped, so "linked" alone isn't enough.
+ * This keeps step 6 unreachable until the group is confirmed.
+ */
+async function effectiveWhatsAppReady(session: OnboardingSession): Promise<boolean> {
+  if (!effectiveWhatsAppLinked(session)) return false
+  if (session.whatsappProvider !== 'baileys') return true
+  const clientId = session.clientId ?? session.sessionId
+  const meta = await getClientMeta(clientId)
+  return Boolean(meta.baileysHomeGroupJid)
+}
+
+async function progressForSession(
+  session: OnboardingSession,
+  whatsappLinked?: boolean,
+): Promise<{ progress: OnboardingProgress; scheduleTemplates: string[] | null }> {
+  const role = getAllRoles().find((candidate) => candidate.id === session.roleId)
+  const clientId = session.clientId ?? session.sessionId
+  const savedRole = role ? await getClientRole(clientId) : null
+  let scheduleTemplates: string[] | null = null
+  if (savedRole && savedRole.roleId === role?.id && savedRole.scheduleTemplates !== undefined) {
+    scheduleTemplates = savedRole.scheduleTemplates
+  }
+
+  const linked = whatsappLinked ?? (await effectiveWhatsAppReady(session))
+
+  return {
+    progress: deriveOnboardingProgress({
+      hasProfile: Boolean(session.profile),
+      hasRole: Boolean(role),
+      automationsConfigured: scheduleTemplates !== null,
+      requiredPlatformIds: role?.requiredMcps ?? [],
+      connections: session.connections,
+      whatsappLinked: linked,
+      requireConnectionsForLaunch: !activationV2Enabled(session.sessionId),
+    }),
+    scheduleTemplates,
+  }
+}
+
 async function onboardingBootstrap(session: OnboardingSession): Promise<Record<string, unknown>> {
   const role = getAllRoles().find((r) => r.id === session.roleId)
   const callbackBase = process.env.CALLBACK_BASE_URL ?? 'http://localhost:3000'
@@ -757,27 +890,27 @@ async function onboardingBootstrap(session: OnboardingSession): Promise<Record<s
   // If the session thinks WhatsApp is linked but the Baileys socket for this
   // client isn't actually connected (e.g. the user removed the linked device,
   // or WhatsApp invalidated the session), treat it as not linked so the user
-  // can re-link from step 5 instead of being stuck on step 6.
-  let effectiveLinked = session.whatsappLinked
-  let effectiveStep = session.step
-  if (session.whatsappLinked && session.whatsappProvider === 'baileys' && session.clientId) {
-    if (!baileysSessionManager().isConnected(session.clientId)) {
-      effectiveLinked = false
-      if (effectiveStep > 5) effectiveStep = 5
-    }
-  }
+  // can re-link from step 5 instead of being stuck on step 6. For Baileys we
+  // also require the home group to be chosen before step 6 unlocks.
+  const effectiveLinked = effectiveWhatsAppLinked(session)
+  const effectiveReady = await effectiveWhatsAppReady(session)
+  const { progress, scheduleTemplates } = await progressForSession(session, effectiveReady)
 
   return {
     agentName: process.env.AGENT_NAME ?? 'BizzClaw',
+    activationV2: activationV2Enabled(session.sessionId),
+    preview: currentPreview(session),
+    progress,
     session: {
       sessionId: session.sessionId,
-      step: effectiveStep,
+      step: progress.allowedStep,
       clientId: session.clientId ?? null,
       whatsappJid: session.whatsappJid ?? null,
       whatsappLinked: effectiveLinked,
       whatsappProvider: selectedProvider,
       profile: session.profile ?? null,
       roleId: session.roleId ?? null,
+      scheduleTemplates,
       connections: session.connections,
     },
     roles: rolePayload(session),
@@ -818,6 +951,18 @@ async function saveProfileFromJson(session: OnboardingSession, body: Record<stri
   const instagramHandle = jsonString(body.instagram)
   const tiktokHandle = jsonString(body.tiktok)
   const description = jsonString(body.description)
+  const name = jsonString(body.name).trim()
+  if (!name) throw new Error('Enter your business or project name')
+  if (!description.trim()) throw new Error('Add a short description of your business')
+  const website = jsonString(body.website).trim()
+  if (website) {
+    try {
+      const parsed = new URL(website)
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error()
+    } catch {
+      throw new Error('Enter a complete website URL, such as https://example.com')
+    }
+  }
   const fallbackName = description.split(/[.\n]/)[0]?.slice(0, 64).trim()
   const goals = jsonStringArray(body.goals) as GoalType[]
   const profile: ClientProfile = {
@@ -825,7 +970,7 @@ async function saveProfileFromJson(session: OnboardingSession, body: Record<stri
     whatsappJid: session.whatsappJid ?? '',
     createdAt: session.createdAt,
     business: {
-      name: jsonString(body.name) || fallbackName || 'My business',
+      name: name || fallbackName || 'My business',
       industry: jsonString(body.industry) || 'other',
       description,
       goals: goals.length ? goals : ['brand_awareness', 'generate_leads'],
@@ -834,7 +979,7 @@ async function saveProfileFromJson(session: OnboardingSession, body: Record<stri
       brandColors: [],
     },
     assets: {
-      website: jsonString(body.website) || undefined,
+      website: website || undefined,
       instagram: instagramHandle
         ? { handle: instagramHandle, profileUrl: `https://instagram.com/${instagramHandle.replace('@', '')}` }
         : undefined,
@@ -850,21 +995,26 @@ async function saveProfileFromJson(session: OnboardingSession, body: Record<stri
 }
 
 async function saveRoleFromJson(session: OnboardingSession, body: Record<string, unknown>): Promise<void> {
+  if (!session.profile) throw new Error('Save the business brief before choosing a specialist')
   const roleId = jsonString(body.roleId) as RoleId
   if (!getAllRoles().some((role) => role.id === roleId)) throw new Error('Unsupported role')
   const clientId = session.clientId ?? session.sessionId
+  const existing = await getClientRole(clientId)
+  const roleChanged = existing?.roleId !== roleId
   await saveRole(clientId, {
     roleId,
-    assignedAt: new Date().toISOString(),
-    skillOverrides: { disabled: [], extra: [] },
-    mcpOverrides: { disabled: [], extra: [] },
+    assignedAt: roleChanged ? new Date().toISOString() : (existing?.assignedAt ?? new Date().toISOString()),
+    skillOverrides: roleChanged ? { disabled: [], extra: [] } : (existing?.skillOverrides ?? { disabled: [], extra: [] }),
+    mcpOverrides: roleChanged ? { disabled: [], extra: [] } : (existing?.mcpOverrides ?? { disabled: [], extra: [] }),
+    scheduleTemplates: roleChanged ? undefined : existing?.scheduleTemplates,
   })
   session.roleId = roleId
-  session.step = Math.max(session.step, 3)
+  session.step = roleChanged ? 3 : Math.max(session.step, 3)
   await saveSession(session)
 }
 
 async function saveAutomationsFromJson(session: OnboardingSession, body: Record<string, unknown>): Promise<void> {
+  if (!session.roleId) throw new Error('Choose a specialist before setting its routine')
   const clientId = session.clientId ?? session.sessionId
   const validIds = new Set((session.roleId ? getTemplatesForRole(session.roleId) : []).map((t) => t.id))
   const chosen = jsonStringArray(body.templates).filter((id) => validIds.has(id))
@@ -886,6 +1036,19 @@ async function saveProviderFromJson(session: OnboardingSession, body: Record<str
   // the global WHATSAPP_PROVIDER env is twilio-only, so don't restrict to the
   // server's configured list.
   if (!isWhatsAppProvider(provider)) throw new Error('Unsupported provider')
+  const { progress } = await progressForSession(session)
+  if (!progress.checks.profile || !progress.checks.role || !progress.checks.automations) {
+    throw new Error('Finish the earlier setup stages before choosing WhatsApp')
+  }
+  if (!progress.checks.requiredConnections) {
+    throw new Error('Connect the required platforms before choosing WhatsApp')
+  }
+  if (provider === 'twilio' && !isTwilioProvider()) {
+    throw new Error('The managed WhatsApp number is not available right now')
+  }
+  if (session.whatsappProvider && session.whatsappProvider !== provider) {
+    session.whatsappLinked = false
+  }
   session.whatsappProvider = provider as WhatsAppProvider
   session.step = Math.max(session.step, 5)
   if (session.clientId) await updateClientMeta(session.clientId, { whatsappProvider: provider as WhatsAppProvider })
@@ -942,16 +1105,47 @@ export function createOnboardingHandler(): OnboardingHandler {
         }
         if (req.method === 'GET' && pathname === '/api/onboarding/status') {
           const fresh = await loadSession(session.sessionId)
+          const current = fresh ?? session
+          const whatsappLinked = effectiveWhatsAppLinked(current)
+          const whatsappReady = await effectiveWhatsAppReady(current)
+          const { progress } = await progressForSession(current, whatsappReady)
           return json(res, {
-            step: fresh?.step ?? session.step,
-            connections: fresh?.connections ?? session.connections,
-            whatsappLinked: fresh?.whatsappLinked ?? session.whatsappLinked,
-            whatsappProvider: fresh?.whatsappProvider ?? session.whatsappProvider ?? defaultWhatsAppProvider(),
+            step: progress.allowedStep,
+            progress,
+            connections: current.connections,
+            whatsappLinked,
+            whatsappProvider: current.whatsappProvider ?? defaultWhatsAppProvider(),
           })
         }
         if (req.method === 'POST' && pathname === '/api/onboarding/profile') {
           await saveProfileFromJson(session, await parseJsonBody(req))
           return json(res, await onboardingBootstrap(session))
+        }
+        if (req.method === 'POST' && pathname === '/api/onboarding/preview') {
+          if (!activationV2Enabled(session.sessionId)) return json(res, { error: 'Activation preview is not enabled' }, 404)
+          if (!session.profile) throw new Error('Save the business brief before creating a preview')
+          const cached = currentPreview(session)
+          if (cached) return json(res, { preview: cached })
+          const clientId = session.clientId ?? session.sessionId
+          registerPreviewAttempt(session)
+          await saveSession(session)
+          await recordActivationEvent(clientId, 'preview_requested', { phase: 'brief' })
+          const preview = await generatePreview(session.profile)
+          session.preview = preview
+          session.previewProfileFingerprint = profileFingerprint(session.profile)
+          await saveSession(session)
+          await recordActivationEvent(clientId, preview.source === 'ai' ? 'preview_generated' : 'preview_fallback', {
+            phase: 'brief',
+            source: preview.source,
+          })
+          return json(res, { preview })
+        }
+        if (req.method === 'POST' && pathname === '/api/onboarding/events') {
+          const body = await parseJsonBody(req)
+          if (!isActivationEventName(body.event)) return json(res, { error: 'Unsupported activation event' }, 400)
+          const clientId = session.clientId ?? session.sessionId
+          await recordActivationEvent(clientId, body.event, sanitizeActivationProperties(body.properties))
+          return json(res, { ok: true })
         }
         if (req.method === 'POST' && pathname === '/api/onboarding/role') {
           await saveRoleFromJson(session, await parseJsonBody(req))
@@ -979,6 +1173,34 @@ export function createOnboardingHandler(): OnboardingHandler {
           await saveSession(session)
           return json(res, await onboardingBootstrap(session))
         }
+        if (req.method === 'GET' && pathname === '/api/onboarding/baileys-groups') {
+          // List the WhatsApp groups the linked account participates in, so the
+          // user can pick the ONE group the agent is allowed to sit in.
+          const clientId = session.clientId ?? session.sessionId
+          const groups = await baileysSessionManager().listGroups(clientId)
+          if (groups === null) {
+            return json(res, { error: 'WhatsApp is not linked yet' }, 409)
+          }
+          const existing = await getClientMeta(clientId)
+          return json(res, { groups, selected: existing.baileysHomeGroupJid ?? null })
+        }
+        if (req.method === 'POST' && pathname === '/api/onboarding/baileys-group') {
+          // Save the user's chosen home group. The picked jid must be one of the
+          // groups the linked account actually participates in (no arbitrary jids).
+          const clientId = session.clientId ?? session.sessionId
+          const body = await parseJsonBody(req)
+          const groupJid = typeof body.groupJid === 'string' ? body.groupJid.trim() : ''
+          if (!groupJid) throw new Error('Missing groupJid')
+          const groups = await baileysSessionManager().listGroups(clientId)
+          if (groups === null) throw new Error('WhatsApp is not linked yet')
+          const match = groups.find((g) => g.jid === groupJid)
+          if (!match) throw new Error('That group is not available on the linked account')
+          await updateClientMeta(clientId, {
+            baileysHomeGroupJid: match.jid,
+            baileysHomeGroupBoundAt: new Date().toISOString(),
+          })
+          return json(res, { ok: true, group: match })
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown onboarding API error'
         return json(res, { error: message }, 400)
@@ -986,7 +1208,7 @@ export function createOnboardingHandler(): OnboardingHandler {
       return notFound(res)
     }
 
-    if (req.method === 'GET' && pathname?.startsWith('/onboarding/assets/')) {
+    if (req.method === 'GET' && (pathname?.startsWith('/onboarding/assets/') || pathname === '/onboarding/bizzclaw-mascot.png')) {
       await serveOnboardingFrontend(pathname, res)
       return
     }

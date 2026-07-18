@@ -28,6 +28,7 @@ import { fileConfirmationStore, resolvePendingApproval } from './confirmations.j
 import { openDb, createSqliteStore, previewText, withRunRecording, type Store } from '@agent-live/sdk'
 import path from 'node:path'
 import type { WhatsAppTransport } from './whatsapp-transport.js'
+import { recordActivationEvent } from './onboarding/activation-events.js'
 
 export interface DeliverOptions {
   /** Runs after the agent is built but before invocation — e.g. to write an attachment. */
@@ -145,6 +146,7 @@ export async function runAndDeliver(
 
       recorder.emit('delivery.started', 'Sending reply')
       await transport.sendText(jid, reply)
+      await recordActivationEvent(clientId, 'first_agent_output_delivered', { phase: 'launch' })
 
       for (const output of session.publishedOutputs) {
         // Anti-ban: space out consecutive sends so we don't fire a burst of

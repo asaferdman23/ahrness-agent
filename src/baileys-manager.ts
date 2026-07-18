@@ -25,6 +25,26 @@ export type EnsureSocketOptions = {
   phoneNumber?: string
 }
 
+/** A WhatsApp group the linked account participates in (for the picker UI). */
+export type BaileysGroupInfo = {
+  jid: string
+  subject: string
+  size: number
+}
+
+/**
+ * Map Baileys GroupMetadata records to picker rows, sorted by member count
+ * (largest first) so the most relevant groups surface at the top. Pure and
+ * exported for testing.
+ */
+export function toGroupInfoList(
+  groups: Record<string, { id: string; subject?: string; size?: number }>,
+): BaileysGroupInfo[] {
+  return Object.values(groups)
+    .map((g) => ({ jid: g.id, subject: g.subject ?? '', size: g.size ?? 0 }))
+    .sort((a, b) => b.size - a.size)
+}
+
 export class BaileysSessionManager {
   private sessions = new Map<string, BaileysSession>()
   private starting = new Map<string, Promise<BaileysSession>>()
@@ -54,6 +74,23 @@ export class BaileysSessionManager {
   /** Get the active transport for a client, or null if not running. */
   get(clientId: string): BaileysSession | null {
     return this.sessions.get(clientId) ?? null
+  }
+
+  /**
+   * List the WhatsApp groups the client's linked account participates in,
+   * for the onboarding "pick your home group" step. Returns null when the
+   * socket isn't linked/available right now. Sorted by member count desc.
+   */
+  async listGroups(clientId: string): Promise<BaileysGroupInfo[] | null> {
+    const session = this.sessions.get(clientId)
+    if (!session || !this._connected.has(clientId)) return null
+    try {
+      const groups = await session.socket.groupFetchAllParticipating()
+      return toGroupInfoList(groups)
+    } catch (err) {
+      console.error(`[client ${clientId}] failed to fetch participating groups:`, err)
+      return null
+    }
   }
 
   /** True if a socket is currently active (open or connecting) for the client. */

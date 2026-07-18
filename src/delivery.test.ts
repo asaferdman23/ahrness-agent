@@ -1,6 +1,6 @@
 import { after, mock, test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createHash } from 'node:crypto'
@@ -103,6 +103,9 @@ test('a successful run records exactly one run.completed event and delivers the 
   assert.equal(completedEvents.length, 1)
   const failedEvents = events.filter((e) => e.type === 'run.failed')
   assert.equal(failedEvents.length, 0)
+
+  const activationEvents = JSON.parse(readFileSync(join(root, 'clients', tenantIdFor(jid), 'activation-events.json'), 'utf8')) as Array<{ event: string }>
+  assert.equal(activationEvents.filter((event) => event.event === 'first_agent_output_delivered').length, 1)
 })
 
 test('a thrown error mid-invocation still records exactly one run.failed via the finally path, and rethrows', async () => {

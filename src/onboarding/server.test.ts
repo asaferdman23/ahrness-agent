@@ -1,0 +1,177 @@
+import { afterEach, beforeEach, test } from 'node:test'
+import assert from 'node:assert/strict'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { createServer } from 'node:http'
+import { createSession, loadSession } from './session.js'
+import { createOnboardingHandler } from './server.js'
+import { getClientMeta } from '../store/client-store.js'
+import { baileysSessionManager } from '../baileys-manager.js'
+import { resetVaultForTests } from '../vault.js'
+import type { AddressInfo } from 'node:net'
+
+let root: string
+
+beforeEach(() => {
+  root = mkdtempSync(join(tmpdir(), 'ahrness-onboarding-'))
+  process.env.AGENT_STORE_DIR = root
+  process.env.AGENT_VAULT_SALT_PATH = join(root, 'vault.salt')
+  process.env.AGENT_MASTER_KEY = 'k'.repeat(40)
+  resetVaultForTests()
+})
+
+afterEach(() => {
+  rmSync(root, { force: true, recursive: true })
+  delete process.env.AGENT_STORE_DIR
+  delete process.env.AGENT_VAULT_SALT_PATH
+  delete process.env.AGENT_MASTER_KEY
+})
+
+test('Baileys onboarding group endpoints require linked WhatsApp and persist the chosen home group', async () => {
+  const session = await createSession()
+  const handler = (await import('./server.js')).createOnboardingHandler()
+  const server = createServer((req, res) => { handler(req, res).catch((err: unknown) => {
+    console.error(err)
+    res.statusCode = 500
+    res.end('Internal Server Error')
+  }) })
+
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const address = server.address() as AddressInfo
+  const base = `http://127.0.0.1:${address.port}`
+
+  try {
+    const noGroupsRes = await fetch(`${base}/api/onboarding/baileys-groups?session=${session.sessionId}`)
+    assert.equal(noGroupsRes.status, 409)
+    const noGroupsBody = await noGroupsRes.json() as { error: string }
+    assert.equal(noGroupsBody.error, 'WhatsApp is not linked yet')
+
+    const clientId = session.clientId ?? session.sessionId
+    const manager = baileysSessionManager()
+    const fakeSession = {
+      clientId,
+      socket: {
+        async groupFetchAllParticipating() {
+          return {
+            '120363111111111111@g.us': { id: '120363111111111111@g.us', subject: 'Planning', size: 10 },
+            '120363222222222222@g.us': { id: '120363222222222222@g.us', subject: 'Launch', size: 25 },
+          }
+        },
+      },
+      transport: {
+        sendText: async () => {},
+        sendImage: async () => {},
+        sendVideo: async () => {},
+        sendAudio: async () => {},
+        sendDocument: async () => {},
+      },
+      stop: () => {},
+      logout: async () => {},
+    }
+    const managerAny = manager as any
+    managerAny.sessions.set(clientId, fakeSession)
+    managerAny._connected.add(clientId)
+
+    const groupsRes = await fetch(`${base}/api/onboarding/baileys-groups?session=${session.sessionId}`)
+    assert.equal(groupsRes.status, 200)
+    const groupsBody = await groupsRes.json() as { groups: Array<{ jid: string; subject: string; size: number }>; selected: string | null }
+    assert.equal(groupsBody.selected, null)
+    assert.deepEqual(groupsBody.groups.map((g) => g.jid), ['120363222222222222@g.us', '120363111111111111@g.us'])
+    assert.deepEqual(groupsBody.groups.map((g) => g.size), [25, 10])
+
+    const chooseRes = await fetch(`${base}/api/onboarding/baileys-group?session=${session.sessionId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ groupJid: '120363111111111111@g.us' }),
+    })
+    assert.equal(chooseRes.status, 200)
+    const chooseBody = await chooseRes.json() as { ok: boolean; group: { jid: string; subject: string; size: number } }
+    assert.equal(chooseBody.ok, true)
+    assert.equal(chooseBody.group.jid, '120363111111111111@g.us')
+
+    const meta = await getClientMeta(clientId)
+    assert.equal(meta.baileysHomeGroupJid, '120363111111111111@g.us')
+    assert.ok(typeof meta.baileysHomeGroupBoundAt === 'string')
+
+    const groupsAfterRes = await fetch(`${base}/api/onboarding/baileys-groups?session=${session.sessionId}`)
+    assert.equal(groupsAfterRes.status, 200)
+    const groupsAfterBody = await groupsAfterRes.json() as { groups: Array<{ jid: string; subject: string; size: number }>; selected: string | null }
+    assert.equal(groupsAfterBody.selected, '120363111111111111@g.us')
+  } finally {
+    server.close()
+    const managerAny = baileysSessionManager() as any
+    managerAny.sessions.delete(session.clientId ?? session.sessionId)
+    managerAny._connected.delete(session.clientId ?? session.sessionId)
+    managerAny.starting?.delete?.(session.clientId ?? session.sessionId)
+  }
+})
+
+test('preview endpoint caches fallback output for an unchanged profile', async () => {
+  const previousApiKey = process.env.ANTHROPIC_API_KEY
+  delete process.env.ANTHROPIC_API_KEY
+  const session = await createSession()
+  const handler = createOnboardingHandler()
+  const server = createServer((req, res) => { handler(req, res).catch((error: unknown) => {
+    res.statusCode = 500
+    res.end(error instanceof Error ? error.message : 'Internal Server Error')
+  }) })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const address = server.address() as AddressInfo
+  const base = `http://127.0.0.1:${address.port}`
+
+  try {
+    const profileRes = await fetch(`${base}/api/onboarding/profile?session=${session.sessionId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Northstar', description: 'We help growing shops earn repeat customers.', website: 'https://northstar.example' }),
+    })
+    assert.equal(profileRes.status, 200)
+
+    const firstRes = await fetch(`${base}/api/onboarding/preview?session=${session.sessionId}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+    const first = await firstRes.json() as { preview: { source: string; generatedAt: string; opportunities: string[] } }
+    assert.equal(firstRes.status, 200)
+    assert.equal(first.preview.source, 'fallback')
+    assert.equal(first.preview.opportunities.length, 3)
+
+    const secondRes = await fetch(`${base}/api/onboarding/preview?session=${session.sessionId}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+    const second = await secondRes.json() as typeof first
+    assert.equal(second.preview.generatedAt, first.preview.generatedAt)
+    const saved = await loadSession(session.sessionId)
+    assert.equal(saved?.previewAttempts?.length, 1)
+  } finally {
+    server.close()
+    if (previousApiKey === undefined) delete process.env.ANTHROPIC_API_KEY
+    else process.env.ANTHROPIC_API_KEY = previousApiKey
+  }
+})
+
+test('activation event endpoint rejects unknown events and stores only allowlisted properties', async () => {
+  const session = await createSession()
+  const handler = createOnboardingHandler()
+  const server = createServer((req, res) => { handler(req, res).catch(() => {
+    res.statusCode = 500
+    res.end('Internal Server Error')
+  }) })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const address = server.address() as AddressInfo
+  const base = `http://127.0.0.1:${address.port}`
+
+  try {
+    const rejected = await fetch(`${base}/api/onboarding/events?session=${session.sessionId}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event: 'exfiltrate_profile' }),
+    })
+    assert.equal(rejected.status, 400)
+
+    const accepted = await fetch(`${base}/api/onboarding/events?session=${session.sessionId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event: 'integration_started', properties: { phase: 'configure', step: 4, platform: 'meta-ads', accessToken: 'secret', description: 'private' } }),
+    })
+    assert.equal(accepted.status, 200)
+    const records = JSON.parse(readFileSync(join(root, 'clients', session.sessionId, 'activation-events.json'), 'utf8')) as Array<{ properties: Record<string, unknown> }>
+    assert.deepEqual(records[0]?.properties, { phase: 'configure', step: 4, platform: 'meta-ads' })
+  } finally {
+    server.close()
+  }
+})

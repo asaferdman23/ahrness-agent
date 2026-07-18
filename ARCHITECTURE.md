@@ -40,36 +40,45 @@ Each client gets one agent instance per conversation, built dynamically from:
 
 ## Onboarding Flow
 
-Served at `/onboarding` from the existing Node.js process. Six steps, server-rendered HTML.
+Served at `/onboarding` from the existing Node.js process. The production flow is
+a six-step Vite/TypeScript client backed by tenant-scoped JSON endpoints. Legacy
+server-rendered views remain in `src/onboarding/server.ts` as a fallback, but
+`frontend/onboarding/` is the current product surface.
 
-```
-Step 1 — Business Profile
-  └─ Name, industry, website, social handles (Instagram, TikTok, Facebook, YouTube, LinkedIn)
-     landing pages, target audience, brand voice, goals (leads / ROAS / grow social / sales)
+The customer sees three phases while the six existing routes remain compatible:
 
-Step 2 — Role Picker
-  └─ Five role cards (see Roles section). One selectable. Role determines which platforms appear next.
+1. **Brief** (step 1): business name, concise description, optional website and
+   collapsed enrichment fields. A tool-free model creates a cached first-value
+   preview; invalid output, timeout, or missing model configuration falls back
+   to an honest deterministic starter plan.
+2. **Configure** (steps 2–4): specialist, explicit routine choice, and progressive
+   platform connections. Missing integrations identify unavailable capabilities
+   but do not block the activation-v2 cohort from continuing.
+3. **Launch** (steps 5–6): verified managed or linked WhatsApp setup, followed by
+   three role-aware starter briefs and a prefilled WhatsApp action.
 
-Step 3 — Automations
-  └─ Per-role scheduler templates (see Scheduler section). Each switched-on template
-     becomes a recurring job the agent runs on its own. Saved to role.json.scheduleTemplates.
+`ONBOARDING_ACTIVATION_V2_PERCENT` assigns sessions deterministically to the new
+experience. The legacy cohort retains the six-step rail and hard integration gate.
 
-Step 4 — Connect Platforms
-  └─ OAuth buttons for each platform the role requires/supports.
-     Required platforms must be connected before continuing.
-     Status updated live via polling /onboarding/status.
+### Onboarding readiness contract
 
-Step 5 — Link WhatsApp
-  └─ QR code rendered via SSE stream from Baileys.
-     Page auto-advances on scan.
-     (Telegram and Slack are both available as additional channels via
-     "Connect Telegram" / "Connect Slack" buttons on the dashboard,
-     post-onboarding — see "Messaging Channels" below. Neither is wired into
-     this onboarding step itself.)
+The client never trusts the URL or an optimistic local step counter. The
+bootstrap and status APIs return `progress`, derived by
+`src/onboarding/progress.ts` from persisted state:
 
-Step 6 — Ready
-  └─ Summary of role + connected platforms + WhatsApp deep link.
-```
+1. profile saved;
+2. valid role saved;
+3. automation decision saved (`scheduleTemplates` may intentionally be empty);
+4. role-required platforms are reported as capability readiness, but are not a
+   core launch gate for activation v2;
+5. WhatsApp binding is verified, including the current Baileys socket state.
+
+`progress.allowedStep` is the furthest trustworthy screen and
+`progress.readiness` is one of `needs_profile`, `needs_role`,
+`needs_automations`, `needs_connections`, `needs_whatsapp`, or `live`. POST
+endpoints validate their own prerequisites; disabled client controls are not a
+security boundary. The complete product and release plan is in
+`docs/superpowers/plans/2026-07-18-production-onboarding.md`.
 
 ## Messaging Channels
 
@@ -167,6 +176,15 @@ Two ways jobs are created:
 
 | Method | Path | Purpose |
 |--------|------|---------|
+| GET | `/api/onboarding/bootstrap[?c=<token>]` | Typed client bootstrap, saved choices, and server-derived readiness |
+| GET | `/api/onboarding/status` | Current connections, WhatsApp verification, and readiness for live updates |
+| POST | `/api/onboarding/profile` | Validate and save the business brief |
+| POST | `/api/onboarding/preview` | Return a cached AI/fallback first-value preview for the saved profile |
+| POST | `/api/onboarding/events` | Accept an allowlisted, privacy-safe activation event and forward best-effort to PostHog |
+| POST | `/api/onboarding/role` | Save the specialist; changing it resets the routine decision |
+| POST | `/api/onboarding/automations` | Save the explicit recurring-job selection, including an empty selection |
+| POST | `/api/onboarding/whatsapp-provider` | Save the WhatsApp setup after prerequisite validation |
+| POST | `/api/onboarding/whatsapp-disconnect` | Disconnect a linked client-owned device and return to recovery |
 | GET | `/onboarding[?c=<token>]` | Adopt signed client link, then redirect to current step |
 | GET | `/onboarding/step/:n` | Render step N (1 Profile, 2 Role, 3 Automations, 4 Connect, 5 Link, 6 Ready) |
 | POST | `/onboarding/step/1` | Save business profile |
@@ -175,6 +193,12 @@ Two ways jobs are created:
 | GET | `/oauth/:platform/callback` | Handle OAuth redirect, save token, return to step 4 |
 | GET | `/onboarding/qr-stream` | SSE stream of QR updates |
 | GET | `/onboarding/status` | JSON: `{ step, connections, whatsappLinked }` |
+
+Activation events are also retained as a bounded atomic record under each client
+directory. Properties are fixed to low-cardinality phase, step, platform, outcome,
+duration, and preview-source values; profile text, URLs, prompts, phone numbers,
+credentials, and OAuth data are never accepted. Successful message delivery marks
+`first_agent_output_delivered` from the server-side delivery path.
 
 ### Client key (web ↔ runtime)
 

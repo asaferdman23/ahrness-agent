@@ -26,7 +26,7 @@ import { clientIdForJid } from './tenant-store.js'
 import { broadcastLinked, broadcastLinkedToAll, broadcastQr, broadcastQrToAll } from './onboarding/server.js'
 import { bindSessionToWhatsAppJid } from './onboarding/session.js'
 import type { WhatsAppTransport } from './whatsapp-transport.js'
-import { effectiveAllowedGroupJids, isWhatsAppGroupJid, shouldProcessBaileysInbound, sameWhatsAppUser } from './baileys-gate.js'
+import { effectiveAllowedGroupJids, shouldProcessBaileysInbound, sameWhatsAppUser } from './baileys-gate.js'
 
 const STORE_ROOT = process.env.AGENT_STORE_DIR ?? './store'
 
@@ -248,18 +248,9 @@ export async function startBaileysWhatsApp(
 
       const meta = await getClientMeta(clientId)
       const explicitAllowedGroups = process.env.BAILEYS_ALLOWED_GROUP_JIDS
-      if (
-        isWhatsAppGroupJid(jid) &&
-        !explicitAllowedGroups?.trim() &&
-        !meta.baileysHomeGroupJid
-      ) {
-        await updateClientMeta(clientId, {
-          baileysHomeGroupJid: jid,
-          baileysHomeGroupBoundAt: new Date().toISOString(),
-        })
-        meta.baileysHomeGroupJid = jid
-        console.log(`[baileys] bound home group ${jid} for client ${clientId}`)
-      }
+      // Home group is chosen explicitly during onboarding (POST /onboarding/step/5/group)
+      // and stored as meta.baileysHomeGroupJid. No silent auto-bind here — the agent
+      // only listens in the group the user picked (or the env override).
 
       const gate = shouldProcessBaileysInbound({
         remoteJid: jid,
