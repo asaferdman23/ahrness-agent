@@ -4,7 +4,7 @@
  * Use WHATSAPP_PROVIDER=baileys for dev/personal numbers.
  * Production WhatsApp Business API: WHATSAPP_PROVIDER=twilio (default).
  */
-import { mkdir } from 'node:fs/promises'
+import { mkdir, rm } from 'node:fs/promises'
 import path from 'node:path'
 import {
   makeWASocket,
@@ -34,8 +34,11 @@ const STORE_ROOT = process.env.AGENT_STORE_DIR ?? './store'
  * Per-client Baileys auth directory. Each linked WhatsApp account gets its own
  * auth state under store/clients/<clientId>/auth/ so multiple accounts can be
  * linked from one process without colliding.
+ *
+ * Exported so the session manager can wipe dead creds on a 401 loggedOut —
+ * that forces Baileys to emit a fresh QR on the next socket start.
  */
-function authDirFor(clientId: string): string {
+export function authDirFor(clientId: string): string {
   return path.resolve(STORE_ROOT, 'clients', clientId, 'auth')
 }
 
@@ -121,7 +124,14 @@ export async function startBaileysWhatsApp(
     phoneNumber?: string
     onboardingSessionId?: string
     onReconnect?: (clientId: string) => void
+    /** Called when WhatsApp actively logs the linked device out (close code
+     * 401, e.g. the user removed the device from their phone). The caller
+     * should wipe the auth dir and offer a fresh QR — re-linking is safe. */
     onLoggedOut?: (clientId: string) => void
+    /** Called when the reconnect loop exhausts MAX_RECONNECT_ATTEMPTS. This is
+     * a ban-risk protection stop — do NOT auto-wipe creds or show a new QR;
+     * require manual operator intervention. Distinct from a 401 loggedOut. */
+    onReconnectExhausted?: (clientId: string) => void
     onConnected?: (clientId: string) => void
     onDisconnected?: (clientId: string) => void
     /** Called when the owner types a stop command (stop/עצור) in the chat.
@@ -200,7 +210,7 @@ export async function startBaileysWhatsApp(
           console.error(
             `[client ${clientId}] WhatsApp reconnect failed after ${MAX_RECONNECT_ATTEMPTS} attempts — giving up to avoid ban-risk loop. Restart manually.`,
           )
-          opts.onLoggedOut?.(clientId)
+          opts.onReconnectExhausted?.(clientId)
           return
         }
         const { delay, nextAttempts } = nextReconnectDelay(reconnectAttempts)
@@ -210,7 +220,14 @@ export async function startBaileysWhatsApp(
           if (!stopped) opts.onReconnect?.(clientId)
         }, delay)
       } else {
-        console.error(`[client ${clientId}] Logged out — delete ${authDir} and restart to re-authenticate`)
+        // 401 loggedOut: WhatsApp invalidated this linked device (the user
+        // removed it from their phone, or it was revoked). The creds on disk
+        // are dead — wipe them so the next socket start emits a fresh QR, and
+        // surface a "logged out, scan again" state to the onboarding UI.
+        console.log(`[client ${clientId}] Logged out (code 401) — clearing auth and awaiting re-link`)
+        await rm(authDir, { recursive: true, force: true }).catch((err) => {
+          console.error(`[client ${clientId}] failed to clear auth dir on logout:`, err)
+        })
         opts.onLoggedOut?.(clientId)
       }
     }
