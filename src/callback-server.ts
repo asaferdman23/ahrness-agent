@@ -35,6 +35,9 @@ import { fileConfirmationStore } from './confirmations.js'
 import { getRole as getRoleDefinition } from './roles/registry.js'
 import { getAllMcps } from './mcps/index.js'
 import type { PlatformId } from './store/types.js'
+import { getCrmStore } from './crm/store.js'
+import { handleCrmApi } from './crm/http.js'
+import { renderCrmPage } from './crm/views.js'
 
 const authHandler = toNodeHandler(auth)
 
@@ -122,6 +125,18 @@ export function startCallbackServer(transport: WhatsAppTransport | null): void {
     }
 
     // ── Dashboard (protected) ─────────────────────────────────────────────────
+    if (url.pathname.startsWith('/dashboard/pipeline')) {
+      const session = await getSession(req)
+      if (!session?.user) {
+        res.writeHead(302, { Location: '/login' }).end()
+        return
+      }
+      await ensureTenant(session.user.id)
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' })
+        .end(renderCrmPage(session.user, getCrmStore(session.user.id), url))
+      return
+    }
+
     if (url.pathname === '/dashboard') {
       const session = await getSession(req)
       if (!session?.user) {
@@ -300,7 +315,20 @@ export function startCallbackServer(transport: WhatsAppTransport | null): void {
             startedAt: run.startedAt,
             outputPreview: run.outputPreview,
           })),
+          crmSummary: getCrmStore(tenantId).summary(),
         }))
+      return
+    }
+
+    // ── Native CRM API (protected and tenant-bound) ──────────────────────────
+    if (url.pathname.startsWith('/api/crm')) {
+      const session = await getSession(req)
+      if (!session?.user) {
+        res.writeHead(401, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Sign in required' }))
+        return
+      }
+      await ensureTenant(session.user.id)
+      await handleCrmApi(req, res, url, session.user.id)
       return
     }
 

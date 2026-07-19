@@ -64,6 +64,16 @@ function dashboardState(overrides: Partial<DashboardState> = {}): DashboardState
       startedAt: '2026-07-01T11:00:00.000Z',
       outputPreview: 'A seven-day plan with three qualified follow-up opportunities.',
     }],
+    crmSummary: {
+      peopleCount: 3,
+      activeOpportunityCount: 2,
+      activeValueByCurrency: { USD: 125_000 },
+      followUpsDue: 1,
+      wonThisMonthByCurrency: {},
+      verifiedWonThisMonthByCurrency: {},
+      influencedWonThisMonthByCurrency: {},
+      lastUpdatedAt: '2026-07-01T11:00:00.000Z',
+    },
     ...overrides,
   }
 }
@@ -92,12 +102,22 @@ test('dashboard uses honest empty states when setup and work are incomplete', ()
     automations: [],
     lastActivityAt: null,
     recentRuns: [],
+    crmSummary: {
+      peopleCount: 0,
+      activeOpportunityCount: 0,
+      activeValueByCurrency: {},
+      followUpsDue: 0,
+      wonThisMonthByCurrency: {},
+      verifiedWonThisMonthByCurrency: {},
+      influencedWonThisMonthByCurrency: {},
+      lastUpdatedAt: null,
+    },
   }))
 
   assert.match(html, /Finish connecting WhatsApp to start receiving results/)
   assert.match(html, /Your first result will appear here/)
-  assert.match(html, /Start proving what turns into business/)
-  assert.match(html, /No lead, opportunity, or revenue numbers are shown/)
+  assert.match(html, /Turn conversations into a real pipeline/)
+  assert.match(html, /only records you or your agent actually saved/)
   assert.match(html, /href="\/onboarding\/step\/5"/)
 })
 

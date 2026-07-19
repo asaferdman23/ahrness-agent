@@ -1,10 +1,10 @@
 # SaaS Dashboard and Native CRM
 
-> Status: SaaS home implemented on `codex/saas-dashboard-home`, 2026-07-19;
-> native CRM remains planned. The home milestone provides truthful readiness,
-> prioritized attention, three recent verified results, connected-app state,
-> and an explicit no-fabricated-data pipeline placeholder. Pipeline records,
-> people, follow-ups, and revenue attribution remain gated on the CRM backend.
+> Status: SaaS home and native CRM foundation implemented, 2026-07-19. The CRM
+> milestone adds tenant-scoped People, Opportunities, fixed stages, Follow-ups,
+> immutable history, guarded dashboard and WhatsApp actions, and evidence-state
+> revenue reporting. CSV capture and external CRM synchronization remain later
+> phases.
 
 Companion screen and interaction specification:
 [`../specs/2026-07-19-saas-dashboard-native-crm-design.md`](../specs/2026-07-19-saas-dashboard-native-crm-design.md).
@@ -417,7 +417,7 @@ keyboard-accessible control.
 - Customer vocabulary and outcome-led role presentation.
 - Recent-work page aligned to the same shell.
 
-### Phase 2 — Native CRM foundation
+### Phase 2 — Native CRM foundation (implemented)
 
 - Tenant-owned CRM schema and migrations.
 - People, opportunities, activities, follow-ups, and fixed stages.
@@ -425,12 +425,28 @@ keyboard-accessible control.
 - Safe CRM agent tools and immutable audit activity.
 - Manual dashboard and WhatsApp creation/update flows.
 
-### Phase 3 — Capture and attribution
+Implementation notes:
+
+- `src/crm/store.ts` owns schema version 1 and tenant-bound SQLite transactions.
+- Email, phone, activity text, and attribution evidence are encrypted with the
+  existing vault; keyed identity hashes support exact duplicate detection.
+- `src/crm/http.ts` exposes authenticated, same-origin, size-limited JSON actions
+  and never accepts a browser-selected tenant.
+- `src/crm/views.ts` provides responsive People, Opportunities, Follow-ups,
+  person detail, and opportunity history screens using the BizzClaw material.
+- `src/crm/tools.ts` gives every client agent safe CRM tools. Won/Lost and money
+  changes use approve-before-act; sensitive arguments are excluded from Agent
+  Live telemetry.
+- The home CRM summary uses only persisted records. Won, verified-source, and
+  influenced values remain separate and no copy claims causation.
+
+### Phase 3 — Capture and expanded attribution
 
 - CSV preview/import/export.
 - Signed website-form lead ingestion.
 - Meta lead-form capture.
-- Verified/influenced/unknown attribution evidence.
+- Imported and captured-source evidence beyond the manual
+  verified/influenced/unknown foundation.
 - Dashboard pipeline and won-value proof.
 
 ### Phase 4 — External sync

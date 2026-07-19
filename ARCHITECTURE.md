@@ -8,6 +8,7 @@ A WhatsApp-first AI marketing agent platform. Clients onboard via a web UI, pick
 
 - [Overview](#overview)
 - [Onboarding Flow](#onboarding-flow)
+- [Native CRM](#native-crm)
 - [Messaging Channels](#messaging-channels)
 - [Roles](#roles)
 - [Skills](#skills)
@@ -215,6 +216,65 @@ The same signed token is passed as the OAuth `state` on every platform connect. 
 callback verifies it (`verifyClientToken`) and keys the saved token by the client it
 encodes — binding the token exchange to that client and protecting against CSRF. A state
 that is neither a valid signed token nor the current session id is rejected.
+
+## Native CRM
+
+Every authenticated tenant has a native customer workspace at
+`/dashboard/pipeline`, with plain-language People, Opportunities, and Follow-ups
+screens. The home dashboard reads the same persisted summary; the WhatsApp agent
+receives the same tools regardless of the selected business goal.
+
+CRM state is stored in `store/clients/<tenantId>/crm.sqlite` by
+`src/crm/store.ts`. SQLite WAL transactions make a record change and its immutable
+activity entry one operation. Schema version 1 is recorded in `PRAGMA user_version`;
+the store refuses a newer schema rather than guessing. Every statement includes
+`tenant_id`, even though production also uses one database file per tenant.
+
+The first-release stages are fixed: New lead, Contacted, Replied, Qualified,
+Proposal sent, Won, and Lost. There are no delete routes. Completing a follow-up
+retains it; edits and stage/value changes append history. Email, phone, activity
+text, and attribution evidence use the existing AES-256-GCM vault. Keyed HMAC
+hashes support exact email/phone deduplication without storing searchable
+plaintext. Losing or rotating `AGENT_MASTER_KEY` without migration makes those
+fields unreadable, just like existing OAuth secrets.
+
+### Authority and attribution
+
+- Normal creation, notes, active-stage movement, and follow-up actions are
+  reversible customer-authorized operations.
+- Won/Lost transitions and monetary-value changes require an explicit
+  confirmation. The conversational tools use the persisted approve-before-act
+  contract; dashboard mutations require `confirmed: true` from an explicit form.
+- Won value means only the sum of opportunities a customer explicitly marked
+  Won. It is not a forecast or a BizzClaw revenue claim.
+- Attribution is `verified`, `influenced`, or `unknown`. Verified requires stored
+  evidence. Influenced is deliberately non-causal and never rendered as
+  “generated revenue.”
+
+### Protected routes
+
+All routes resolve the tenant exclusively from the better-auth session; no CRM
+request accepts a tenant id from the browser. Mutations require same-origin JSON
+and a 64 KiB body limit.
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/dashboard/pipeline` | Responsive opportunity board and truthful totals |
+| GET | `/dashboard/pipeline/people` | Search and add leads/customers |
+| GET | `/dashboard/pipeline/follow-ups` | Due-date ordered next actions |
+| GET | `/dashboard/pipeline/opportunities/:id` | Outcome, value, evidence, and immutable history |
+| GET | `/dashboard/pipeline/people/:id` | Person detail and linked opportunities |
+| GET/POST | `/api/crm/contacts` | Tenant-bound list/create |
+| GET/POST | `/api/crm/opportunities` | Tenant-bound list/create |
+| GET/POST | `/api/crm/follow-ups` | Tenant-bound list/create |
+| PATCH | `/api/crm/contacts/:id` | Edit a person without deletion |
+| PATCH | `/api/crm/opportunities/:id` | Edit, move stage, or confirm value |
+| POST | `/api/crm/opportunities/:id/notes` | Append an encrypted note |
+| POST | `/api/crm/opportunities/:id/attribution` | Record evidence state |
+
+Agent tool arguments are observability-allowlisted. Contact details, search text,
+notes, evidence, follow-up content, and monetary values are never copied into the
+Agent Live activity database.
 
 ---
 
