@@ -34,6 +34,7 @@ import {
 } from './outputs.js'
 import { createShareInputTool } from './input-sharing.js'
 import { createSchedulerTools, materializeTemplates } from './scheduler/index.js'
+import { createCrmTools } from './crm/tools.js'
 import { getClientSandbox } from './sandbox.js'
 import { BusinessContextPlugin } from './plugins/business-context-plugin.js'
 import { RunObservabilityPlugin, type RunObservabilityContext } from '@agent-live/sdk/adapters/strands'
@@ -95,6 +96,12 @@ Automations:
 - When the client asks to be reminded, to get a recurring report, or to run something on a cadence ("every morning", "each Monday", "in 2 hours"), use schedule_task. Translate their phrasing into a cron expression (recurring) or an ISO timestamp (one-time), and confirm what you set in their own words.
 - Use list_scheduled_tasks / cancel_scheduled_task / set_scheduled_task_enabled to review, stop, or pause automations on request.
 - When a scheduled task fires, you receive its instruction as a normal message — just do it and reply concisely.
+
+Customer relationships:
+- Use the CRM tools to save real people, opportunities, notes, and follow-ups when the client asks.
+- Never invent a person, opportunity, sale, monetary value, consent, or attribution evidence.
+- Won and Lost are explicit business outcomes, not predictions. Money changes and closing outcomes require the client's confirmation.
+- Say "verified source" only when a concrete evidence record exists. "Influenced by BizzClaw" is not a causal revenue claim; otherwise say the source is unknown.
 
 Respond naturally and helpfully. Keep replies concise for WhatsApp — short paragraphs, no walls of text.`
 }
@@ -203,6 +210,7 @@ export async function buildClientAgent(
     createImportRemoteOutputTool(sandbox, publishedOutputs),
     createShareInputTool(clientId),
     ...createSchedulerTools(clientId, jid),
+    ...createCrmTools(clientId),
     // Deferred OAuth: let the agent hand the client a one-tap connect link for any
     // app its role supports, only when a task needs the live account.
     ...createConnectTools(jid, [...roleDef.requiredMcps, ...roleDef.optionalMcps, ...extraMcps]),
@@ -243,6 +251,19 @@ export async function buildClientAgent(
           import_remote_output: ['fileName', 'mimeType'],
           schedule_task: ['cron', 'description'],
           get_business_context: [],
+          crm_search_people: [],
+          crm_list_opportunities: ['stage'],
+          crm_pipeline_summary: [],
+          crm_list_follow_ups: [],
+          crm_add_person: [],
+          crm_update_person: [],
+          crm_add_opportunity: ['stage', 'currency'],
+          crm_move_opportunity: ['stage'],
+          crm_set_opportunity_value: ['currency'],
+          crm_add_follow_up: [],
+          crm_complete_follow_up: [],
+          crm_add_note: [],
+          crm_record_attribution: ['state'],
         },
         // Must be THIS process's own @strands-agents/sdk event classes, not
         // @agent-live/sdk's — the hook registry dispatches by class identity
