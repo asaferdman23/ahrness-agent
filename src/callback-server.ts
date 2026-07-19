@@ -82,13 +82,12 @@ async function getSession(req: IncomingMessage) {
 function computeOnboardingStep(input: {
   hasProfile: boolean
   hasRole: boolean
-  requiredPlatforms: PlatformId[]
-  connectedPlatforms: Set<PlatformId>
+  hasAutomationDecision: boolean
   whatsappLinked: boolean
 }): number {
   if (!input.hasProfile) return 1
   if (!input.hasRole) return 2
-  if (input.requiredPlatforms.some((platform) => !input.connectedPlatforms.has(platform))) return 4
+  if (!input.hasAutomationDecision) return 3
   if (!input.whatsappLinked) return 5
   return 6
 }
@@ -149,7 +148,8 @@ export function startCallbackServer(transport: WhatsAppTransport | null): void {
         confirmationStore.get(tenantId),
         getClientMeta(tenantId),
       ])
-      const [latestRun] = agentLiveStore.listRuns(tenantId, { limit: 1 })
+      const recentRuns = agentLiveStore.listRuns(tenantId, { limit: 3 })
+      const latestRun = recentRuns[0] ?? null
 
       const botUsername = sharedTelegramBotUsername()
 
@@ -172,12 +172,6 @@ export function startCallbackServer(transport: WhatsAppTransport | null): void {
         }
       }
 
-      const connectedPlatforms = new Set(
-        Object.entries(connections)
-          .filter(([, record]) => record?.status === 'connected')
-          .map(([platform]) => platform as PlatformId),
-      )
-
       const platformDefs = new Map(getAllMcps().map((platform) => [platform.id, platform]))
       const visiblePlatforms = role
         ? [...requiredPlatforms, ...optionalPlatforms]
@@ -197,52 +191,55 @@ export function startCallbackServer(transport: WhatsAppTransport | null): void {
       })
 
       const alerts = []
-      if (!profile?.business?.name) {
+      if (pendingApproval) {
         alerts.push({
-          title: 'Business context is still thin',
-          detail: 'Add your business name and a few public links so the agent can reason from real context.',
-          level: 'info' as const,
+          title: pendingApproval.approved ? 'Your approved action is ready to continue' : 'A prepared action needs your OK',
+          detail: pendingApproval.summary,
+          level: 'warn' as const,
+          actionHref: '/dashboard/activity',
+          actionLabel: 'Review',
         })
       }
-      if (requiredPlatforms.some((platformId) => !connectedPlatforms.has(platformId))) {
+      if (latestRun?.status === 'failed' || latestRun?.status === 'stale') {
         alerts.push({
-          title: 'Required connections are missing',
-          detail: 'Your current role has at least one required platform that is not connected yet.',
+          title: latestRun.status === 'failed' ? 'Your latest request could not finish' : 'Your latest request stopped before finishing',
+          detail: 'Open recent work to review what happened and decide whether to try again.',
           level: 'warn' as const,
+          actionHref: '/dashboard/activity',
+          actionLabel: 'Review work',
         })
       }
       if (!tenantRow?.whatsappJid) {
         alerts.push({
-          title: 'WhatsApp is not linked',
-          detail: 'The dashboard exists, but the agent cannot talk to you until a WhatsApp transport is connected.',
+          title: 'Connect WhatsApp to receive results',
+          detail: 'Finish the launch step so BizzClaw has a verified place to send your work.',
           level: 'warn' as const,
-        })
-      }
-      if (!jobs.length) {
-        alerts.push({
-          title: 'No automations are active',
-          detail: 'The agent will still respond in chat, but nothing is scheduled to run on its own yet.',
-          level: 'info' as const,
-        })
-      }
-      if (pendingApproval) {
-        alerts.push({
-          title: pendingApproval.approved ? 'Approved action is waiting to run' : 'Action is waiting for your approval',
-          detail: pendingApproval.summary,
-          level: 'warn' as const,
+          actionHref: '/onboarding/step/5',
+          actionLabel: 'Connect WhatsApp',
         })
       }
       for (const platform of platforms) {
-        if (isExpired(platform.tokenExpiresAt)) {
+        if (isExpired(platform.tokenExpiresAt) || platform.status === 'error') {
           alerts.push({
-            title: `${platform.displayName} token expired`,
-            detail: `Reconnect ${platform.displayName} so the agent can continue using it.`,
+            title: `Reconnect ${platform.displayName}`,
+            detail: `The connection needs renewing before BizzClaw can use live ${platform.displayName} data.`,
             level: 'warn' as const,
+            actionHref: '/onboarding/step/4',
+            actionLabel: 'Renew connection',
           })
         }
       }
+      if (!profile?.business?.name) {
+        alerts.push({
+          title: 'Improve your business brief',
+          detail: 'Add your business name and a short description to make the next result more specific.',
+          level: 'info' as const,
+          actionHref: '/onboarding/step/1',
+          actionLabel: 'Improve brief',
+        })
+      }
 
-      const lastActivityAt = [pendingApproval?.createdAt ?? null, ...jobs.map((job) => job.lastRunAt), ...platforms.map((platform) => platform.connectedAt)]
+      const lastActivityAt = [latestRun?.startedAt ?? null, pendingApproval?.createdAt ?? null, ...jobs.map((job) => job.lastRunAt), ...platforms.map((platform) => platform.connectedAt)]
         .filter((value): value is string => !!value)
         .sort()
         .at(-1) ?? null
@@ -250,8 +247,7 @@ export function startCallbackServer(transport: WhatsAppTransport | null): void {
       const onboardingStep = computeOnboardingStep({
         hasProfile: !!profile,
         hasRole: !!roleRecord,
-        requiredPlatforms,
-        connectedPlatforms,
+        hasAutomationDecision: roleRecord?.scheduleTemplates !== undefined,
         whatsappLinked: !!tenantRow?.whatsappJid,
       })
 
@@ -297,7 +293,13 @@ export function startCallbackServer(transport: WhatsAppTransport | null): void {
           } : null,
           alerts,
           lastActivityAt,
-          latestRun: latestRun ? { status: latestRun.status, startedAt: latestRun.startedAt } : null,
+          recentRuns: recentRuns.map((run) => ({
+            id: run.id,
+            status: run.status,
+            channel: run.channel,
+            startedAt: run.startedAt,
+            outputPreview: run.outputPreview,
+          })),
         }))
       return
     }

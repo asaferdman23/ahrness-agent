@@ -1,9 +1,10 @@
 # SaaS Dashboard and Native CRM
 
-> Status: planned, 2026-07-19. This plan extends the activation-focused
-> onboarding release with a customer-facing SaaS home, outcome-led language,
-> and a native BizzClaw CRM. It does not authorize implementation or rollout by
-> itself.
+> Status: SaaS home implemented on `codex/saas-dashboard-home`, 2026-07-19;
+> native CRM remains planned. The home milestone provides truthful readiness,
+> prioritized attention, three recent verified results, connected-app state,
+> and an explicit no-fabricated-data pipeline placeholder. Pipeline records,
+> people, follow-ups, and revenue attribution remain gated on the CRM backend.
 
 Companion screen and interaction specification:
 [`../specs/2026-07-19-saas-dashboard-native-crm-design.md`](../specs/2026-07-19-saas-dashboard-native-crm-design.md).
@@ -19,6 +20,23 @@ The product promise becomes:
 
 > BizzClaw finds opportunities, prepares the work, follows up, and shows what
 > became pipeline and revenue.
+
+## Implemented SaaS home milestone
+
+The first dashboard milestone uses current persisted truth only:
+
+- WhatsApp readiness and active-work state;
+- the selected outcome-led business goal;
+- the highest-priority approval, failed work, reconnect, or setup action;
+- the latest three tenant-scoped Agent Live results in customer language;
+- recurring-task and connected-app counts;
+- connection state for WhatsApp and role-relevant business apps;
+- an honest pipeline empty state that does not claim CRM records or revenue.
+
+The home continues to link to the existing tenant-scoped Recent work surface.
+The Pipeline card is deliberately non-numeric until native CRM persistence is
+implemented. This milestone does not create placeholder people, opportunities,
+follow-ups, or attribution records.
 
 CRM is a core BizzClaw capability available to every customer. It is not an
 optional dashboard decoration and is not limited to the Pipeline Builder role.
