@@ -1,5 +1,11 @@
 # Production Onboarding Redesign
 
+Current activation-v2 screen and language specification:
+[`../specs/2026-07-19-activation-v2-saas-onboarding-design.md`](../specs/2026-07-19-activation-v2-saas-onboarding-design.md).
+It supersedes the legacy customer-facing six-equal-step and hard-integration-gate
+presentation described below while retaining those internal routes for
+compatibility.
+
 > Status: implemented foundation with activation-v2 extension, 2026-07-18. The first release covers truthful
 > readiness, guarded progression, and a premium redesign of the complete six-step
 > flow. It does not add website ingestion or new OAuth providers.

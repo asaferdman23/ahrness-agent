@@ -921,7 +921,6 @@ async function onboardingBootstrap(session: OnboardingSession): Promise<Record<s
       return {
         id: p.id,
         displayName: p.displayName,
-        scopes: p.scopes,
         required,
         status,
         authUrl: p.oauthFlow !== 'none' && p.authUrl ? safeAuthUrl(p, oauthState, callbackBase) : null,
