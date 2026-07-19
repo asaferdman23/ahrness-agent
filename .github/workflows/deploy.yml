@@ -72,14 +72,29 @@ jobs:
 
           # rsync source + built frontend. node_modules is rebuilt on the
           # server with --omit=dev (vite not needed at runtime).
+          # Root-anchor persisted-state exclusions so nested source directories
+          # such as vendor/agent-live/packages/sdk/dist/store are deployed.
           rsync -avz --delete \
             --exclude '.git' \
             --exclude 'node_modules' \
-            --exclude '.env' \
-            --exclude 'store/' \
-            --exclude '.env.local' \
+            --exclude '/.env' \
+            --exclude '/store/' \
+            --exclude '/.env.local' \
             -e "ssh -p $SSH_PORT -i /tmp/deploy_key -o StrictHostKeyChecking=no" \
             . $SERVER:$APP_DIR/
 
           $SSH $SERVER "cd $APP_DIR && npm ci --omit=dev && systemctl restart ahrness"
+          $SSH $SERVER '
+            for attempt in $(seq 1 15); do
+              if systemctl is-active --quiet ahrness && \
+                 curl --fail --silent --show-error --max-time 3 http://127.0.0.1:3456/ >/dev/null; then
+                exit 0
+              fi
+              sleep 2
+            done
+
+            systemctl status ahrness --no-pager --full || true
+            journalctl -u ahrness -n 80 --no-pager || true
+            exit 1
+          '
           rm -f /tmp/deploy_key
