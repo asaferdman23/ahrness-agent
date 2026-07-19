@@ -29,7 +29,6 @@ interface Template {
 interface Platform {
   id: string
   displayName: string
-  scopes: string[]
   required: boolean
   status: string
   authUrl: string | null
@@ -114,7 +113,7 @@ interface StatusResponse {
   whatsappProvider: Provider | null
 }
 
-const STEP_LABELS = ['Business', 'Specialist', 'Routine', 'Access', 'WhatsApp', 'Launch']
+const STEP_LABELS = ['Business', 'Business goal', 'Recurring tasks', 'Connected apps', 'WhatsApp', 'Launch']
 const PHASES = [
   { id: 'brief', label: 'Brief', firstStep: 1 as Step },
   { id: 'configure', label: 'Configure', firstStep: 2 as Step },
@@ -184,7 +183,7 @@ async function fetchStatus(): Promise<StatusResponse | null> {
 
 async function load(): Promise<void> {
   data = await api(`/api/onboarding/bootstrap${location.search}`)
-  document.title = `${data.agentName} · Bizzclaw setup`
+  document.title = `${data.agentName} · Get started`
   const requested = location.pathname.includes('/step/') ? stepFromPath() : data.progress.allowedStep
   currentStep = requested > data.progress.allowedStep ? data.progress.allowedStep : requested
   replaceUrl(currentStep)
@@ -219,8 +218,8 @@ function updateHeaderStatus(): void {
   if (!status || !label) return
   const isLive = data.progress.readiness === 'live'
   status.dataset.state = isLive ? 'live' : 'setup'
-  label.textContent = isLive ? 'Agent live' : data.activationV2 ? `Phase ${phaseNumber(currentStep)} of 3` : `Setup ${data.progress.allowedStep} of 6`
-  status.title = isLive ? 'Your agent is connected and ready' : 'Your setup is saved automatically'
+  label.textContent = isLive ? 'Ready on WhatsApp' : data.activationV2 ? `Phase ${phaseNumber(currentStep)} of 3` : `Setup ${data.progress.allowedStep} of 6`
+  status.title = isLive ? 'BizzClaw is connected and ready on WhatsApp' : 'Your setup is saved automatically'
 }
 
 function stepRail(): string {
@@ -288,12 +287,12 @@ function agentBrief(): string {
   const role = data.roles.find((candidate) => candidate.id === data.session.roleId)
   const selectedAutomations = data.session.scheduleTemplates?.length ?? 0
   const connected = data.platforms.filter((platform) => isConnected(platform)).length
-  const agentStatus = data.progress.readiness === 'live' ? 'Ready to work' : 'Building your agent'
+  const agentStatus = data.progress.readiness === 'live' ? 'Ready on WhatsApp' : 'Getting BizzClaw ready'
 
-  return `<aside class="brief-panel" aria-label="Your agent brief">
+  return `<aside class="brief-panel" aria-label="Your BizzClaw setup summary">
     <div class="brief-header">
       <div class="agent-orb" aria-hidden="true"><img src="/onboarding/bizzclaw-mascot.png" alt="" width="48" height="48" /></div>
-      <div><p class="overline">Your Agent</p><h2>${escapeHtml(data.agentName)}</h2></div>
+      <div><p class="overline">Your BizzClaw teammate</p><h2>${escapeHtml(data.agentName)}</h2></div>
       <span class="brief-status">${escapeHtml(agentStatus)}</span>
     </div>
     <div class="brief-quote">${business?.description
@@ -301,20 +300,20 @@ function agentBrief(): string {
       : 'Your business brief will appear here as you build it.'}</div>
     <dl class="brief-facts">
       <div><dt>Business</dt><dd>${escapeHtml(business?.name || 'Not added yet')}</dd></div>
-      <div><dt>Specialist</dt><dd>${escapeHtml(role?.displayName || 'Not selected yet')}</dd></div>
-      <div><dt>Routine</dt><dd>${data.session.scheduleTemplates === null ? 'Not reviewed yet' : `${selectedAutomations} recurring job${selectedAutomations === 1 ? '' : 's'}`}</dd></div>
-      <div><dt>Access</dt><dd>${connected} platform${connected === 1 ? '' : 's'} connected</dd></div>
+      <div><dt>Business goal</dt><dd>${escapeHtml(role?.displayName || 'Not selected yet')}</dd></div>
+      <div><dt>Recurring tasks</dt><dd>${data.session.scheduleTemplates === null ? 'Not reviewed yet' : `${selectedAutomations} selected`}</dd></div>
+      <div><dt>Connected apps</dt><dd>${connected} connected</dd></div>
     </dl>
-    <div class="privacy-note">${shieldIcon()}<p><strong>Your credentials stay private.</strong> Bizzclaw stores connection tokens securely and never asks for platform passwords.</p></div>
+    <div class="privacy-note">${shieldIcon()}<p><strong>Your account access stays private.</strong> BizzClaw stores connections securely and never asks for an app password.</p></div>
   </aside>`
 }
 
 function launchSummary(): string {
   const checkRows: Array<[boolean, string, string]> = [
     [data.progress.checks.profile, 'Business brief', 'Context saved'],
-    [data.progress.checks.role, 'Specialist', roleName()],
-    [data.progress.checks.automations, 'Routine', automationSummary()],
-    [data.progress.checks.requiredConnections, 'Capability access', data.progress.checks.requiredConnections ? connectionSummary() : `${data.progress.missingRequiredPlatforms.length} available later`],
+    [data.progress.checks.role, 'Business goal', roleName()],
+    [data.progress.checks.automations, 'Recurring tasks', automationSummary()],
+    [data.progress.checks.requiredConnections, 'Connected apps', data.progress.checks.requiredConnections ? connectionSummary() : `${data.progress.missingRequiredPlatforms.length} available later`],
     [data.progress.checks.whatsapp, 'WhatsApp', data.progress.checks.whatsapp ? 'Connected' : 'Action needed'],
   ]
   return `<aside class="brief-panel launch-summary" aria-label="Launch readiness">
@@ -324,7 +323,7 @@ function launchSummary(): string {
       <span class="readiness-icon" aria-hidden="true">${complete ? checkIcon() : '—'}</span>
       <span><strong>${escapeHtml(label)}</strong><small>${escapeHtml(detail)}</small></span>
     </li>`).join('')}</ul>
-    <p class="launch-footnote">You can change the specialist, routine, and connected platforms later from your account.</p>
+    <p class="launch-footnote">You can change your business goal, recurring tasks, and connected apps later from your account.</p>
   </aside>`
 }
 
@@ -334,28 +333,28 @@ function renderProfile(): string {
   const assets = profile?.assets ?? {}
   const preview = data.preview
   const previewPanel = previewLoading
-    ? `<section class="preview-card preview-loading" aria-live="polite"><span class="status-spinner" aria-hidden="true"></span><div><p class="overline">Creating your first advantage</p><h2>Bizzclaw is turning your brief into an action plan…</h2><p>This normally takes less than 20 seconds.</p></div></section>`
+    ? `<section class="preview-card preview-loading" aria-live="polite"><span class="status-spinner" aria-hidden="true"></span><div><p class="overline">Creating your first advantage</p><h2>BizzClaw is turning your brief into an action plan…</h2><p>This normally takes less than 20 seconds.</p></div></section>`
     : preview
       ? `<section class="preview-card" aria-labelledby="previewTitle">
-          <div class="preview-heading"><div><p class="overline">Your first Bizzclaw insight</p><h2 id="previewTitle" tabindex="-1">${escapeHtml(preview.headline)}</h2></div><span class="tag">${preview.source === 'ai' ? 'Personalized' : 'Starter plan'}</span></div>
+          <div class="preview-heading"><div><p class="overline">Your first BizzClaw insight</p><h2 id="previewTitle" tabindex="-1">${escapeHtml(preview.headline)}</h2></div><span class="tag">${preview.source === 'ai' ? 'Personalized' : 'Starter plan'}</span></div>
           <p class="preview-insight">${escapeHtml(preview.insight)}</p>
           <ol class="opportunity-list">${preview.opportunities.map((opportunity) => `<li>${escapeHtml(opportunity)}</li>`).join('')}</ol>
           <div class="suggested-brief"><p class="overline">Suggested first brief</p><p>“${escapeHtml(preview.suggestedFirstBrief)}”</p></div>
-          <div class="actions preview-actions"><button class="btn btn-secondary" type="submit">Refresh Preview</button><button class="btn btn-primary" type="button" data-step="2" data-complete-phase="brief">Choose Your Specialist ${arrowIcon()}</button></div>
+          <div class="actions preview-actions"><button class="btn btn-primary" type="button" data-step="2" data-complete-phase="brief">Choose your business goal ${arrowIcon()}</button><button class="btn btn-secondary" type="submit">Refresh preview</button></div>
         </section>`
       : ''
   return shell(
     preview ? 'Your first advantage is ready' : 'Get useful direction in under 90 seconds',
-    preview ? 'This is a starting point built from the brief you provided—not from live account data.' : 'Tell Bizzclaw what you do. You will see a personalized opportunity brief before connecting any account.',
+    preview ? 'This is a starting point built from the brief you provided—not from live account data.' : 'Tell BizzClaw what you do. You will see a personalized opportunity brief before connecting any account.',
     `<form id="profileForm">
       <div class="form-section">
-        ${input('Business or project name', 'name', business.name ?? '', 'Northstar Studio…', true, 'text', 'organization', 'This is how your agent will refer to the business.')}
+        ${input('Business or project name', 'name', business.name ?? '', 'Northstar Studio…', true, 'text', 'organization', 'This is how BizzClaw will refer to the business.')}
         <div class="field">
           <div class="label-row"><label for="description">What does the business do?</label><span>Required</span></div>
           <textarea id="description" name="description" required minlength="10" placeholder="We help independent retailers turn customer conversations into repeat revenue…">${escapeHtml(business.description ?? '')}</textarea>
           <p class="field-hint">One sentence is enough: what you sell and the result customers get.</p>
         </div>
-        ${input('Website', 'website', assets.website ?? '', 'https://yourcompany.com…', false, 'url', 'url', 'Saved as a reference only. Bizzclaw does not claim to have visited it.')}
+        ${input('Website', 'website', assets.website ?? '', 'https://yourcompany.com…', false, 'url', 'Saved as a reference only. BizzClaw does not claim to have visited it.')}
       </div>
       <details class="personalization-details" ${business.targetAudience || assets.instagram?.handle || assets.tiktok?.handle ? 'open' : ''}>
         <summary>Improve personalization <span>Optional</span></summary>
@@ -378,10 +377,10 @@ function renderProfile(): string {
 
 function renderRole(): string {
   return shell(
-    'Choose the specialist you need now',
-    'Each specialist receives the same business brief, but brings a different operating focus.',
+    'Choose the result you want most',
+    'Start with one business goal. BizzClaw will shape its plans, recommendations, and first tasks around that outcome.',
     `<form id="roleForm">
-      <fieldset class="option-list"><legend class="sr-only">Available specialists</legend>
+      <fieldset class="option-list"><legend class="sr-only">Available business goals</legend>
         ${data.roles.map((role) => optionCard({
           name: 'roleId',
           value: role.id,
@@ -394,7 +393,7 @@ function renderRole(): string {
           required: true,
         })).join('')}
       </fieldset>
-      ${formActions('1', 'Choose Specialist')}
+      ${formActions('1', 'Choose business goal')}
     </form>`,
   )
 }
@@ -402,10 +401,10 @@ function renderRole(): string {
 function renderAutomations(): string {
   const selected = new Set(data.session.scheduleTemplates ?? [])
   return shell(
-    'Set the rhythm of the work',
-    'Start intentionally. Turn on only the recurring work you want delivered without asking.',
+    'Choose what should happen automatically',
+    'Select the useful work you want BizzClaw to prepare and deliver on a schedule. Starting with none is completely fine.',
     `<form id="automationForm">
-      <fieldset class="option-list"><legend class="sr-only">Available recurring jobs</legend>
+      <fieldset class="option-list"><legend class="sr-only">Available recurring tasks</legend>
         ${data.templates.length ? data.templates.map((template) => optionCard({
           type: 'checkbox',
           name: 'templates',
@@ -415,10 +414,10 @@ function renderAutomations(): string {
           title: template.title,
           tag: template.cadence,
           description: template.description,
-        })).join('') : '<div class="empty-state"><strong>No prebuilt routines for this specialist yet.</strong><p>You can still schedule reports and reminders directly in WhatsApp.</p></div>'}
+        })).join('') : '<div class="empty-state"><strong>No suggested recurring tasks for this goal yet.</strong><p>You can still ask BizzClaw to schedule reports and reminders in WhatsApp.</p></div>'}
       </fieldset>
-      <p class="selection-note">Nothing runs unless you select it. You can change the routine later in chat.</p>
-      ${formActions('2', 'Save Routine')}
+      <p class="selection-note">Nothing runs automatically unless you select it. You can change these tasks later.</p>
+      ${formActions('2', 'Save recurring tasks')}
     </form>`,
   )
 }
@@ -427,8 +426,8 @@ function renderPlatforms(): string {
   const missing = new Set(data.progress.missingRequiredPlatforms)
   const canContinue = data.activationV2 || data.progress.checks.requiredConnections
   return shell(
-    data.activationV2 ? 'Unlock more capability when you are ready' : 'Grant only the access it needs',
-    data.activationV2 ? 'Connections improve live analysis and execution, but they do not block your core agent. You can add them now or later.' : 'Connect the services that power this specialist. Bizzclaw never asks for your platform password.',
+    data.activationV2 ? 'Connect apps when they add value' : 'Grant only the access it needs',
+    data.activationV2 ? 'Connected apps let BizzClaw work from live business data. You can continue now and connect them later when a task needs them.' : 'Connect the services that power this business goal. BizzClaw never asks for your app password.',
     `<div class="platform-list" id="platformList" aria-live="polite">
       ${data.platforms.length ? data.platforms.map((platform) => {
         const connected = isConnected(platform)
@@ -436,10 +435,10 @@ function renderPlatforms(): string {
         return `<article class="platform-row ${connected ? 'connected' : ''} ${unavailable && !connected ? 'unavailable' : ''}">
           <span class="platform-icon" aria-hidden="true">${platformIcon(platform.id)}</span>
           <div class="platform-copy">
-            <div class="platform-heading"><h2>${escapeHtml(platform.displayName)}</h2><span class="badge ${platform.required ? 'badge-required' : 'badge-optional'}">${platform.required ? (data.activationV2 ? 'Unlocks core capability' : 'Required') : 'Optional'}</span></div>
-            <p>${platform.scopes.map(escapeHtml).join(' · ')}</p>
+            <div class="platform-heading"><h2>${escapeHtml(platform.displayName)}</h2><span class="badge ${platform.required ? 'badge-required' : 'badge-optional'}">${platform.required ? (data.activationV2 ? 'Unlocks live results' : 'Required') : 'Adds more context'}</span></div>
+            <p>${escapeHtml(platformOutcome(platform.id))}</p>
             ${connected ? '<span class="connection-state">' + checkIcon() + ' Connected</span>' : ''}
-            ${unavailable && !connected ? '<span class="connection-state error-state">Not configured. Contact Bizzclaw support.</span>' : ''}
+            ${unavailable && !connected ? '<span class="connection-state error-state">Connection unavailable. Contact BizzClaw support.</span>' : ''}
           </div>
           ${connected && platform.authUrl
             ? `<a class="btn btn-tertiary" href="${escapeHtml(platform.authUrl)}">Reconnect</a>`
@@ -447,10 +446,10 @@ function renderPlatforms(): string {
               ? `<a class="btn btn-secondary" data-integration="${escapeHtml(platform.id)}" href="${escapeHtml(platform.authUrl)}">Connect ${escapeHtml(platform.displayName)}</a>`
               : ''}
         </article>`
-      }).join('') : '<div class="empty-state"><strong>No platform access is required.</strong><p>This specialist can begin with your business brief and WhatsApp.</p></div>'}
+      }).join('') : '<div class="empty-state"><strong>No connected apps are needed to begin.</strong><p>BizzClaw can start with your business brief and WhatsApp.</p></div>'}
     </div>
-    ${missing.size ? `<div class="attention-note">${attentionIcon()}<p>${data.activationV2 ? `<strong>You can continue now.</strong> Connecting ${escapeHtml(missingPlatformNames().join(' and '))} unlocks this specialist’s live account capabilities. Bizzclaw can ask for access later when a task needs it.` : `<strong>${missing.size} required connection${missing.size === 1 ? '' : 's'} remaining.</strong> Connect ${escapeHtml(missingPlatformNames().join(' and '))} to continue.`}</p></div>` : ''}
-    <div class="actions"><button class="btn btn-secondary" type="button" data-step="3">Back</button><button class="btn btn-primary" type="button" data-step="5" data-complete-phase="configure" ${data.activationV2 && missing.size ? 'data-skip-integrations="true"' : ''} ${canContinue ? '' : 'disabled'}>${data.activationV2 && missing.size ? 'Continue Without Connecting' : canContinue ? 'Continue to WhatsApp' : 'Connect Required Platforms'} ${arrowIcon()}</button></div>`,
+    ${missing.size ? `<div class="attention-note">${attentionIcon()}<p>${data.activationV2 ? `<strong>You can connect later.</strong> ${escapeHtml(missingPlatformNames().join(' and '))} will unlock live account insights when you need them.` : `<strong>${missing.size} required connection${missing.size === 1 ? '' : 's'} remaining.</strong> Connect ${escapeHtml(missingPlatformNames().join(' and '))} to continue.`}</p></div>` : ''}
+    <div class="actions"><button class="btn btn-secondary" type="button" data-step="3">Back</button><button class="btn btn-primary" type="button" data-step="5" data-complete-phase="configure" ${data.activationV2 && missing.size ? 'data-skip-integrations="true"' : ''} ${canContinue ? '' : 'disabled'}>${canContinue ? 'Continue to WhatsApp' : 'Connect required apps'} ${arrowIcon()}</button></div>`,
   )
 }
 
@@ -461,8 +460,8 @@ function renderWhatsApp(): string {
   const twilioAvailable = data.whatsapp.twilio.enabled
   const providerPicker = `<form id="providerForm">
     <fieldset class="option-list provider-list"><legend class="sr-only">Choose a WhatsApp setup</legend>
-      ${optionCard({ name: 'whatsappProvider', value: 'twilio', checked: selected === 'twilio', icon: managedIcon(), title: 'Use the Bizzclaw business number', tag: 'Recommended', description: twilioAvailable ? 'The fastest route. Message a managed WhatsApp Business number and start working immediately.' : 'The managed number is not available in this environment.', disabled: !twilioAvailable, required: true })}
-      ${optionCard({ name: 'whatsappProvider', value: 'baileys', checked: selected === 'baileys', icon: linkedDeviceIcon(), title: 'Link your own WhatsApp number', tag: 'Advanced', description: 'Use Linked Devices to host the agent from a number you control.', required: true })}
+      ${optionCard({ name: 'whatsappProvider', value: 'twilio', checked: selected === 'twilio', icon: managedIcon(), title: 'Use the BizzClaw WhatsApp number', tag: 'Recommended', description: twilioAvailable ? 'The fastest route. Send one message to the managed business number and start working immediately.' : 'The managed number is not available in this environment.', disabled: !twilioAvailable, required: true })}
+      ${optionCard({ name: 'whatsappProvider', value: 'baileys', checked: selected === 'baileys', icon: linkedDeviceIcon(), title: 'Link your own WhatsApp number', tag: 'Advanced', description: 'Use Linked Devices so BizzClaw can work from a number you control.', required: true })}
     </fieldset>
     ${!linked ? `<div class="provider-submit"><button class="btn btn-secondary" type="submit">Use Selected Setup</button></div>` : ''}
   </form>`
@@ -472,14 +471,14 @@ function renderWhatsApp(): string {
     : needsGroupPicker
       ? renderBaileysGroupPicker()
       : linked
-        ? `<div class="connect-stage connected-stage">${successSeal()}<p class="overline">Connection verified</p><h2>WhatsApp is ready</h2><p>Your agent can now receive a brief and deliver work in the conversation.</p><div class="inline-actions"><button class="btn btn-tertiary danger-action" type="button" id="disconnectBtn">Disconnect WhatsApp</button><button class="btn btn-primary" type="button" data-step="6">Review & Launch</button></div></div>`
+        ? `<div class="connect-stage connected-stage">${successSeal()}<p class="overline">Connection verified</p><h2>WhatsApp is ready</h2><p>BizzClaw can now receive your requests and deliver results in the conversation.</p><div class="inline-actions"><button class="btn btn-tertiary danger-action" type="button" id="disconnectBtn">Disconnect WhatsApp</button><button class="btn btn-primary" type="button" data-step="6">Choose first result</button></div></div>`
         : selected === 'twilio'
           ? renderManagedWhatsApp()
           : renderLinkedWhatsApp()
 
   return shell(
-    'Choose where you’ll work together',
-    'Your agent lives in WhatsApp. Select the setup that fits how your business communicates.',
+    'Choose where BizzClaw should reach you',
+    'WhatsApp is where you send requests, approve important actions, and receive finished work.',
     `${providerPicker}${panel}<div class="actions compact-actions"><button class="btn btn-secondary" type="button" data-step="4">Back</button><span></span></div>`,
   )
 }
@@ -488,11 +487,11 @@ function renderManagedWhatsApp(): string {
   const digits = data.whatsapp.twilio.digits
   const code = data.whatsapp.twilio.connectCode
   if (!data.whatsapp.twilio.enabled || !digits || !data.whatsapp.twilio.waLink) {
-    return `<div class="connect-stage error-connect">${attentionIcon()}<h2>The managed number is unavailable</h2><p>Choose your own linked number or contact Bizzclaw support.</p></div>`
+    return `<div class="connect-stage error-connect">${attentionIcon()}<h2>The managed number is unavailable</h2><p>Choose your own linked number or contact BizzClaw support.</p></div>`
   }
   return `<div class="connect-stage managed-connect">
     <div class="connect-number"><span>Managed business number</span><strong translate="no">+${escapeHtml(digits)}</strong></div>
-    <ol class="connect-steps"><li><span>1</span><p>Open the prefilled WhatsApp conversation.</p></li><li><span>2</span><p>Send the message${code ? ` containing <strong translate="no">${escapeHtml(code)}</strong>` : ''}.</p></li><li><span>3</span><p>Keep this page open while Bizzclaw verifies the connection.</p></li></ol>
+    <ol class="connect-steps"><li><span>1</span><p>Open the prefilled WhatsApp conversation.</p></li><li><span>2</span><p>Send the message${code ? ` containing <strong translate="no">${escapeHtml(code)}</strong>` : ''}.</p></li><li><span>3</span><p>Keep this page open while BizzClaw verifies the connection.</p></li></ol>
     <a href="${escapeHtml(data.whatsapp.twilio.waLink)}" class="btn btn-whatsapp">${whatsappIcon()} Open WhatsApp</a>
     <div class="live-status" id="linkStatus" role="status" aria-live="polite"><span class="status-spinner" aria-hidden="true"></span><span>Waiting for your message…</span></div>
   </div>`
@@ -505,7 +504,7 @@ function renderLinkedWhatsApp(): string {
       ? 'Reconnecting to the secure QR service…'
       : 'Preparing a secure QR code…'
   return `<div class="connect-stage linked-connect">
-    <div><p class="overline">On your phone</p><h2>WhatsApp → Linked Devices → Link a Device</h2><p>Scan the code below. It refreshes automatically and is only used to link this agent.</p></div>
+    <div><p class="overline">On your phone</p><h2>WhatsApp → Linked Devices → Link a Device</h2><p>Scan the code below. It refreshes automatically and is used only to connect BizzClaw.</p></div>
     <div class="qr-frame" id="qrBox">
       ${data.whatsapp.baileys.latestQr ? `<img src="${escapeHtml(data.whatsapp.baileys.latestQr)}" alt="WhatsApp linking QR code" width="232" height="232" />` : '<span class="qr-placeholder" aria-hidden="true"><span class="status-spinner"></span></span>'}
       <p id="qrHint" role="status" aria-live="polite">${escapeHtml(data.whatsapp.baileys.latestQr ? 'Scan this code with WhatsApp.' : stateCopy)}</p>
@@ -517,7 +516,7 @@ function renderBaileysGroupPicker(): string {
   const state = baileysGroupsState
   if (baileysGroupsLoading || !state) {
     return `<div class="connect-stage linked-connect">
-      <div><p class="overline">WhatsApp verified</p><h2>Choose your agent group</h2><p>One group is required before the agent can begin.</p></div>
+      <div><p class="overline">WhatsApp verified</p><h2>Choose your BizzClaw group</h2><p>Choose the one group where BizzClaw should respond.</p></div>
       <div class="status-panel">${baileysGroupsLoading ? 'Loading your groups…' : 'Preparing the group picker…'}</div>
       <div class="actions"><button class="btn btn-secondary" type="button" id="refreshGroups">Refresh groups</button></div>
     </div>`
@@ -531,7 +530,7 @@ function renderBaileysGroupPicker(): string {
   }
 
   return `<div class="connect-stage linked-connect">
-    <div><p class="overline">WhatsApp verified</p><h2>Choose the group the agent should join</h2><p>The agent will only process messages in this one group.</p></div>
+    <div><p class="overline">WhatsApp verified</p><h2>Choose where BizzClaw should work</h2><p>BizzClaw will respond only inside this selected group.</p></div>
     <form id="groupForm">
       <div class="group-list">
         ${state.groups.map((group) => `<label class="group-card${state.selected === group.jid ? ' selected' : ''}">
@@ -597,7 +596,7 @@ function renderDone(): string {
   if (data.progress.readiness !== 'live') {
     return shell(
       'Your setup needs one more step',
-      'Bizzclaw checked the saved configuration and found an item that still needs attention.',
+      'BizzClaw checked the saved setup and found one item that still needs attention.',
       `<div class="attention-note">${attentionIcon()}<p><strong>${escapeHtml(readinessTitle(data.progress.readiness))}</strong> Return to the highlighted stage to finish safely.</p></div><div class="actions"><span></span><button class="btn btn-primary" type="button" data-step="${data.progress.allowedStep}">Finish Setup</button></div>`,
     )
   }
@@ -606,11 +605,11 @@ function renderDone(): string {
   const tasks = starterTasksForRole(data.session.roleId)
 
   return shell(
-    'Your agent is live',
-    `${escapeHtml(role?.displayName ?? 'Your specialist')} is connected, briefed, and ready for its first assignment.`,
-    `<div class="launch-hero">${successSeal()}<div><p class="overline">Commissioned successfully</p><h2>Give it one real outcome.</h2><p>Start with the highest-value task on your desk—not a test prompt. Your agent already has the context you saved.</p></div></div>
-    <fieldset class="starter-list"><legend>Choose your first real brief</legend>${tasks.map((task, index) => `<label class="starter-task"><input type="radio" name="starterTask" value="${index}" ${index === 0 ? 'checked' : ''} /><span><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(task.prompt)}</small></span><span class="selection-control" aria-hidden="true">${checkIcon()}</span></label>`).join('')}</fieldset>
-    <div class="launch-actions"><a id="firstBriefAction" href="${escapeHtml(firstBriefUrl(tasks[0]!.prompt))}" target="_blank" rel="noopener" class="btn btn-primary btn-large">Send This Brief in WhatsApp ${arrowIcon()}</a><a href="/dashboard" class="btn btn-secondary btn-large">Open Dashboard</a></div>`,
+    'BizzClaw is ready on WhatsApp',
+    `${escapeHtml(role?.displayName ?? 'Your business goal')} is set. Choose one useful result to start with.`,
+    `<div class="launch-hero">${successSeal()}<div><p class="overline">Ready to start</p><h2>Begin with one real business result.</h2><p>Choose meaningful work, not a test prompt. BizzClaw already has the context you saved.</p></div></div>
+    <fieldset class="starter-list"><legend>Choose your first result</legend>${tasks.map((task, index) => `<label class="starter-task"><input type="radio" name="starterTask" value="${index}" ${index === 0 ? 'checked' : ''} /><span><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(task.prompt)}</small></span><span class="selection-control" aria-hidden="true">${checkIcon()}</span></label>`).join('')}</fieldset>
+    <div class="launch-actions"><a id="firstBriefAction" href="${escapeHtml(firstBriefUrl(tasks[0]!.prompt))}" target="_blank" rel="noopener" class="btn btn-primary btn-large">Send to BizzClaw in WhatsApp ${arrowIcon()}</a><a href="/dashboard" class="btn btn-secondary btn-large">Go to BizzClaw home</a></div>`,
     { launch: true },
   )
 }
@@ -625,11 +624,11 @@ function starterTasksForRole(roleId: string | null): Array<{ title: string; prom
     'creative-director': { title: 'Develop a campaign concept', prompt: 'Create one distinctive campaign concept for my business, including the central idea, visual direction, and three executions.' },
     'ads-analyst': { title: 'Create a measurement plan', prompt: 'Create a paid-growth measurement plan for my business. Tell me what to measure first, the decisions each metric supports, and what data you need from me.' },
     'social-media-manager': { title: 'Plan the next two weeks of content', prompt: 'Create a two-week social content plan for my business with clear themes, post ideas, and the first three posts drafted.' },
-    'gtm-operator': { title: 'Choose the first GTM wedge', prompt: 'Use my business brief to identify the strongest initial go-to-market wedge, the audience to approach first, and a seven-day action plan.' },
+    'gtm-operator': { title: 'Find the first path to sales conversations', prompt: 'Use my business brief to choose the audience and channels most likely to create qualified sales conversations, then give me a seven-day action plan.' },
     'personal-assistant-dev': { title: 'Build my operating priorities', prompt: 'Turn my business brief into a prioritized operating plan for this week, including the three tasks you can help me complete first.' },
   }
   const previewTask = data.preview?.suggestedFirstBrief
-    ? { title: 'Use Bizzclaw’s suggested brief', prompt: data.preview.suggestedFirstBrief }
+    ? { title: 'Use BizzClaw’s suggested brief', prompt: data.preview.suggestedFirstBrief }
     : specialist[roleId ?? ''] ?? shared[0]!
   return [previewTask, specialist[roleId ?? ''] ?? shared[0]!, shared[1]!]
 }
@@ -768,7 +767,7 @@ function bindEvents(): void {
     void ensureBaileysGroupsLoaded()
   })
   app.querySelector<HTMLButtonElement>('#disconnectBtn')?.addEventListener('click', async () => {
-    if (!confirm('Disconnect WhatsApp? The agent will stop responding until you link it again.')) return
+    if (!confirm('Disconnect WhatsApp? BizzClaw will stop responding until you link it again.')) return
     try {
       data = await api('/api/onboarding/whatsapp-disconnect', {})
       updateHeaderStatus()
@@ -977,12 +976,22 @@ function roleName(): string {
 
 function automationSummary(): string {
   const count = data.session.scheduleTemplates?.length ?? 0
-  return `${count} recurring job${count === 1 ? '' : 's'}`
+  return `${count} recurring task${count === 1 ? '' : 's'}`
 }
 
 function connectionSummary(): string {
   const count = data.platforms.filter(isConnected).length
-  return `${count} platform${count === 1 ? '' : 's'} connected`
+  return `${count} app${count === 1 ? '' : 's'} connected`
+}
+
+function platformOutcome(id: string): string {
+  return ({
+    'meta-ads': 'Review campaign performance and spot wasted spend',
+    'instagram-graph': 'Understand content performance and prepare social work',
+    tiktok: 'Review videos and prepare content for TikTok',
+    google: 'Connect search, website, and conversion signals',
+    higgsfield: 'Create campaign-ready images and videos',
+  } as Record<string, string>)[id] ?? 'Add live business context when a task needs it'
 }
 
 function missingPlatformNames(): string[] {
@@ -990,7 +999,7 @@ function missingPlatformNames(): string[] {
 }
 
 function readinessTitle(readiness: Readiness): string {
-  return ({ needs_profile: 'Complete the business brief.', needs_role: 'Choose a specialist.', needs_automations: 'Review the recurring routine.', needs_connections: 'Connect the required platforms.', needs_whatsapp: 'Verify the WhatsApp connection.', live: 'Your agent is ready.' })[readiness]
+  return ({ needs_profile: 'Complete the business brief.', needs_role: 'Choose a business goal.', needs_automations: 'Review recurring tasks.', needs_connections: 'Connect the required apps.', needs_whatsapp: 'Verify the WhatsApp connection.', live: 'BizzClaw is ready.' })[readiness]
 }
 
 function shorten(value: string, length: number): string {
@@ -1009,7 +1018,7 @@ function whatsappIcon(): string { return '<svg class="whatsapp-icon" viewBox="0 
 function managedIcon(): string { return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5h16v11H4zM8 3.5h8v3H8z" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 11h8M8 14h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>' }
 function linkedDeviceIcon(): string { return '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2.8" width="10" height="18.4" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10 17.8h4M18.5 8.3l2 2-2 2M5.5 8.3l-2 2 2 2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' }
 function routineIcon(): string { return '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M7.5 3v5M16.5 3v5M3.5 10h17M8 14h3M8 17h6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>' }
-function roleIcon(id: string): string { const glyphs: Record<string, string> = { 'marketing-manager': 'MM', 'creative-director': 'CD', 'ads-analyst': 'AA', 'social-media-manager': 'SM', 'gtm-operator': 'GT', 'personal-assistant-dev': 'PA' }; return `<span class="role-glyph">${escapeHtml(glyphs[id] ?? 'AI')}</span>` }
+function roleIcon(id: string): string { const glyphs: Record<string, string> = { 'marketing-manager': 'GP', 'creative-director': 'CP', 'ads-analyst': 'AO', 'social-media-manager': 'AB', 'gtm-operator': 'PB', 'personal-assistant-dev': 'BA' }; return `<span class="role-glyph">${escapeHtml(glyphs[id] ?? 'BC')}</span>` }
 function platformIcon(id: string): string { const glyphs: Record<string, string> = { 'meta-ads': 'M', 'instagram-graph': 'I', tiktok: 'T', google: 'G', higgsfield: 'H' }; return escapeHtml(glyphs[id] ?? '↗') }
 function successSeal(): string { return '<div class="success-seal" aria-hidden="true"><span>' + checkIcon() + '</span><i></i><i></i><i></i></div>' }
 

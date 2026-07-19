@@ -360,7 +360,7 @@ textarea { min-height: 112px; resize: vertical; line-height: 1.5; }
   .actions .btn-primary:last-child { flex: 1; }
   .compact-actions { position: static; margin: 1.25rem 0 0; border-width: 1px 0 0; border-radius: 0; box-shadow: none; padding: 1rem 0 0; backdrop-filter: none; }
   .preview-actions { position: static; margin: 1.2rem 0 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; box-shadow: none; padding: 1rem 0 0; backdrop-filter: none; }
-  .preview-actions { flex-direction: column-reverse; }
+  .preview-actions { flex-direction: column; }
   .preview-actions .btn { width: 100%; }
   .launch-hero { grid-template-columns: 1fr; }
   .launch-hero .success-seal { justify-self: start; }

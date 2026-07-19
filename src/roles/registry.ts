@@ -4,10 +4,10 @@ import type { RoleDefinition } from './types.js'
 const roles: RoleDefinition[] = [
   {
     id: 'marketing-manager',
-    displayName: 'Marketing Manager',
+    displayName: 'Growth Planner',
     emoji: '📣',
     description:
-      'Big-picture strategy across all channels. Plans campaigns, allocates budget, and cross-references paid and organic performance to drive leads and revenue.',
+      'Build a focused growth plan, connect the work across channels, and prioritize the moves most likely to create leads and revenue.',
     skills: ['meta-ads-expert', 'ad-performance-analysis', 'higgsfield-creative', 'business-context'],
     requiredMcps: ['meta-ads'],
     optionalMcps: ['instagram-graph', 'tiktok', 'google', 'higgsfield'],
@@ -19,10 +19,10 @@ const roles: RoleDefinition[] = [
   },
   {
     id: 'creative-director',
-    displayName: 'Creative Director',
+    displayName: 'Creative Producer',
     emoji: '🎨',
     description:
-      'Generates on-brand images, videos, and ad creatives using Higgsfield AI. Knows your brand voice and visual identity.',
+      'Turn your offer into campaign-ready images, videos, concepts, and copy that stay consistent with your brand.',
     skills: ['higgsfield-creative', 'whatsapp-personal-assistant', 'business-context'],
     requiredMcps: ['higgsfield'],
     optionalMcps: ['instagram-graph', 'tiktok'],
@@ -34,10 +34,10 @@ const roles: RoleDefinition[] = [
   },
   {
     id: 'ads-analyst',
-    displayName: 'Ads Analyst',
+    displayName: 'Ad Spend Optimizer',
     emoji: '📊',
     description:
-      'Deep Meta Ads performance analysis, ROAS optimization, budget reallocation, and actionable data-driven recommendations.',
+      'Spot wasted budget, explain what is working, and recommend the next change to improve advertising returns.',
     skills: ['ad-performance-analysis', 'meta-ads-expert', 'business-context'],
     requiredMcps: ['meta-ads'],
     optionalMcps: ['google'],
@@ -49,10 +49,10 @@ const roles: RoleDefinition[] = [
   },
   {
     id: 'social-media-manager',
-    displayName: 'Social Media Manager',
+    displayName: 'Audience Builder',
     emoji: '📱',
     description:
-      'Manages organic presence on Instagram and TikTok — drafts posts, tracks engagement, suggests content strategy, and aligns organic with paid.',
+      'Plan and prepare consistent social content that earns attention, engagement, and qualified conversations.',
     skills: ['social-media-manager', 'higgsfield-creative', 'whatsapp-personal-assistant', 'business-context'],
     requiredMcps: ['instagram-graph'],
     optionalMcps: ['tiktok', 'higgsfield'],
@@ -64,10 +64,10 @@ const roles: RoleDefinition[] = [
   },
   {
     id: 'gtm-operator',
-    displayName: 'GTM Operator',
+    displayName: 'Pipeline Builder',
     emoji: '🚀',
     description:
-      'Gets founders attention in the right places without needing GTM experience: finds channels, drafts posts and replies, tracks signals, and turns social activity into leads.',
+      'Turn attention into sales conversations with focused channel plans, useful posts, thoughtful replies, and timely follow-ups.',
     skills: ['gtm-operator', 'whatsapp-personal-assistant', 'business-context'],
     requiredMcps: [],
     optionalMcps: ['instagram-graph', 'tiktok', 'google', 'higgsfield'],
@@ -80,10 +80,10 @@ const roles: RoleDefinition[] = [
   },
   {
     id: 'personal-assistant-dev',
-    displayName: 'Personal Assistant / Developer',
+    displayName: 'Business Assistant',
     emoji: '🤖',
     description:
-      'Handles day-to-day tasks, drafting, research, scheduling, and technical work. Can write and run code in a secure sandbox.',
+      'Save time on research, writing, planning, follow-ups, and practical technical work for your business.',
     skills: ['whatsapp-personal-assistant', 'software-developer', 'business-context'],
     requiredMcps: [],
     optionalMcps: ['higgsfield'],
