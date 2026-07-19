@@ -1,0 +1,3 @@
+[submodule "vendor/agent-live"]
+	path = vendor/agent-live
+	url = https://github.com/asaferdman23/agent-live.git

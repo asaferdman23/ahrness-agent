@@ -16,8 +16,8 @@
     "connect:telegram": "tsx scripts/connect-telegram.ts"
   },
   "dependencies": {
-    "@agent-live/dashboard": "file:../agent-live/packages/dashboard",
-    "@agent-live/sdk": "file:../agent-live/packages/sdk",
+    "@agent-live/dashboard": "file:vendor/agent-live/packages/dashboard",
+    "@agent-live/sdk": "file:vendor/agent-live/packages/sdk",
     "@anthropic-ai/sdk": "^0.92.0",
     "@modelcontextprotocol/sdk": "^1.12.1",
     "@strands-agents/sdk": "1.6.0",
