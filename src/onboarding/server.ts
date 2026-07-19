@@ -45,9 +45,9 @@ const VIEWS_DIR = path.join(__dirname, 'views')
 const FRONTEND_DIST_DIR = path.resolve('dist/onboarding')
 
 function activationV2Enabled(sessionId: string): boolean {
-  if (process.env.ONBOARDING_ACTIVATION_V2 === 'false') return false
-  const configured = Number.parseInt(process.env.ONBOARDING_ACTIVATION_V2_PERCENT ?? '100', 10)
-  const percentage = Number.isFinite(configured) ? Math.max(0, Math.min(configured, 100)) : 100
+  if (process.env.ONBOARDING_ACTIVATION_V2 !== 'true') return false
+  const configured = Number.parseInt(process.env.ONBOARDING_ACTIVATION_V2_PERCENT ?? '0', 10)
+  const percentage = Number.isFinite(configured) ? Math.max(0, Math.min(configured, 100)) : 0
   const bucket = Number.parseInt(createHash('sha256').update(sessionId).digest('hex').slice(0, 8), 16) % 100
   return bucket < percentage
 }

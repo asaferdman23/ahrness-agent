@@ -18,6 +18,8 @@ beforeEach(() => {
   process.env.AGENT_STORE_DIR = root
   process.env.AGENT_VAULT_SALT_PATH = join(root, 'vault.salt')
   process.env.AGENT_MASTER_KEY = 'k'.repeat(40)
+  process.env.ONBOARDING_ACTIVATION_V2 = 'true'
+  process.env.ONBOARDING_ACTIVATION_V2_PERCENT = '100'
   resetVaultForTests()
 })
 
@@ -26,6 +28,8 @@ afterEach(() => {
   delete process.env.AGENT_STORE_DIR
   delete process.env.AGENT_VAULT_SALT_PATH
   delete process.env.AGENT_MASTER_KEY
+  delete process.env.ONBOARDING_ACTIVATION_V2
+  delete process.env.ONBOARDING_ACTIVATION_V2_PERCENT
 })
 
 test('Baileys onboarding group endpoints require linked WhatsApp and persist the chosen home group', async () => {

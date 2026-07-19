@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ahrness Observability Frontend"
+  short_description: "Build trustworthy agent dashboards for Ahrness"
+  default_prompt: "Use $ahrness-observability-frontend to design and implement a polished, trustworthy Ahrness agent dashboard."
