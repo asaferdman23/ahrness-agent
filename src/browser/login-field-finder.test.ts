@@ -49,3 +49,14 @@ test('prefers a button/input with login-like label text for submit over an unrel
   const result = findLoginFormFields(elements)
   assert.equal(result.submitIndex, 3)
 })
+
+test('excludes a decoy label that matches both the inclusion and exclusion patterns, in favor of the real submit button', () => {
+  const elements: BrowserElement[] = [
+    { index: 0, tag: 'input', type: 'email', label: 'Email' },
+    { index: 1, tag: 'input', type: 'password', label: 'Password' },
+    { index: 2, tag: 'button', type: null, label: 'Sign in to create an account' },
+    { index: 3, tag: 'button', type: null, label: 'Log in' },
+  ]
+  const result = findLoginFormFields(elements)
+  assert.equal(result.submitIndex, 3, 'the decoy at index 2 matches both patterns and must be excluded in favor of the real submit button')
+})
