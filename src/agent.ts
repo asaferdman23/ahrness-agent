@@ -12,6 +12,7 @@ import {
   getProfile,
   getRole as getClientRole,
   getConnections,
+  getClientMeta,
   migrateLegacyToken,
   clientIdFromJid,
 } from './store/client-store.js'
@@ -23,6 +24,8 @@ import { createTikTokTools } from './mcps/tiktok.js'
 import { createGoogleTools } from './mcps/google.js'
 import { createWebSearchTool } from './mcps/web-search.js'
 import { createConnectTools } from './mcps/connect.js'
+import { createBrowserTools } from './browser/tools.js'
+import { ensureBrowserRuntime } from './browser-runtime-manager.js'
 import { limitHiggsfieldTools } from './higgsfield-usage.js'
 import {
   createImportRemoteOutputTool,
@@ -137,6 +140,7 @@ export async function buildClientAgent(
   const profile = await getProfile(clientId)
   const roleRecord = await getClientRole(clientId)
   const connections = await getConnections(clientId)
+  const clientMeta = await getClientMeta(clientId)
 
   const agentName = process.env.AGENT_NAME ?? 'BizzClaw'
   const roleId = roleRecord?.roleId ?? 'personal-assistant-dev'
@@ -203,6 +207,19 @@ export async function buildClientAgent(
 
   // ── Built-in tools ────────────────────────────────────────────────────────
 
+  // Browser tool — opt-in per client (ClientMeta.webBrowsingEnabled), fails soft
+  // like MCP connection failures: a browser-runtime outage must never block
+  // building or running the agent.
+  let browserTools: ReturnType<typeof createBrowserTools> = []
+  if (clientMeta.webBrowsingEnabled) {
+    try {
+      await ensureBrowserRuntime()
+      browserTools = createBrowserTools(clientId)
+    } catch (err) {
+      console.warn('[browser] browser-runtime unavailable:', err instanceof Error ? err.message : err)
+    }
+  }
+
   allTools.push(
     createPublishOutputTool(sandbox, publishedOutputs),
     createImportRemoteOutputTool(sandbox, publishedOutputs),
@@ -215,6 +232,7 @@ export async function buildClientAgent(
     // Brokered web search — only available when a host-side key is configured;
     // the key never enters the sandbox or the model context.
     ...(process.env.WEB_SEARCH_API_KEY ? [createWebSearchTool()] : []),
+    ...browserTools,
     tool({
       name: 'get_business_context',
       description:
