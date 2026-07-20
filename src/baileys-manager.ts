@@ -246,6 +246,25 @@ export class BaileysSessionManager {
     return this.ensureSocket(clientId, opts)
   }
 
+  /** Switch an unlinked socket from QR mode to same-phone pairing-code mode.
+   * This intentionally bypasses the QR refresh throttle: the user explicitly
+   * changed linking methods, so returning the existing QR socket would never
+   * produce the code they requested. The API rate-limits these calls. */
+  async refreshPairingCode(clientId: string, opts: EnsureSocketOptions & { phoneNumber: string }): Promise<BaileysSession> {
+    // Let an initial QR start finish before replacing it. Deleting an in-flight
+    // promise would allow two sockets to race and whichever finished last
+    // could overwrite the requested phone-pairing session.
+    const inFlight = this.starting.get(clientId)
+    if (inFlight) await inFlight
+    const existing = this.sessions.get(clientId)
+    if (existing) {
+      existing.stop()
+      this.sessions.delete(clientId)
+      this._connected.delete(clientId)
+    }
+    return this.ensureSocket(clientId, opts)
+  }
+
   /** True if the client's socket is open (linked). */
   isConnected(clientId: string): boolean {
     // Baileys exposes socket.user only after connection.open. We treat the

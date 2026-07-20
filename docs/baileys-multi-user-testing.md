@@ -18,6 +18,9 @@ account restrictions or replace an official production WhatsApp API.
   returned to the browser or written to logs.
 - QR, linked, and logout events are sent only to the onboarding session that
   started that tenant's socket. Background sessions never broadcast QR data.
+- Pairing codes are available for same-phone mobile onboarding. The submitted
+  number and returned code stay in memory only, are never logged or added to
+  analytics, and code requests are rate-limited per onboarding session.
 - The selected group JID is stored in the tenant's `meta.json` as
   `baileysHomeGroupJid`.
 - Inbound messages fail closed unless they come from that group and include the
@@ -70,6 +73,21 @@ to run and answer the agent.
 
 Use two test WhatsApp accounts and two separate BizzClaw tenants. Avoid a
 business-critical WhatsApp number while this MVP uses Baileys.
+
+### Same-phone mobile linking
+
+On a phone, onboarding defaults to **Use this phone**:
+
+1. Enter the WhatsApp number with its country code and request a linking code.
+2. Open WhatsApp, open **Linked devices**, and choose **Link a device**.
+3. Choose **Link with phone number instead** and enter the code shown by
+   BizzClaw.
+4. Return to onboarding. The existing SSE connection detects verification and
+   opens group selection automatically.
+
+The exact placement of **Linked devices** differs slightly between iPhone and
+Android. QR linking remains available under **Scan QR** when the onboarding page
+is open on a second screen.
 
 For a local test, start the purpose-built harness:
 

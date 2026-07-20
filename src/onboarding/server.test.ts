@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createServer } from 'node:http'
 import { createSession, loadSession, saveSession } from './session.js'
-import { createOnboardingHandler } from './server.js'
+import { createOnboardingHandler, normalizePairingPhoneNumber } from './server.js'
 import { getClientMeta } from '../store/client-store.js'
 import { baileysSessionManager } from '../baileys-manager.js'
 import { resetVaultForTests } from '../vault.js'
@@ -30,6 +30,14 @@ afterEach(() => {
   delete process.env.AGENT_MASTER_KEY
   delete process.env.ONBOARDING_ACTIVATION_V2
   delete process.env.ONBOARDING_ACTIVATION_V2_PERCENT
+})
+
+test('pairing phone normalization accepts international formatting and rejects unsafe input', () => {
+  assert.equal(normalizePairingPhoneNumber('+972 50-123-4567'), '972501234567')
+  assert.equal(normalizePairingPhoneNumber('(415) 555 0123'), '4155550123')
+  assert.throws(() => normalizePairingPhoneNumber('123'), /valid WhatsApp number/)
+  assert.throws(() => normalizePairingPhoneNumber(''), /valid WhatsApp number/)
+  assert.throws(() => normalizePairingPhoneNumber(undefined), /Enter your WhatsApp phone number/)
 })
 
 test('Baileys onboarding group endpoints require linked WhatsApp and persist the chosen home group', async () => {

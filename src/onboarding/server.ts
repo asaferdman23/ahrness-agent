@@ -56,6 +56,10 @@ function activationV2Enabled(sessionId: string): boolean {
 const qrSseClients = new Map<string, ServerResponse>()
 // QR data per session
 const qrData = new Map<string, string>()
+// Pairing codes are short-lived credentials. Keep them only in process memory,
+// scoped to the authenticated onboarding session; never persist or log them.
+const pairingCodeData = new Map<string, { code: string; expiresAt: number }>()
+const pairingAttempts = new Map<string, number[]>()
 let latestQrDataUri: string | null = null
 // Sessions that have completed WhatsApp linking
 const linkedSessions = new Set<string>()
@@ -73,6 +77,49 @@ export async function broadcastQr(sessionId: string, qrText: string): Promise<vo
   if (client && !client.destroyed) {
     client.write(`data: ${JSON.stringify({ type: 'qr', qr: dataUri })}\n\n`)
   }
+}
+
+export function broadcastPairingCode(sessionId: string, code: string): void {
+  const safeCode = code.replace(/\s+/g, '').toUpperCase()
+  if (!/^[A-Z0-9]{6,12}$/.test(safeCode)) {
+    broadcastPairingError(sessionId, 'WhatsApp returned an invalid linking code. Try again.')
+    return
+  }
+  const record = { code: safeCode, expiresAt: Date.now() + 5 * 60 * 1000 }
+  pairingCodeData.set(sessionId, record)
+  setTimeout(() => {
+    if (pairingCodeData.get(sessionId) === record) pairingCodeData.delete(sessionId)
+  }, 5 * 60 * 1000).unref()
+  const client = qrSseClients.get(sessionId)
+  if (client && !client.destroyed) {
+    client.write(`data: ${JSON.stringify({ type: 'pairingCode', code: safeCode })}\n\n`)
+  }
+}
+
+export function broadcastPairingError(sessionId: string, message: string): void {
+  const client = qrSseClients.get(sessionId)
+  if (client && !client.destroyed) {
+    client.write(`data: ${JSON.stringify({ type: 'pairingError', message })}\n\n`)
+  }
+}
+
+export function normalizePairingPhoneNumber(input: unknown): string {
+  if (typeof input !== 'string') throw new Error('Enter your WhatsApp phone number')
+  const digits = input.replace(/\D/g, '')
+  if (!/^\d{8,15}$/.test(digits)) {
+    throw new Error('Enter a valid WhatsApp number with country code, for example +972 50 123 4567')
+  }
+  return digits
+}
+
+function registerPairingAttempt(sessionId: string): void {
+  const now = Date.now()
+  const recent = (pairingAttempts.get(sessionId) ?? []).filter((timestamp) => now - timestamp < 60 * 60 * 1000)
+  const last = recent.at(-1)
+  if (last && now - last < 10_000) throw new Error('Wait a few seconds before requesting another linking code')
+  if (recent.length >= 3) throw new Error('Too many linking-code requests. Try again in an hour')
+  recent.push(now)
+  pairingAttempts.set(sessionId, recent)
 }
 
 export async function broadcastQrToAll(qrText: string): Promise<void> {
@@ -96,6 +143,8 @@ async function qrDataUri(qrText: string): Promise<string | null> {
 
 export function broadcastLinked(jid: string, sessionId: string): void {
   linkedSessions.add(sessionId)
+  pairingCodeData.delete(sessionId)
+  pairingAttempts.delete(sessionId)
   const client = qrSseClients.get(sessionId)
   if (client && !client.destroyed) {
     client.write(`data: ${JSON.stringify({ type: 'linked', jid })}\n\n`)
@@ -113,6 +162,8 @@ export function broadcastLinkedToAll(jid: string): void {
     }
   }
   qrSseClients.clear()
+  pairingCodeData.clear()
+  pairingAttempts.clear()
 }
 
 /**
@@ -124,6 +175,7 @@ export function broadcastLinkedToAll(jid: string): void {
 export function broadcastLoggedOut(sessionId: string): void {
   linkedSessions.delete(sessionId)
   qrData.delete(sessionId)
+  pairingCodeData.delete(sessionId)
   latestQrDataUri = null
   const client = qrSseClients.get(sessionId)
   if (client && !client.destroyed) {
@@ -134,6 +186,7 @@ export function broadcastLoggedOut(sessionId: string): void {
 export function broadcastLoggedOutToAll(): void {
   linkedSessions.clear()
   qrData.clear()
+  pairingCodeData.clear()
   latestQrDataUri = null
   for (const [, client] of qrSseClients.entries()) {
     if (!client.destroyed) client.write(`data: ${JSON.stringify({ type: 'loggedOut' })}\n\n`)
@@ -1169,6 +1222,22 @@ export function createOnboardingHandler(): OnboardingHandler {
           await saveProviderFromJson(session, await parseJsonBody(req))
           return json(res, await onboardingBootstrap(session))
         }
+        if (req.method === 'POST' && pathname === '/api/onboarding/baileys-pairing-code') {
+          if (session.whatsappProvider !== 'baileys') throw new Error('Choose “Link your own WhatsApp number” first')
+          if (session.whatsappLinked) return json(res, { ok: true, alreadyLinked: true })
+          const body = await parseJsonBody(req)
+          const phoneNumber = normalizePairingPhoneNumber(body.phoneNumber)
+          const clientId = session.clientId ?? session.sessionId
+          const manager = baileysSessionManager()
+          if (manager.isConnected(clientId)) return json(res, { ok: true, alreadyLinked: true })
+          registerPairingAttempt(session.sessionId)
+          pairingCodeData.delete(session.sessionId)
+          await manager.refreshPairingCode(clientId, {
+            onboardingSessionId: session.sessionId,
+            phoneNumber,
+          })
+          return json(res, { ok: true })
+        }
         if (req.method === 'POST' && pathname === '/api/onboarding/whatsapp-disconnect') {
           // Log out the linked WhatsApp device (Baileys) and clear the session's
           // link state so the user can re-link or switch providers.
@@ -1405,6 +1474,12 @@ export function createOnboardingHandler(): OnboardingHandler {
       // Send current QR if already available
       const current = qrData.get(session.sessionId)
       if (current) res.write(`data: ${JSON.stringify({ type: 'qr', qr: current })}\n\n`)
+      const currentPairingCode = pairingCodeData.get(session.sessionId)
+      if (currentPairingCode && currentPairingCode.expiresAt > Date.now()) {
+        res.write(`data: ${JSON.stringify({ type: 'pairingCode', code: currentPairingCode.code })}\n\n`)
+      } else if (currentPairingCode) {
+        pairingCodeData.delete(session.sessionId)
+      }
 
       // Only treat as linked if the Baileys socket is actually connected right
       // now. The in-memory linkedSessions set is populated on connect but never

@@ -56,6 +56,34 @@ test('manager starts different clients independently and deduplicates concurrent
   assert.equal(manager.isConnected('client-b'), true)
 })
 
+test('switching from QR to phone linking restarts immediately with the requested number', async () => {
+  const starts: Array<{ clientId: string; phoneNumber?: string }> = []
+  let stops = 0
+  const starter = (async (clientId, opts = {}) => {
+    starts.push({ clientId, phoneNumber: opts.phoneNumber })
+    return {
+      clientId,
+      socket: {} as BaileysSession['socket'],
+      transport: fakeTransport(),
+      stop() { stops += 1 },
+      async logout() {},
+    }
+  }) satisfies typeof startBaileysWhatsApp
+  const manager = new BaileysSessionManager(starter)
+
+  await manager.refreshQr('client-a', { onboardingSessionId: 'session-a' })
+  await manager.refreshPairingCode('client-a', {
+    onboardingSessionId: 'session-a',
+    phoneNumber: '972501234567',
+  })
+
+  assert.equal(stops, 1)
+  assert.deepEqual(starts, [
+    { clientId: 'client-a', phoneNumber: undefined },
+    { clientId: 'client-a', phoneNumber: '972501234567' },
+  ])
+})
+
 test('discovers and restores only clients with persisted Baileys credentials', async () => {
   const root = path.join(tmpdir(), `ahrness-baileys-manager-${process.pid}-${Date.now()}`)
   roots.push(root)

@@ -93,8 +93,10 @@ reachable there too.
 ### Baileys MVP group mode
 
 Baileys runs as a process-wide manager with one isolated socket and auth folder
-per tenant. After scanning the tenant-scoped onboarding QR, the customer must
-choose one participating WhatsApp group before launch. Inbound gating and the
+per tenant. On mobile, the customer enters their number and completes WhatsApp's
+same-phone Linked Devices flow with a short-lived pairing code; on desktop they
+can scan the tenant-scoped QR instead. The customer must then choose one
+participating WhatsApp group before launch. Inbound gating and the
 outbound transport both enforce that saved group; the group JID is only the
 delivery address, while the explicit tenant `clientId` selects business context,
 memory, tools, and the correct socket. Persisted sessions restore independently
@@ -209,7 +211,8 @@ Two ways jobs are created:
 | POST | `/onboarding/step/2` | Save role choice |
 | POST | `/onboarding/step/3` | Save chosen automations to `role.json.scheduleTemplates` |
 | GET | `/oauth/:platform/callback` | Handle OAuth redirect, save token, return to step 4 |
-| GET | `/onboarding/qr-stream` | SSE stream of QR updates |
+| GET | `/onboarding/qr-stream` | Tenant-scoped SSE stream of QR, pairing-code, and link-state updates |
+| POST | `/api/onboarding/baileys-pairing-code` | Request a short-lived same-phone linking code; number and code are not persisted |
 | GET | `/onboarding/status` | JSON: `{ step, connections, whatsappLinked }` |
 
 Activation events are also retained as a bounded atomic record under each client

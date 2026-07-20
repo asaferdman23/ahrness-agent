@@ -131,6 +131,9 @@ let qrEvents: EventSource | null = null
 let statusTimer: number | null = null
 let errorMessage = ''
 let whatsappConnectionState: 'waiting' | 'reconnecting' | 'error' = 'waiting'
+let baileysLinkMode: 'phone' | 'qr' = window.matchMedia('(max-width: 620px)').matches ? 'phone' : 'qr'
+let pairingCode = ''
+let pairingRequestPending = false
 let baileysGroupsState: { groups: BaileysGroup[]; selected: string | null } | null = null
 let baileysGroupsLoading = false
 let baileysGroupsError = ''
@@ -518,13 +521,29 @@ function renderLinkedWhatsApp(): string {
     : whatsappConnectionState === 'reconnecting'
       ? 'Reconnecting to the secure QR service…'
       : 'Preparing a secure QR code…'
-  return `<div class="connect-stage linked-connect">
-    <div><p class="overline">On your phone</p><h2>WhatsApp → Linked Devices → Link a Device</h2><p>Scan the code below. It refreshes automatically and is used only to connect BizzClaw.</p></div>
-    <div class="qr-frame" id="qrBox">
+  return `<div class="connect-stage baileys-connect">
+    <div><p class="overline">Link your WhatsApp</p><h2>${baileysLinkMode === 'phone' ? 'Continue on this phone' : 'Scan from another device'}</h2><p>${baileysLinkMode === 'phone' ? 'No second screen is needed. WhatsApp will ask for a short linking code.' : 'Keep this page open on a computer or tablet, then scan the QR with your phone.'}</p></div>
+    <div class="link-method-switch" role="group" aria-label="Choose how to link WhatsApp">
+      <button class="link-method ${baileysLinkMode === 'phone' ? 'active' : ''}" type="button" id="usePhoneCode" aria-pressed="${baileysLinkMode === 'phone'}">Use this phone <span>Best on mobile</span></button>
+      <button class="link-method ${baileysLinkMode === 'qr' ? 'active' : ''}" type="button" id="useQrCode" aria-pressed="${baileysLinkMode === 'qr'}">Scan QR <span>Best on desktop</span></button>
+    </div>
+    ${baileysLinkMode === 'phone' ? `<form id="pairingCodeForm" class="pairing-form">
+      <div class="field"><label for="pairingPhone">Your WhatsApp number</label><input id="pairingPhone" name="phoneNumber" type="tel" inputmode="tel" autocomplete="tel" placeholder="+972 50 123 4567" required /><p class="field-hint">Include your country code. The number is used only to request this code and is not saved.</p></div>
+      <button class="btn btn-primary" type="submit" data-submit-label="Get linking code" ${pairingRequestPending ? 'disabled' : ''}>${pairingRequestPending ? 'Creating code…' : 'Get linking code'}</button>
+      <div class="pairing-code-panel ${pairingCode ? '' : 'is-waiting'}" id="pairingCodePanel" role="status" aria-live="polite">
+        ${pairingCode ? pairingCodeMarkup(pairingCode) : '<span class="status-spinner" aria-hidden="true"></span><p id="pairingHint">Enter your number to create a private, short-lived code.</p>'}
+      </div>
+      <ol class="connect-steps pairing-steps"><li><span>1</span><p>Tap <strong>Get linking code</strong>.</p></li><li><span>2</span><p>Open WhatsApp → <strong>Linked devices</strong> → <strong>Link a device</strong>.</p></li><li><span>3</span><p>Choose <strong>Link with phone number instead</strong> and enter the code shown here.</p></li></ol>
+    </form>` : `<div class="linked-connect qr-connect"><div><ol class="connect-steps"><li><span>1</span><p>Open WhatsApp on your phone.</p></li><li><span>2</span><p>Open <strong>Linked devices</strong>, then <strong>Link a device</strong>.</p></li><li><span>3</span><p>Scan this code.</p></li></ol></div><div class="qr-frame" id="qrBox">
       ${data.whatsapp.baileys.latestQr ? `<img src="${escapeHtml(data.whatsapp.baileys.latestQr)}" alt="WhatsApp linking QR code" width="232" height="232" />` : '<span class="qr-placeholder" aria-hidden="true"><span class="status-spinner"></span></span>'}
       <p id="qrHint" role="status" aria-live="polite">${escapeHtml(data.whatsapp.baileys.latestQr ? 'Scan this code with WhatsApp.' : stateCopy)}</p>
-    </div>
+    </div></div>`}
   </div>`
+}
+
+function pairingCodeMarkup(code: string): string {
+  const readable = code.match(/.{1,4}/g)?.join(' ') ?? code
+  return `<p class="pairing-label">Your linking code</p><strong class="pairing-code" translate="no">${escapeHtml(readable)}</strong><button class="btn btn-tertiary" type="button" id="copyPairingCode">Copy code</button><p class="pairing-expiry">Enter it in WhatsApp now. Codes expire after a short time.</p>`
 }
 
 function renderBaileysGroupPicker(): string {
@@ -805,6 +824,25 @@ function bindEvents(): void {
       trackActivation('whatsapp_connection_started', { phase: 'launch', step: 5, outcome: provider })
     }
   })
+  app.querySelector<HTMLButtonElement>('#usePhoneCode')?.addEventListener('click', () => {
+    baileysLinkMode = 'phone'
+    pairingCode = ''
+    render()
+  })
+  app.querySelector<HTMLButtonElement>('#useQrCode')?.addEventListener('click', () => {
+    baileysLinkMode = 'qr'
+    pairingCode = ''
+    render()
+  })
+  app.querySelector<HTMLFormElement>('#pairingCodeForm')?.addEventListener('submit', async (event) => {
+    event.preventDefault()
+    await requestPairingCode(event.currentTarget)
+  })
+  app.querySelector<HTMLButtonElement>('#copyPairingCode')?.addEventListener('click', async (event) => {
+    if (!pairingCode) return
+    await navigator.clipboard.writeText(pairingCode)
+    event.currentTarget.textContent = 'Copied'
+  })
   app.querySelectorAll<HTMLInputElement>('input[name="starterTask"]').forEach((input) => {
     input.addEventListener('change', () => {
       const task = starterTasksForRole(data.session.roleId)[Number(input.value)]
@@ -983,16 +1021,18 @@ function startWhatsAppLiveUpdates(): void {
     qrEvents = new EventSource(`/onboarding/qr-stream?session=${encodeURIComponent(data.session.sessionId)}`)
     qrEvents.onopen = () => {
       whatsappConnectionState = 'waiting'
-      setQrHint('Preparing a secure QR code…')
+      if (baileysLinkMode === 'qr') setQrHint('Preparing a secure QR code…')
     }
     qrEvents.onmessage = (event) => {
-      let payload: { type?: string; qr?: string }
+      let payload: { type?: string; qr?: string; code?: string; message?: string }
       try {
-        payload = JSON.parse(event.data) as { type?: string; qr?: string }
+        payload = JSON.parse(event.data) as typeof payload
       } catch {
         return
       }
       if (payload.type === 'qr' && payload.qr) updateQr(payload.qr)
+      if (payload.type === 'pairingCode' && payload.code) updatePairingCode(payload.code)
+      if (payload.type === 'pairingError') updatePairingError(payload.message || 'Could not create a linking code. Try again.')
       if (payload.type === 'linked') void completeWhatsAppLink()
       if (payload.type === 'loggedOut') {
         whatsappConnectionState = 'reconnecting'
@@ -1010,6 +1050,43 @@ function startWhatsAppLiveUpdates(): void {
       if (status?.whatsappLinked) await completeWhatsAppLink(status)
     }, 2500)
   }
+}
+
+async function requestPairingCode(form: HTMLFormElement): Promise<void> {
+  const button = form.querySelector<HTMLButtonElement>('button[type="submit"]')
+  pairingRequestPending = true
+  setSubmitting(button, true)
+  const panel = document.querySelector<HTMLElement>('#pairingCodePanel')
+  if (panel) panel.innerHTML = '<span class="status-spinner" aria-hidden="true"></span><p id="pairingHint">Creating your secure linking code…</p>'
+  try {
+    await postJson<{ ok: boolean }>('/api/onboarding/baileys-pairing-code', { phoneNumber: formValue(form, 'phoneNumber') })
+  } catch (error) {
+    updatePairingError(error instanceof Error ? error.message : 'Could not create a linking code. Try again.')
+  } finally {
+    pairingRequestPending = false
+    setSubmitting(button, false)
+  }
+}
+
+function updatePairingCode(code: string): void {
+  pairingCode = code
+  pairingRequestPending = false
+  const panel = document.querySelector<HTMLElement>('#pairingCodePanel')
+  if (!panel) return
+  panel.classList.remove('is-waiting', 'has-error')
+  panel.innerHTML = pairingCodeMarkup(code)
+  panel.querySelector<HTMLButtonElement>('#copyPairingCode')?.addEventListener('click', async (event) => {
+    await navigator.clipboard.writeText(code)
+    event.currentTarget.textContent = 'Copied'
+  })
+}
+
+function updatePairingError(message: string): void {
+  pairingRequestPending = false
+  const panel = document.querySelector<HTMLElement>('#pairingCodePanel')
+  if (!panel) return
+  panel.classList.add('has-error')
+  panel.innerHTML = `<p>${escapeHtml(message)}</p>`
 }
 
 async function completeWhatsAppLink(existingStatus?: StatusResponse): Promise<void> {

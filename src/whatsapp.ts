@@ -22,7 +22,7 @@ import { isInboundSenderAllowed } from './access.js'
 import { runAndDeliver } from './delivery.js'
 import { maybeOnboardingNudge } from './onboarding-nudge.js'
 import { getClientMeta, getConnections, getRole, updateClientMeta } from './store/client-store.js'
-import { broadcastLinked, broadcastQr } from './onboarding/server.js'
+import { broadcastLinked, broadcastPairingCode, broadcastPairingError, broadcastQr } from './onboarding/server.js'
 import { bindSessionToWhatsAppJid } from './onboarding/session.js'
 import type { WhatsAppTransport } from './whatsapp-transport.js'
 import { effectiveAllowedGroupJids, shouldProcessBaileysInbound, sameWhatsAppUser } from './baileys-gate.js'
@@ -164,6 +164,7 @@ export async function startBaileysWhatsApp(
   // Per-client reconnect state, isolated from other sockets.
   let reconnectAttempts = 0
   let stopped = false
+  let pairingCodeRequested = false
 
   const socket = makeWASocket({
     auth: state,
@@ -188,11 +189,18 @@ export async function startBaileysWhatsApp(
     if (qr) {
       const phoneNumber = opts.phoneNumber
       if (phoneNumber) {
-        const code = await socket.requestPairingCode(phoneNumber)
-        console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
-        console.log(`WhatsApp pairing code [client ${clientId}]: ${code}`)
-        console.log(`Open WhatsApp → Settings → Linked Devices → Link with phone number`)
-        console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`)
+        if (!pairingCodeRequested) {
+          pairingCodeRequested = true
+          try {
+            const code = await socket.requestPairingCode(phoneNumber)
+            if (opts.onboardingSessionId) broadcastPairingCode(opts.onboardingSessionId, code)
+          } catch {
+            pairingCodeRequested = false
+            if (opts.onboardingSessionId) {
+              broadcastPairingError(opts.onboardingSessionId, 'WhatsApp could not create a linking code. Check the number and try again.')
+            }
+          }
+        }
       } else {
         console.log(`\n[client ${clientId}] Scan this QR code in WhatsApp → Settings → Linked Devices:\n`)
         qrcode.generate(qr, { small: true })
@@ -200,7 +208,7 @@ export async function startBaileysWhatsApp(
       // QR material is tenant-sensitive. A background/restored socket never
       // broadcasts it; only the onboarding session that started this socket
       // may receive it.
-      if (opts.onboardingSessionId) await broadcastQr(opts.onboardingSessionId, qr)
+      if (opts.onboardingSessionId && !phoneNumber) await broadcastQr(opts.onboardingSessionId, qr)
     }
 
     if (connection === 'open') {
