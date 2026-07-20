@@ -7,7 +7,7 @@ import {
   AfterToolCallEvent,
 } from '@strands-agents/sdk'
 import { AnthropicModel } from '@strands-agents/sdk/models/anthropic'
-import { AgentSkills } from '@strands-agents/sdk/vended-plugins/skills'
+import { AgentSkills, Skill } from '@strands-agents/sdk/vended-plugins/skills'
 import {
   getProfile,
   getRole as getClientRole,
@@ -229,11 +229,14 @@ export async function buildClientAgent(
 
   const disabledSkills = new Set(roleRecord?.skillOverrides?.disabled ?? [])
   const extraSkills = roleRecord?.skillOverrides?.extra ?? []
-  const skillPaths = [...roleDef.skills, ...extraSkills]
+  const skills = [...roleDef.skills, ...extraSkills]
     .filter((s) => !disabledSkills.has(s))
-    .map((name) => runtimeSkillPath(name))
+    // Path strings are resolved through the agent's Docker sandbox by the
+    // Strands plugin. Runtime skills live on the host, so parse them into
+    // Skill instances before constructing the sandboxed agent.
+    .map((name) => Skill.fromFile(runtimeSkillPath(name)))
 
-  const skillsPlugin = new AgentSkills({ skills: skillPaths })
+  const skillsPlugin = new AgentSkills({ skills })
 
   // ── Plugins ───────────────────────────────────────────────────────────────
 
