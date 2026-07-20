@@ -1,6 +1,7 @@
 import { tool } from '@strands-agents/sdk'
 import type { DockerSandbox } from '@strands-agents/sdk/sandbox/docker'
 import { createBrowserRuntimeClient, type BrowserRuntimeClient } from './client.js'
+import { assertSafeNavigationTarget } from './ssrf-guard.js'
 import { findLoginFormFields } from './login-field-finder.js'
 import { disableVision, enableVision } from './vision-gate.js'
 import { siteLoginConnectUrlFor } from './site-login-link.js'
@@ -61,7 +62,9 @@ export function createBrowserLoginTools(
           return `I don't have a saved login for ${domain} yet. Tap this link to add one (about 20 seconds): ${link}`
         }
 
-        await client.navigate(clientId, loginUrlFor(domain))
+        const targetUrl = loginUrlFor(domain)
+        await assertSafeNavigationTarget(targetUrl)
+        await client.navigate(clientId, targetUrl)
         await publishScreenshot(
           sandbox,
           published,
@@ -88,6 +91,13 @@ export function createBrowserLoginTools(
           }
         } finally {
           enableVision(clientId)
+        }
+
+        const { elements: afterElements } = await client.elements(clientId)
+        const stillOnLoginForm = findLoginFormFields(afterElements).passwordIndex !== null
+
+        if (stillOnLoginForm) {
+          return `Attempted to log into ${domain} as ${credential.username}, but the page still looks like a login form — the attempt may not have succeeded. You may want to check manually.`
         }
 
         await publishScreenshot(
