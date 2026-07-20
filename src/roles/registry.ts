@@ -4,7 +4,7 @@ import type { RoleDefinition } from './types.js'
 const roles: RoleDefinition[] = [
   {
     id: 'marketing-manager',
-    displayName: 'Growth Planner',
+    displayName: 'Grow predictable demand',
     emoji: '📣',
     description:
       'Build a focused growth plan, connect the work across channels, and prioritize the moves most likely to create leads and revenue.',
@@ -19,7 +19,7 @@ const roles: RoleDefinition[] = [
   },
   {
     id: 'creative-director',
-    displayName: 'Creative Producer',
+    displayName: 'Create campaign-ready work',
     emoji: '🎨',
     description:
       'Turn your offer into campaign-ready images, videos, concepts, and copy that stay consistent with your brand.',
@@ -34,7 +34,7 @@ const roles: RoleDefinition[] = [
   },
   {
     id: 'ads-analyst',
-    displayName: 'Ad Spend Optimizer',
+    displayName: 'Get more from ad spend',
     emoji: '📊',
     description:
       'Spot wasted budget, explain what is working, and recommend the next change to improve advertising returns.',
@@ -49,7 +49,7 @@ const roles: RoleDefinition[] = [
   },
   {
     id: 'social-media-manager',
-    displayName: 'Audience Builder',
+    displayName: 'Build an audience on social',
     emoji: '📱',
     description:
       'Plan and prepare consistent social content that earns attention, engagement, and qualified conversations.',
@@ -64,7 +64,7 @@ const roles: RoleDefinition[] = [
   },
   {
     id: 'gtm-operator',
-    displayName: 'Pipeline Builder',
+    displayName: 'Start more sales conversations',
     emoji: '🚀',
     description:
       'Turn attention into sales conversations with focused channel plans, useful posts, thoughtful replies, and timely follow-ups.',
@@ -80,7 +80,7 @@ const roles: RoleDefinition[] = [
   },
   {
     id: 'personal-assistant-dev',
-    displayName: 'Business Assistant',
+    displayName: 'Stay on top of the work',
     emoji: '🤖',
     description:
       'Save time on research, writing, planning, follow-ups, and practical technical work for your business.',

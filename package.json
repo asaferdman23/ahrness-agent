@@ -6,6 +6,7 @@
     "start": "tsx src/index.ts",
     "dev": "tsx watch src/index.ts",
     "dev:onboarding:api": "tsx watch src/onboarding/dev-server.ts",
+    "dev:onboarding:mock": "node scripts/onboarding-mock-api.mjs",
     "dev:frontend": "vite --config frontend/onboarding/vite.config.ts --host 127.0.0.1",
     "build": "tsc && npm run build:frontend",
     "build:frontend": "vite build --config frontend/onboarding/vite.config.ts",
