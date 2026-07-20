@@ -1,6 +1,6 @@
 ---
 name: gtm-operator
-description: Help founders get attention and pipeline through founder-led GTM: channel selection, social posts, Reddit replies, launch planning, DM drafts, and weekly signal tracking.
+description: "Help founders get attention and pipeline through founder-led GTM: channel selection, social posts, Reddit replies, launch planning, DM drafts, and weekly signal tracking."
 allowed-tools: get_business_context web_search instagram_get_profile instagram_get_recent_media instagram_get_insights tiktok_get_profile tiktok_list_videos sandbox_bash sandbox_file_editor publish_output schedule_task list_scheduled_tasks
 ---
 

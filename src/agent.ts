@@ -16,7 +16,7 @@ import {
   clientIdFromJid,
 } from './store/client-store.js'
 import { clientIdForJid } from './tenant-store.js'
-import { getRole as getRoleDefinition } from './roles/index.js'
+import { resolveRoleHarness } from './roles/index.js'
 import { getMcp } from './mcps/index.js'
 import { createInstagramTools } from './mcps/instagram-graph.js'
 import { createTikTokTools } from './mcps/tiktok.js'
@@ -139,8 +139,8 @@ export async function buildClientAgent(
   const connections = await getConnections(clientId)
 
   const agentName = process.env.AGENT_NAME ?? 'BizzClaw'
-  const roleId = roleRecord?.roleId ?? 'personal-assistant-dev'
-  const roleDef = getRoleDefinition(roleId)
+  const roleHarness = resolveRoleHarness(roleRecord)
+  const roleDef = roleHarness.role
 
   // Turn any onboarding-selected automation templates into live scheduled jobs.
   // Idempotent and best-effort — a failure here must never block the agent.
@@ -153,14 +153,7 @@ export async function buildClientAgent(
   }
 
   // Which platforms to actually load (connected + not overridden)
-  const disabledMcps = new Set(roleRecord?.mcpOverrides?.disabled ?? [])
-  const extraMcps = (roleRecord?.mcpOverrides?.extra ?? []) as PlatformId[]
-  const platformsToLoad = [
-    ...roleDef.requiredMcps,
-    ...roleDef.optionalMcps,
-    ...extraMcps,
-  ].filter((p) => {
-    if (disabledMcps.has(p)) return false
+  const platformsToLoad = roleHarness.supportedPlatforms.filter((p) => {
     const conn = connections[p]
     return conn?.status === 'connected' && conn.accessToken
   })
@@ -211,7 +204,7 @@ export async function buildClientAgent(
     ...createCrmTools(clientId),
     // Deferred OAuth: let the agent hand the client a one-tap connect link for any
     // app its role supports, only when a task needs the live account.
-    ...createConnectTools(jid, [...roleDef.requiredMcps, ...roleDef.optionalMcps, ...extraMcps]),
+    ...createConnectTools(jid, roleHarness.supportedPlatforms),
     // Brokered web search — only available when a host-side key is configured;
     // the key never enters the sandbox or the model context.
     ...(process.env.WEB_SEARCH_API_KEY ? [createWebSearchTool()] : []),
@@ -227,10 +220,7 @@ export async function buildClientAgent(
 
   // ── Skills ────────────────────────────────────────────────────────────────
 
-  const disabledSkills = new Set(roleRecord?.skillOverrides?.disabled ?? [])
-  const extraSkills = roleRecord?.skillOverrides?.extra ?? []
-  const skills = [...roleDef.skills, ...extraSkills]
-    .filter((s) => !disabledSkills.has(s))
+  const skills = roleHarness.skillNames
     // Path strings are resolved through the agent's Docker sandbox by the
     // Strands plugin. Runtime skills live on the host, so parse them into
     // Skill instances before constructing the sandboxed agent.
