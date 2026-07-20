@@ -124,6 +124,7 @@ test('creates an openable link only for a connected tenant home group', async ()
 
 test('creates a group only on the connected tenant socket with one validated participant', async () => {
   const calls: Array<{ subject: string; participants: string[] }> = []
+  let removalStatus = '200'
   const starter = (async (clientId, opts = {}) => {
     opts.onConnected?.(clientId)
     return {
@@ -132,6 +133,12 @@ test('creates a group only on the connected tenant socket with one validated par
         async groupCreate(subject: string, participants: string[]) {
           calls.push({ subject, participants })
           return { id: '120363333333333333@g.us', subject, size: 2 }
+        },
+        async groupParticipantsUpdate(jid: string, participants: string[], action: string) {
+          assert.equal(jid, '120363333333333333@g.us')
+          assert.deepEqual(participants, ['15551234567@s.whatsapp.net'])
+          assert.equal(action, 'remove')
+          return [{ status: removalStatus, jid: participants[0] }]
         },
       } as unknown as BaileysSession['socket'],
       transport: fakeTransport(),
@@ -149,9 +156,22 @@ test('creates a group only on the connected tenant socket with one validated par
   const created = await manager.createGroup('client-a', {
     subject: 'BizzClaw workspace',
     participantJid: '15551234567@s.whatsapp.net',
+    removeParticipantAfterCreate: true,
   })
-  assert.deepEqual(created, { jid: '120363333333333333@g.us', subject: 'BizzClaw workspace', size: 2 })
+  assert.deepEqual(created, {
+    jid: '120363333333333333@g.us',
+    subject: 'BizzClaw workspace',
+    size: 2,
+    temporaryParticipantRemoved: true,
+  })
   assert.deepEqual(calls, [{ subject: 'BizzClaw workspace', participants: ['15551234567@s.whatsapp.net'] }])
+  removalStatus = '403'
+  const partial = await manager.createGroup('client-a', {
+    subject: 'Private workspace',
+    participantJid: '15551234567@s.whatsapp.net',
+    removeParticipantAfterCreate: true,
+  })
+  assert.equal(partial?.temporaryParticipantRemoved, false)
   await assert.rejects(manager.createGroup('client-a', {
     subject: 'BizzClaw',
     participantJid: 'not-a-number',

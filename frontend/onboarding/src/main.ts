@@ -555,8 +555,11 @@ function renderBaileysGroupPicker(): string {
         <button class="btn btn-primary" type="submit" ${state.groups.length ? '' : 'disabled'}>Use this group</button>
       </div>
     </form>` : `<form id="createGroupForm" class="group-workspace-form">
+      <div class="privacy-callout"><span class="privacy-icon" aria-hidden="true">${shieldIcon()}</span><div><span class="tag">Recommended</span><strong>Keep this workspace private</strong><p>BizzClaw will remove the setup contact immediately, leaving only your linked WhatsApp account in the group.</p></div></div>
       <div class="field"><label for="groupName">Group name</label><input id="groupName" name="groupName" type="text" maxlength="100" value="${escapeHtml(`BizzClaw — ${data.session.profile?.business?.name || 'My business'}`)}" required /></div>
-      <div class="field"><label for="participantPhone">Invite one trusted person</label><input id="participantPhone" name="participantPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+972 50 123 4567" required /><p class="field-hint">WhatsApp requires one other person when a group is created. Include their country code; this onboarding form does not save the number.</p></div>
+      <div class="field"><label for="participantPhone">Temporary setup contact</label><input id="participantPhone" name="participantPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+972 50 123 4567" required /><p class="field-hint">WhatsApp requires another account to create a group. Choose someone you trust and include their country code; this form does not save the number.</p></div>
+      <fieldset class="privacy-options"><legend>Who should remain in the workspace?</legend><label class="privacy-option"><input type="radio" name="workspacePrivacy" value="private" checked /><span><strong>Only me</strong><small>Remove the setup contact automatically.</small></span></label><label class="privacy-option"><input type="radio" name="workspacePrivacy" value="shared" /><span><strong>Me and this person</strong><small>Keep them as a group member.</small></span></label></fieldset>
+      <p class="privacy-boundary">“Only me” controls who else can open the group. Messages still travel through WhatsApp, and the linked BizzClaw service reads them to respond.</p>
       ${baileysGroupsError ? `<p class="field-hint error">${escapeHtml(baileysGroupsError)}</p>` : ''}
       <div class="actions"><button class="btn btn-secondary" type="button" id="cancelCreateGroup">Use existing group</button><button class="btn btn-primary" type="submit">Create workspace</button></div>
     </form>`}
@@ -612,16 +615,32 @@ async function submitBaileysGroup(groupJid: string): Promise<void> {
 async function createBaileysGroup(form: HTMLFormElement): Promise<void> {
   const groupName = formValue(form, 'groupName')
   const participantPhone = formValue(form, 'participantPhone')
-  if (!confirm(`Create “${groupName}” and invite ${participantPhone}?`)) return
+  const privateWorkspace = formValue(form, 'workspacePrivacy') !== 'shared'
+  const confirmation = privateWorkspace
+    ? `Create “${groupName}”, add ${participantPhone} briefly, then remove them automatically?`
+    : `Create “${groupName}” and keep ${participantPhone} as a member?`
+  if (!confirm(confirmation)) return
   const button = form.querySelector<HTMLButtonElement>('button[type="submit"]')
   setSubmitting(button, true)
   try {
     errorMessage = ''
-    await postJson('/api/onboarding/baileys-group-create', { groupName, participantPhone })
+    const created = await postJson<{ privacy: 'private' | 'shared' | 'needs_manual_removal' }>(
+      '/api/onboarding/baileys-group-create',
+      { groupName, participantPhone, privateWorkspace },
+    )
     data = await api(`/api/onboarding/bootstrap${location.search}`)
     baileysGroupsState = null
     manageBaileysGroup = false
     updateHeaderStatus()
+    if (created.privacy === 'needs_manual_removal') {
+      errorMessage = 'Workspace created, but WhatsApp kept the setup contact. Open the group and remove them before sharing private work.'
+      currentStep = 5
+      const url = new URL(location.href)
+      url.searchParams.delete('manage')
+      history.pushState({ step: 5 }, '', `/onboarding/step/5${url.search}`)
+      render()
+      return
+    }
     currentStep = data.progress.allowedStep
     const url = new URL(location.href)
     url.searchParams.delete('manage')

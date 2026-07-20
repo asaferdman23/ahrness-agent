@@ -57,7 +57,9 @@ The customer sees three phases while the six existing routes remain compatible:
    but do not block the activation-v2 cohort from continuing.
 3. **Launch** (steps 5–6): verified managed or linked WhatsApp setup, followed by
    a tenant-scoped existing-group dropdown or explicitly confirmed new-group
-   creation, then three role-aware starter briefs and a prefilled WhatsApp action.
+   creation. Private creation temporarily adds one required setup contact and
+   verifies their immediate removal before describing the group as self-only.
+   Launch then offers three role-aware starter briefs and a prefilled WhatsApp action.
 
 `ONBOARDING_ACTIVATION_V2_PERCENT` assigns sessions deterministically to the new
 experience. The legacy cohort retains the six-step rail and hard integration gate.

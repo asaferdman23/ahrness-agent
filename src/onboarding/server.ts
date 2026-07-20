@@ -1224,6 +1224,7 @@ export function createOnboardingHandler(): OnboardingHandler {
           const clientId = session.clientId ?? session.sessionId
           const body = await parseJsonBody(req)
           const requestedName = typeof body.groupName === 'string' ? body.groupName.trim() : ''
+          const privateWorkspace = body.privateWorkspace !== false
           const phoneDigits = typeof body.participantPhone === 'string'
             ? body.participantPhone.replace(/\D/g, '')
             : ''
@@ -1240,6 +1241,7 @@ export function createOnboardingHandler(): OnboardingHandler {
             created = await baileysSessionManager().createGroup(clientId, {
               subject: requestedName,
               participantJid: `${phoneDigits}@s.whatsapp.net`,
+              removeParticipantAfterCreate: privateWorkspace,
             })
           } catch {
             throw new Error('Could not create the group. Check that the invited number uses WhatsApp and try again.')
@@ -1250,7 +1252,13 @@ export function createOnboardingHandler(): OnboardingHandler {
             baileysHomeGroupSubject: created.subject,
             baileysHomeGroupBoundAt: new Date().toISOString(),
           })
-          return json(res, { ok: true, group: created })
+          return json(res, {
+            ok: true,
+            group: created,
+            privacy: privateWorkspace
+              ? (created.temporaryParticipantRemoved ? 'private' : 'needs_manual_removal')
+              : 'shared',
+          })
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown onboarding API error'

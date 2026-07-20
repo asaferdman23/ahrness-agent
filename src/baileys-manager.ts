@@ -37,6 +37,11 @@ export type BaileysGroupInfo = {
 export type CreateBaileysGroupInput = {
   subject: string
   participantJid: string
+  removeParticipantAfterCreate?: boolean
+}
+
+export type CreatedBaileysGroup = BaileysGroupInfo & {
+  temporaryParticipantRemoved: boolean | null
 }
 
 /**
@@ -149,7 +154,7 @@ export class BaileysSessionManager {
   }
 
   /** Create one explicitly requested WhatsApp group for a connected tenant. */
-  async createGroup(clientId: string, input: CreateBaileysGroupInput): Promise<BaileysGroupInfo | null> {
+  async createGroup(clientId: string, input: CreateBaileysGroupInput): Promise<CreatedBaileysGroup | null> {
     const session = this.sessions.get(clientId)
     if (!session || !this._connected.has(clientId)) return null
     const subject = input.subject.trim()
@@ -162,10 +167,22 @@ export class BaileysSessionManager {
     if (!created.id || !/^\d+@g\.us$/.test(created.id)) {
       throw new Error('WhatsApp did not return the new group')
     }
+    let temporaryParticipantRemoved: boolean | null = null
+    if (input.removeParticipantAfterCreate) {
+      try {
+        const results = await session.socket.groupParticipantsUpdate(created.id, [input.participantJid], 'remove')
+        temporaryParticipantRemoved = results.some((result) => result.status === '200')
+      } catch {
+        // The group exists even if participant removal fails. Return a partial
+        // result so the UI can tell the owner to remove the person manually.
+        temporaryParticipantRemoved = false
+      }
+    }
     return {
       jid: created.id,
       subject: created.subject || subject,
       size: created.size ?? 2,
+      temporaryParticipantRemoved,
     }
   }
 

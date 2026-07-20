@@ -71,6 +71,12 @@ test('Baileys onboarding group endpoints require linked WhatsApp and persist the
           assert.deepEqual(participants, ['972501234567@s.whatsapp.net'])
           return { id: '120363333333333333@g.us', subject, size: 2 }
         },
+        async groupParticipantsUpdate(jid: string, participants: string[], action: string) {
+          assert.equal(jid, '120363333333333333@g.us')
+          assert.deepEqual(participants, ['972501234567@s.whatsapp.net'])
+          assert.equal(action, 'remove')
+          return [{ status: '200', jid: participants[0] }]
+        },
       },
       transport: {
         sendText: async () => {},
@@ -111,11 +117,12 @@ test('Baileys onboarding group endpoints require linked WhatsApp and persist the
     const createRes = await fetch(`${base}/api/onboarding/baileys-group-create?session=${session.sessionId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ groupName: 'BizzClaw — Northstar', participantPhone: '+972 50 123 4567' }),
+      body: JSON.stringify({ groupName: 'BizzClaw — Northstar', participantPhone: '+972 50 123 4567', privateWorkspace: true }),
     })
     assert.equal(createRes.status, 200)
-    const createBody = await createRes.json() as { ok: boolean; group: { jid: string; subject: string; size: number } }
+    const createBody = await createRes.json() as { ok: boolean; privacy: string; group: { jid: string; subject: string; size: number } }
     assert.equal(createBody.ok, true)
+    assert.equal(createBody.privacy, 'private')
     assert.equal(createBody.group.jid, '120363333333333333@g.us')
     const createdMeta = await getClientMeta(clientId)
     assert.equal(createdMeta.baileysHomeGroupJid, '120363333333333333@g.us')

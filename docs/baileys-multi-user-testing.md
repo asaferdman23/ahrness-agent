@@ -54,6 +54,18 @@ membership normally. The returned group becomes that tenant's home group.
 The browser disables the submitting control and the server never retries a group
 creation request blindly.
 
+The default creation choice is **Only me**. After WhatsApp creates the group,
+the linked socket requests removal of the temporary setup contact. The API
+reports the removal result rather than assuming success. If WhatsApp does not
+confirm removal, onboarding stays on the WhatsApp step and tells the owner to
+remove that person manually before sharing private work. Users can instead
+choose **Me and this person** to keep a shared workspace intentionally.
+
+“Only me” is a human-membership boundary, not a promise that WhatsApp is absent.
+WhatsApp still transports the end-to-end encrypted conversation, and the linked
+BizzClaw device/service can read message content because that access is required
+to run and answer the agent.
+
 ## Two-device acceptance test
 
 Use two test WhatsApp accounts and two separate BizzClaw tenants. Avoid a

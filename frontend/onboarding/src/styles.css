@@ -286,6 +286,22 @@ textarea { min-height: 112px; resize: vertical; line-height: 1.5; }
 .group-workspace-form .field { margin-bottom: 0.9rem; }
 .group-workspace-form input[type="tel"] { width: 100%; }
 .compact-empty { margin-top: 0.75rem; padding: 0.85rem; }
+.privacy-callout { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.75rem; margin-bottom: 1rem; border: 1px solid rgba(15, 163, 0, 0.2); border-radius: 13px; background: var(--accent-tint); padding: 0.9rem; }
+.privacy-callout .privacy-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: var(--paper); color: var(--accent-dark); }
+.privacy-callout .privacy-icon svg { width: 19px; height: 19px; }
+.privacy-callout .tag { display: inline-flex; margin-bottom: 0.3rem; }
+.privacy-callout strong, .privacy-callout p { display: block; }
+.privacy-callout strong { font-size: 0.82rem; }
+.privacy-callout p { margin: 0.2rem 0 0; color: var(--ink-muted); font-size: 0.7rem; line-height: 1.45; }
+.privacy-options { display: grid; gap: 0.5rem; margin: 1rem 0 0; padding: 0; border: 0; }
+.privacy-options legend { margin-bottom: 0.5rem; }
+.privacy-option { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 0.7rem; border: 1px solid var(--line-strong); border-radius: 11px; padding: 0.75rem; cursor: pointer; }
+.privacy-option:has(input:checked) { border-color: var(--accent-dark); background: var(--accent-tint); }
+.privacy-option input { accent-color: var(--accent-dark); }
+.privacy-option strong, .privacy-option small { display: block; }
+.privacy-option strong { font-size: 0.78rem; }
+.privacy-option small { margin-top: 0.1rem; color: var(--ink-muted); font-size: 0.67rem; font-weight: 400; }
+.privacy-boundary { margin: 0.75rem 0 0; color: var(--ink-muted); font-size: 0.67rem; line-height: 1.5; }
 .success-seal { position: relative; display: grid; place-items: center; width: 76px; height: 76px; margin-bottom: 1rem; }
 .success-seal > span { position: relative; z-index: 2; display: grid; place-items: center; width: 54px; height: 54px; border-radius: 18px; background: var(--accent-dark); color: #fff; box-shadow: 0 10px 24px rgba(15, 163, 0, 0.2); }
 .success-seal > span svg { width: 28px; height: 28px; }
