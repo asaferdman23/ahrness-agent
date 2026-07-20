@@ -13,6 +13,7 @@ A WhatsApp-first AI marketing agent platform. Clients onboard via a web UI, pick
 - [Roles](#roles)
 - [Skills](#skills)
 - [MCP Platform Registry](#mcp-platform-registry)
+- [Browser Tool](#browser-tool)
 - [Data Layer](#data-layer)
 - [Agent Construction](#agent-construction)
 - [Asset Awareness](#asset-awareness)
@@ -374,6 +375,42 @@ Each platform is defined in `src/mcps/<platform>.ts` and registered in `src/mcps
 - **Auth:** OAuth redirect (shared server token) → `/oauth/higgsfield/callback`
 - **Tools:** Full Higgsfield MCP (image, video, audio, 3D, upscale, remove-bg, etc.)
 - **Roles:** Marketing Manager, Creative Director, Social Media Manager, Personal Assistant/Dev
+
+---
+
+## Browser Tool
+
+Gives the agent a real headless browser — navigate/read/click/type on any
+site, gated by a per-client opt-in (`ClientMeta.webBrowsingEnabled`, toggled
+from the dashboard's "Agent permissions" panel, not the platform-connection
+registry — web browsing isn't an external account, it's a capability on the
+agent itself).
+
+Execution lives in a dedicated `browser-runtime` sidecar container (Puppeteer
++ `puppeteer-extra-plugin-stealth`, one shared Chromium process, one isolated
+`BrowserContext` per active client), provisioned lazily and idempotently by
+`src/browser-runtime-manager.ts` — same lifecycle pattern as the sandbox's
+egress-proxy container. The host talks to it over an internal HTTP control
+API (`src/browser/client.ts`) and exposes it to the agent via
+`createBrowserTools(clientId)` (`src/browser/tools.ts`), wired into
+`buildClientAgent` fail-soft: a `browser-runtime` outage silently omits the
+tools rather than blocking the agent.
+
+Interaction is primarily by **auto-indexed element** (`browser_view_elements`
+numbers every visible interactive element; `browser_click`/`browser_type` act
+by that number) so the agent can operate on sites it has never seen, with a
+raw-CSS-selector escape hatch (`browser_click_selector`/`browser_type_selector`)
+for sites it already knows. Every value read from a page — text, element
+labels, screenshots — is wrapped as untrusted content
+(`src/browser/untrusted-content.ts`) with a lightweight prompt-injection
+pattern scan. Clicks that look irreversible (checkout, delete, unsubscribe —
+`src/browser/risk.ts`) route through the existing approve-before-act
+confirmation gate (`confirmations.ts`) instead of executing directly.
+
+Credential-based login to specific sites (LinkedIn, Instagram, Facebook,
+Reddit and others) is a separate follow-on capability — see
+`docs/superpowers/specs/2026-07-20-web-browser-agent-tool-design.md` and its
+Plan B.
 
 ---
 
