@@ -75,6 +75,37 @@ test('browser_click on a high-risk element stages a confirmation instead of exec
   assert.match(result, /confirm/i)
 })
 
+test('browser_click on an unresolved index stages a confirmation instead of executing', async () => {
+  let clicked = false
+  const client = fakeClient({
+    click: async () => {
+      clicked = true
+      return { ok: true, url: 'https://example.com/receipt' }
+    },
+  })
+  const tools = createBrowserTools('client-3b', client)
+  // No browser_view_elements() call was ever made for this client, so index 0 is unresolved.
+  const clickTool = findTool(tools, 'browser_click')
+  const result = await clickTool.invoke({ index: 0 })
+  assert.ok(!clicked, 'must not execute a click for an index that was never resolved to a label')
+  assert.match(result, /confirm/i)
+})
+
+test('browser_click_selector always stages a confirmation and never clicks directly', async () => {
+  let clicked = false
+  const client = fakeClient({
+    click: async () => {
+      clicked = true
+      return { ok: true, url: 'https://example.com/receipt' }
+    },
+  })
+  const tools = createBrowserTools('client-3c', client)
+  const clickSelectorTool = findTool(tools, 'browser_click_selector')
+  const result = await clickSelectorTool.invoke({ selector: '#some-button' })
+  assert.ok(!clicked, 'must not execute a selector-based click without confirmation')
+  assert.match(result, /confirm/i)
+})
+
 test('browser_screenshot returns an image payload', async () => {
   const tools = createBrowserTools('client-4', fakeClient())
   const screenshotTool = findTool(tools, 'browser_screenshot')

@@ -8,8 +8,9 @@ import { stageOrExecute, fileConfirmationStore } from '../confirmations.js'
 /** Per-process cache of the last browser_view_elements() call, so click/type by index can look up the label for the risk check. */
 const lastElementsByClient = new Map<string, BrowserElement[]>()
 
-function labelForIndex(clientId: string, index: number): string {
-  return lastElementsByClient.get(clientId)?.find((el) => el.index === index)?.label ?? ''
+function labelForIndex(clientId: string, index: number): string | undefined {
+  const cached = lastElementsByClient.get(clientId)?.find((el) => el.index === index)
+  return cached?.label
 }
 
 export function createBrowserTools(clientId: string, client: BrowserRuntimeClient = createBrowserRuntimeClient()): ReturnType<typeof tool>[] {
@@ -73,14 +74,17 @@ export function createBrowserTools(clientId: string, client: BrowserRuntimeClien
       callback: async (rawInput: unknown) => {
         const input = rawInput as { index: number }
         const label = labelForIndex(clientId, input.index)
-        if (isLikelyIrreversibleAction(label)) {
+        if (label === undefined || isLikelyIrreversibleAction(label)) {
           return stageOrExecute(
             {
               store: confirmStore,
               clientId,
               toolName: 'browser_click',
               input,
-              summarize: () => `click "${label}" on the current page — this looks like it may complete a purchase, deletion, or subscription change`,
+              summarize: () =>
+                label === undefined
+                  ? `click element #${input.index} on the current page — its label could not be resolved, so this needs your OK before proceeding`
+                  : `click "${label}" on the current page — this looks like it may complete a purchase, deletion, or subscription change`,
             },
             async () => {
               const result = await client.click(clientId, { index: input.index })
@@ -104,8 +108,19 @@ export function createBrowserTools(clientId: string, client: BrowserRuntimeClien
       },
       callback: async (rawInput: unknown) => {
         const input = rawInput as { selector: string }
-        const result = await client.click(clientId, { selector: input.selector })
-        return JSON.stringify(result)
+        return stageOrExecute(
+          {
+            store: confirmStore,
+            clientId,
+            toolName: 'browser_click_selector',
+            input,
+            summarize: () => `click the element matching selector "${input.selector}" on the current page — this uses a raw selector so its effect can't be automatically assessed as safe`,
+          },
+          async () => {
+            const result = await client.click(clientId, { selector: input.selector })
+            return JSON.stringify(result)
+          },
+        )
       },
     }),
 
