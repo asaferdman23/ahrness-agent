@@ -121,6 +121,28 @@ export class BaileysSessionManager {
     }
   }
 
+  /**
+   * Create a WhatsApp-owned link that opens the selected home group. WhatsApp
+   * does not expose a stable deep link for a raw group JID, so the invite link
+   * is the only supported hand-off from the web dashboard into that group.
+   * The caller must supply the tenant's persisted home-group JID; never accept
+   * a browser-provided JID here.
+   */
+  async homeGroupUrl(clientId: string, groupJid: string): Promise<string | null> {
+    const session = this.sessions.get(clientId)
+    if (!session || !this._connected.has(clientId)) return null
+    if (!/^\d+@g\.us$/.test(groupJid)) throw new Error('Invalid WhatsApp group')
+
+    const groups = await this.listGroups(clientId)
+    if (!groups?.some((group) => group.jid === groupJid)) {
+      throw new Error('The selected WhatsApp group is no longer available')
+    }
+
+    const code = await session.socket.groupInviteCode(groupJid)
+    if (!code) throw new Error('WhatsApp did not return a group link')
+    return `https://chat.whatsapp.com/${encodeURIComponent(code)}`
+  }
+
   /** True if a socket is currently active (open or connecting) for the client. */
   has(clientId: string): boolean {
     return this.sessions.has(clientId) || this.starting.has(clientId)

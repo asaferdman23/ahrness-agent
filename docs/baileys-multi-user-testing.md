@@ -31,6 +31,23 @@ account restrictions or replace an official production WhatsApp API.
   prevent reply loops without discarding every Baileys `fromMe` message.
 - On restart, the manager discovers each tenant with persisted `creds.json` and
   restores sockets independently. One revoked account does not block others.
+- The authenticated dashboard can request an on-demand hand-off to the saved
+  home group. The server verifies that the linked account still participates in
+  the saved group, asks WhatsApp for its invite URL, and returns it only to that
+  signed-in tenant. The browser never supplies a group JID.
+
+## Dashboard group entry
+
+For a linked Baileys tenant with a selected home group, the dashboard's primary
+action is **Open my BizzClaw group**. WhatsApp does not provide a supported deep
+link for an internal group JID, so the server requests the group's WhatsApp
+invite URL only after the user clicks. The URL is not persisted or placed in
+page HTML.
+
+Creating a new group is intentionally not automatic. Group creation is a real
+WhatsApp side effect and normally needs another participant; a future creation
+flow must require a deliberate confirmation, validate that participant, and
+must not retry blindly or create duplicate groups.
 
 ## Two-device acceptance test
 

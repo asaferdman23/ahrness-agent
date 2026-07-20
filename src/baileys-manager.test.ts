@@ -86,3 +86,38 @@ test('discovers and restores only clients with persisted Baileys credentials', a
   assert.deepEqual(result.restored, ['client-a'])
   assert.deepEqual(result.failed, ['client-b'])
 })
+
+test('creates an openable link only for a connected tenant home group', async () => {
+  const calls: string[] = []
+  const starter = (async (clientId, opts = {}) => {
+    opts.onConnected?.(clientId)
+    return {
+      clientId,
+      socket: {
+        async groupFetchAllParticipating() {
+          return { '120363111111111111@g.us': { id: '120363111111111111@g.us', subject: 'BizzClaw', size: 1 } }
+        },
+        async groupInviteCode(jid: string) {
+          calls.push(jid)
+          return 'private-code'
+        },
+      } as unknown as BaileysSession['socket'],
+      transport: fakeTransport(),
+      stop() {},
+      async logout() {},
+    }
+  }) satisfies typeof startBaileysWhatsApp
+  const manager = new BaileysSessionManager(starter)
+
+  assert.equal(await manager.homeGroupUrl('client-a', '120363111111111111@g.us'), null)
+  await manager.ensureSocket('client-a')
+  assert.equal(
+    await manager.homeGroupUrl('client-a', '120363111111111111@g.us'),
+    'https://chat.whatsapp.com/private-code',
+  )
+  assert.deepEqual(calls, ['120363111111111111@g.us'])
+  await assert.rejects(
+    manager.homeGroupUrl('client-a', '120363222222222222@g.us'),
+    /no longer available/,
+  )
+})

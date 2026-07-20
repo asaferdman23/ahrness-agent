@@ -18,6 +18,7 @@ function dashboardState(overrides: Partial<DashboardState> = {}): DashboardState
     whatsappLinked: true,
     whatsappJid: '15551234567@s.whatsapp.net',
     whatsappProvider: 'twilio',
+    whatsappHomeGroupSubject: null,
     telegramLinked: false,
     telegramConnectUrl: null,
     slackLinked: false,
@@ -143,6 +144,18 @@ test('dashboard gives active work and attention a clear primary action', () => {
   assert.match(html, /See progress/)
   assert.match(html, /A prepared action needs your OK/)
   assert.match(html, />Review<\/a>/)
+})
+
+test('dashboard opens the selected Baileys group instead of a direct chat', () => {
+  const html = renderDashboardPage(user, dashboardState({
+    whatsappProvider: 'baileys',
+    whatsappHomeGroupSubject: 'BizzClaw HQ',
+  }))
+
+  assert.match(html, /Open my BizzClaw group/)
+  assert.match(html, /Your private workspace is “BizzClaw HQ”/)
+  assert.match(html, /fetch\('\/api\/whatsapp\/home-group-link'/)
+  assert.doesNotMatch(html, /https:\/\/wa\.me\/15551234567/)
 })
 
 test('dashboard escapes customer-controlled identity, result, and alert text', () => {

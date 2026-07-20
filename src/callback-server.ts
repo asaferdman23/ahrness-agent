@@ -38,6 +38,7 @@ import type { PlatformId } from './store/types.js'
 import { getCrmStore } from './crm/store.js'
 import { handleCrmApi } from './crm/http.js'
 import { renderCrmPage } from './crm/views.js'
+import { baileysSessionManager } from './baileys-manager.js'
 
 const authHandler = toNodeHandler(auth)
 
@@ -121,6 +122,32 @@ export function startCallbackServer(transport: WhatsAppTransport | null): void {
       const error = url.searchParams.get('error') ?? undefined
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
         .end(renderLoginPage(agentName, error))
+      return
+    }
+
+    // ── Open the tenant's selected Baileys home group (protected) ───────────
+    if (req.method === 'POST' && url.pathname === '/api/whatsapp/home-group-link') {
+      const session = await getSession(req)
+      if (!session?.user) {
+        res.writeHead(401, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Sign in required' }))
+        return
+      }
+      const meta = await getClientMeta(session.user.id)
+      if (meta.whatsappProvider !== 'baileys' || !meta.baileysHomeGroupJid) {
+        res.writeHead(409, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Choose your BizzClaw WhatsApp group first' }))
+        return
+      }
+      try {
+        const groupUrl = await baileysSessionManager().homeGroupUrl(session.user.id, meta.baileysHomeGroupJid)
+        if (!groupUrl) {
+          res.writeHead(409, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'WhatsApp is reconnecting. Try again in a moment.' }))
+          return
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ url: groupUrl }))
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Could not open the WhatsApp group'
+        res.writeHead(409, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: message }))
+      }
       return
     }
 
@@ -271,6 +298,7 @@ export function startCallbackServer(transport: WhatsAppTransport | null): void {
           whatsappLinked: !!tenantRow?.whatsappJid,
           whatsappJid: tenantRow?.whatsappJid ?? null,
           whatsappProvider: tenantRow?.whatsappProvider ?? null,
+          whatsappHomeGroupSubject: clientMeta.baileysHomeGroupSubject ?? null,
           telegramLinked: !!clientMeta.telegramChatId,
           telegramConnectUrl: botUsername ? telegramConnectUrl(botUsername, tenantId) : null,
           slackLinked: !!clientMeta.slackTeamId,
