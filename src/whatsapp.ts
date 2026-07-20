@@ -67,9 +67,10 @@ function jitterDelayMs(): number {
 }
 
 const noop = (): void => {}
-// Logger level is configurable via BAILEYS_LOG_LEVEL (default: silent in prod,
-// 'warn' recommended for debugging). Set to 'info' or 'debug' for more detail.
-const BAILEYS_LOG_LEVEL = process.env.BAILEYS_LOG_LEVEL ?? 'silent'
+// Baileys/libsignal warning payloads can contain live cryptographic session
+// material. Keep the library logger permanently silent; BizzClaw emits its own
+// sanitized connection lifecycle messages below.
+const BAILEYS_LOG_LEVEL = 'silent'
 const silentLogger: any = {
   level: BAILEYS_LOG_LEVEL,
   trace: noop, debug: noop, info: noop,
