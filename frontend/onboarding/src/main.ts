@@ -299,6 +299,8 @@ function agentBrief(): string {
   const selectedAutomations = data.session.scheduleTemplates?.length ?? 0
   const connected = data.platforms.filter((platform) => isConnected(platform)).length
   const agentStatus = data.progress.readiness === 'live' ? 'Ready on WhatsApp' : 'Getting BizzClaw ready'
+  // Before anything is saved, a summary of nothing is worse than no summary.
+  const started = Boolean(business?.name || business?.description || role || data.session.scheduleTemplates !== null || connected)
 
   return `<aside class="brief-panel" aria-label="Your BizzClaw setup summary">
     <div class="brief-header">
@@ -306,15 +308,17 @@ function agentBrief(): string {
       <div><p class="overline">Your BizzClaw teammate</p><h2>${escapeHtml(data.agentName)}</h2></div>
       <span class="brief-status">${escapeHtml(agentStatus)}</span>
     </div>
-    <div class="brief-quote">${business?.description
-      ? `“${escapeHtml(shorten(business.description, 150))}”`
-      : 'Your business brief will appear here as you build it.'}</div>
-    <dl class="brief-facts">
-      <div><dt>Business</dt><dd>${escapeHtml(business?.name || 'Not added yet')}</dd></div>
-      <div><dt>Business goal</dt><dd>${escapeHtml(role?.displayName || 'Not selected yet')}</dd></div>
-      <div><dt>Recurring tasks</dt><dd>${data.session.scheduleTemplates === null ? 'Not reviewed yet' : `${selectedAutomations} selected`}</dd></div>
-      <div><dt>Connected apps</dt><dd>${connected} connected</dd></div>
-    </dl>
+    ${started
+      ? `<div class="brief-quote">${business?.description
+          ? `“${escapeHtml(shorten(business.description, 150))}”`
+          : 'Your business brief will appear here as you build it.'}</div>
+        <dl class="brief-facts">
+          <div><dt>Business</dt><dd${business?.name ? '' : ' class="pending"'}>${escapeHtml(business?.name || 'Not added yet')}</dd></div>
+          <div><dt>Business goal</dt><dd${role ? '' : ' class="pending"'}>${escapeHtml(role?.displayName || 'Not selected yet')}</dd></div>
+          <div><dt>Recurring tasks</dt><dd${data.session.scheduleTemplates === null ? ' class="pending"' : ''}>${data.session.scheduleTemplates === null ? 'Not reviewed yet' : `${selectedAutomations} selected`}</dd></div>
+          <div><dt>Connected apps</dt><dd${connected ? '' : ' class="pending"'}>${connected} connected</dd></div>
+        </dl>`
+      : `<p class="brief-intro">Describe the business once. BizzClaw uses it to write your opportunity brief, shape its recommendations, and prepare your first task — then this panel tracks what is set up.</p>`}
     <div class="privacy-note">${shieldIcon()}<p><strong>Your account access stays private.</strong> BizzClaw stores connections securely and never asks for an app password.</p></div>
   </aside>`
 }
@@ -383,7 +387,7 @@ function renderProfile(): string {
       <input type="hidden" name="industry" value="${escapeHtml(business.industry ?? 'other')}" />
       <input type="hidden" name="brandVoice" value="${escapeHtml(business.brandVoice ?? '')}" />
       <input type="hidden" name="goals" value="${escapeHtml(business.goals?.[0] ?? 'brand_awareness')}" />
-      ${preview ? '' : previewRecovery || formActions('', data.activationV2 ? 'Create My Preview' : 'Save Business Brief')}
+      ${preview ? '' : previewRecovery || formActions('', data.activationV2 ? 'Create my preview' : 'Save business brief')}
       ${previewPanel}
     </form>`,
   )
@@ -481,7 +485,7 @@ function renderWhatsApp(): string {
       ${optionCard({ name: 'whatsappProvider', value: 'twilio', checked: selected === 'twilio', icon: managedIcon(), title: 'Use the BizzClaw WhatsApp number', tag: 'Recommended', description: twilioAvailable ? 'The fastest route. Send one message to the managed business number and start working immediately.' : 'The managed number is not available in this environment.', disabled: !twilioAvailable, required: true })}
       ${optionCard({ name: 'whatsappProvider', value: 'baileys', checked: selected === 'baileys', icon: linkedDeviceIcon(), title: 'Link your own WhatsApp number', tag: 'Advanced', description: 'Use Linked Devices so BizzClaw can work from a number you control.', required: true })}
     </fieldset>
-    ${!deviceLinked ? `<div class="provider-submit"><button class="btn btn-secondary" type="submit">Use Selected Setup</button></div>` : ''}
+    ${!deviceLinked ? `<div class="provider-submit"><button class="btn btn-secondary" type="submit">Use selected setup</button></div>` : ''}
   </form>`
 
   const panel = !selected
@@ -677,7 +681,7 @@ function renderDone(): string {
     return shell(
       'Your setup needs one more step',
       'BizzClaw checked the saved setup and found one item that still needs attention.',
-      `<div class="attention-note">${attentionIcon()}<p><strong>${escapeHtml(readinessTitle(data.progress.readiness))}</strong> Return to the highlighted stage to finish safely.</p></div><div class="actions"><span></span><button class="btn btn-primary" type="button" data-step="${data.progress.allowedStep}">Finish Setup</button></div>`,
+      `<div class="attention-note">${attentionIcon()}<p><strong>${escapeHtml(readinessTitle(data.progress.readiness))}</strong> Return to the highlighted stage to finish safely.</p></div><div class="actions"><span></span><button class="btn btn-primary" type="button" data-step="${data.progress.allowedStep}">Finish setup</button></div>`,
     )
   }
 
@@ -690,7 +694,7 @@ function renderDone(): string {
     `${escapeHtml(role?.displayName ?? 'Your business goal')} is set. Choose one useful result to start with.`,
     `<div class="launch-hero">${successSeal()}<div><p class="overline">Ready to start</p><h2>Begin with one real business result.</h2><p>${usesLinkedNumber ? `Choose a useful brief, then send it to ${escapeHtml(data.whatsapp.baileys.homeGroupSubject || 'your selected BizzClaw group')}. The @bizzclaw prompt is included.` : 'Choose meaningful work, not a test prompt. BizzClaw already has the context you saved.'}</p></div></div>
     <fieldset class="starter-list"><legend>Choose your first result</legend>${tasks.map((task, index) => `<label class="starter-task"><input type="radio" name="starterTask" value="${index}" ${index === 0 ? 'checked' : ''} /><span><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(task.prompt)}</small></span><span class="selection-control" aria-hidden="true">${checkIcon()}</span></label>`).join('')}</fieldset>
-    <div class="launch-actions"><a id="firstBriefAction" href="${escapeHtml(firstBriefUrl(tasks[0]!.prompt))}" target="_blank" rel="noopener" class="btn btn-primary btn-large">${usesLinkedNumber ? 'Open brief in WhatsApp' : 'Send to BizzClaw in WhatsApp'} ${arrowIcon()}</a><a href="/dashboard" class="btn btn-secondary btn-large">Go to BizzClaw home</a></div>`,
+    <div class="launch-actions"><a id="firstBriefAction" href="${escapeHtml(firstBriefUrl(tasks[0]!.prompt))}" target="_blank" rel="noopener" class="btn btn-whatsapp btn-large">${usesLinkedNumber ? 'Open brief in WhatsApp' : 'Send to BizzClaw in WhatsApp'} ${arrowIcon()}</a><a href="/dashboard" class="btn btn-secondary btn-large">Go to BizzClaw home</a></div>`,
     { launch: true },
   )
 }
@@ -1197,9 +1201,20 @@ function whatsappIcon(): string { return '<svg class="whatsapp-icon" viewBox="0 
 function managedIcon(): string { return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5h16v11H4zM8 3.5h8v3H8z" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 11h8M8 14h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>' }
 function linkedDeviceIcon(): string { return '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2.8" width="10" height="18.4" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10 17.8h4M18.5 8.3l2 2-2 2M5.5 8.3l-2 2 2 2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' }
 function routineIcon(): string { return '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M7.5 3v5M16.5 3v5M3.5 10h17M8 14h3M8 17h6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>' }
-function roleIcon(id: string): string { const glyphs: Record<string, string> = { 'marketing-manager': 'GP', 'creative-director': 'CP', 'ads-analyst': 'AO', 'social-media-manager': 'AB', 'gtm-operator': 'PB', 'personal-assistant-dev': 'BA' }; return `<span class="role-glyph">${escapeHtml(glyphs[id] ?? 'BC')}</span>` }
+function roleIcon(id: string): string {
+  const stroke = 'fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"'
+  const icons: Record<string, string> = {
+    'marketing-manager': `<path d="M3.5 16.5 9 11l3.5 3.5L20.5 6.5" ${stroke}/><path d="M15.5 6.5h5v5" ${stroke}/>`,
+    'creative-director': `<path d="M12 3.5 13.9 9l5.6 1.9-5.6 1.9L12 18.4l-1.9-5.6L4.5 10.9 10.1 9 12 3.5Z" ${stroke}/><path d="M18.5 16.5v3.5M16.75 18.25h3.5" ${stroke}/>`,
+    'ads-analyst': `<circle cx="12" cy="12" r="8.2" ${stroke}/><circle cx="12" cy="12" r="4.2" ${stroke}/><circle cx="12" cy="12" r="1.1" fill="currentColor"/>`,
+    'social-media-manager': `<circle cx="9" cy="8.5" r="3.1" ${stroke}/><path d="M3.7 19.2a5.6 5.6 0 0 1 10.6 0" ${stroke}/><path d="M16 6.1a3.1 3.1 0 0 1 0 5.9M17.6 19.2a5.6 5.6 0 0 0-1.3-3.5" ${stroke}/>`,
+    'gtm-operator': `<path d="M20.2 11.4a7.4 7.4 0 0 1-10.9 6.5L4 19.6l1.7-4.6a7.4 7.4 0 1 1 14.5-3.6Z" ${stroke}/><path d="M9 11.5h6M9 14.5h3.5" ${stroke}/>`,
+    'personal-assistant-dev': `<rect x="4" y="4" width="16" height="16" rx="3" ${stroke}/><path d="m8.3 12.2 2.4 2.4 5-5" ${stroke}/>`,
+  }
+  return `<svg viewBox="0 0 24 24" aria-hidden="true">${icons[id] ?? `<circle cx="12" cy="12" r="8" ${stroke}/>`}</svg>`
+}
 function platformIcon(id: string): string { const glyphs: Record<string, string> = { 'meta-ads': 'M', 'instagram-graph': 'I', tiktok: 'T', google: 'G', higgsfield: 'H' }; return escapeHtml(glyphs[id] ?? '↗') }
-function successSeal(): string { return '<div class="success-seal" aria-hidden="true"><span>' + checkIcon() + '</span><i></i><i></i><i></i></div>' }
+function successSeal(): string { return '<div class="success-seal" aria-hidden="true"><span>' + checkIcon() + '</span></div>' }
 
 window.addEventListener('popstate', () => {
   if (!data) return
@@ -1211,6 +1226,6 @@ window.addEventListener('popstate', () => {
 
 load().catch((error) => {
   const message = error instanceof Error ? error.message : 'Could not load onboarding.'
-  app.innerHTML = `<section class="load-failure"><p class="overline">Setup unavailable</p><h1>We couldn’t load your onboarding.</h1><p>${escapeHtml(message)}</p><button class="btn btn-primary" type="button" id="retryLoad">Try Again</button></section>`
+  app.innerHTML = `<section class="load-failure"><p class="overline">Setup unavailable</p><h1>We couldn’t load your onboarding.</h1><p>${escapeHtml(message)}</p><button class="btn btn-primary" type="button" id="retryLoad">Try again</button></section>`
   document.querySelector('#retryLoad')?.addEventListener('click', () => location.reload())
 })
