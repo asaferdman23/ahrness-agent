@@ -63,6 +63,17 @@ export interface DashboardState {
   crmSummary: CrmSummary
 }
 
+export function dashboardWhatsappReady(input: {
+  whatsappJid: string | null
+  provider: string | null
+  baileysConnected: boolean
+  baileysHomeGroupJid: string | null
+}): boolean {
+  if (!input.whatsappJid) return false
+  if (input.provider !== 'baileys') return true
+  return input.baileysConnected && !!input.baileysHomeGroupJid
+}
+
 function formatTime(value: string | null): string {
   if (!value) return 'Not yet'
   const date = new Date(value)

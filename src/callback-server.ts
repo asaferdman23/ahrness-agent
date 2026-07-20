@@ -19,7 +19,7 @@ import { isTwilioProvider } from './whatsapp-providers.js'
 import type { WhatsAppTransport } from './whatsapp-transport.js'
 import { auth } from './auth.js'
 import { toNodeHandler, fromNodeHeaders } from 'better-auth/node'
-import { renderLoginPage, renderDashboardPage } from './dashboard.js'
+import { dashboardWhatsappReady, renderLoginPage, renderDashboardPage } from './dashboard.js'
 import { openDb, createSqliteStore } from '@agent-live/sdk'
 import { mountAgentLiveDashboard } from '@agent-live/dashboard'
 import path from 'node:path'
@@ -192,6 +192,12 @@ export function startCallbackServer(transport: WhatsAppTransport | null): void {
       ])
       const recentRuns = agentLiveStore.listRuns(tenantId, { limit: 3 })
       const latestRun = recentRuns[0] ?? null
+      const whatsappReady = dashboardWhatsappReady({
+        whatsappJid: tenantRow?.whatsappJid ?? null,
+        provider: tenantRow?.whatsappProvider ?? null,
+        baileysConnected: baileysSessionManager().isConnected(tenantId),
+        baileysHomeGroupJid: clientMeta.baileysHomeGroupJid ?? null,
+      })
 
       const botUsername = sharedTelegramBotUsername()
 
@@ -251,13 +257,15 @@ export function startCallbackServer(transport: WhatsAppTransport | null): void {
           actionLabel: 'Review work',
         })
       }
-      if (!tenantRow?.whatsappJid) {
+      if (!whatsappReady) {
         alerts.push({
-          title: 'Connect WhatsApp to receive results',
-          detail: 'Finish the launch step so BizzClaw has a verified place to send your work.',
+          title: tenantRow?.whatsappJid ? 'Reconnect WhatsApp to continue' : 'Connect WhatsApp to receive results',
+          detail: tenantRow?.whatsappJid
+            ? 'The linked device is no longer connected. Scan a fresh QR code to restore your private workspace.'
+            : 'Finish the launch step so BizzClaw has a verified place to send your work.',
           level: 'warn' as const,
           actionHref: '/onboarding/step/5',
-          actionLabel: 'Connect WhatsApp',
+          actionLabel: tenantRow?.whatsappJid ? 'Reconnect WhatsApp' : 'Connect WhatsApp',
         })
       }
       for (const platform of platforms) {
@@ -290,12 +298,12 @@ export function startCallbackServer(transport: WhatsAppTransport | null): void {
         hasProfile: !!profile,
         hasRole: !!roleRecord,
         hasAutomationDecision: roleRecord?.scheduleTemplates !== undefined,
-        whatsappLinked: !!tenantRow?.whatsappJid,
+        whatsappLinked: whatsappReady,
       })
 
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
         .end(renderDashboardPage(session.user, {
-          whatsappLinked: !!tenantRow?.whatsappJid,
+          whatsappLinked: whatsappReady,
           whatsappJid: tenantRow?.whatsappJid ?? null,
           whatsappProvider: tenantRow?.whatsappProvider ?? null,
           whatsappHomeGroupSubject: clientMeta.baileysHomeGroupSubject ?? null,

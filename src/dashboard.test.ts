@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { renderDashboardPage, type DashboardState } from './dashboard.js'
+import { dashboardWhatsappReady, renderDashboardPage, type DashboardState } from './dashboard.js'
 import type { User } from './auth.js'
 
 const user: User = {
@@ -12,6 +12,13 @@ const user: User = {
   createdAt: new Date(),
   updatedAt: new Date(),
 }
+
+test('dashboard readiness requires a live Baileys socket and selected group', () => {
+  assert.equal(dashboardWhatsappReady({ whatsappJid: '1555@s.whatsapp.net', provider: 'twilio', baileysConnected: false, baileysHomeGroupJid: null }), true)
+  assert.equal(dashboardWhatsappReady({ whatsappJid: '1555@s.whatsapp.net', provider: 'baileys', baileysConnected: false, baileysHomeGroupJid: '120@g.us' }), false)
+  assert.equal(dashboardWhatsappReady({ whatsappJid: '1555@s.whatsapp.net', provider: 'baileys', baileysConnected: true, baileysHomeGroupJid: null }), false)
+  assert.equal(dashboardWhatsappReady({ whatsappJid: '1555@s.whatsapp.net', provider: 'baileys', baileysConnected: true, baileysHomeGroupJid: '120@g.us' }), true)
+})
 
 function dashboardState(overrides: Partial<DashboardState> = {}): DashboardState {
   return {
