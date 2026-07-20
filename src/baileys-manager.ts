@@ -20,6 +20,9 @@ import { broadcastLoggedOut } from './onboarding/server.js'
 import { access, readdir } from 'node:fs/promises'
 import path from 'node:path'
 import { jidNormalizedUser } from '@whiskeysockets/baileys'
+import { clearBaileysHomeChatPatch } from './baileys-home-chat.js'
+import { updateClientMeta } from './store/client-store.js'
+import { markSessionWhatsAppLoggedOut } from './onboarding/session.js'
 
 export type EnsureSocketOptions = {
   /** Onboarding session id to route QR/pairing broadcasts to. */
@@ -362,14 +365,17 @@ export class BaileysSessionManager {
           console.error(`[client ${id}] reconnect failed:`, err)
         })
       },
-      onLoggedOut: (id) => {
+      onLoggedOut: async (id) => {
         // 401 loggedOut: WhatsApp invalidated the linked device (user removed
-        // it from their phone). whatsapp.ts already wiped the auth dir, so the
-        // creds are gone. Drop the session and tell the onboarding UI to flip
-        // back to the QR screen.
+        // it from their phone). whatsapp.ts already wiped the auth dir. Clear
+        // the old home destination as well: after a new account is scanned,
+        // carrying the previous self-chat/group forward would both skip the
+        // workspace chooser and authorize a stale destination.
         this._connected.delete(id)
         this.sessions.delete(id)
+        await updateClientMeta(id, clearBaileysHomeChatPatch())
         if (opts.onboardingSessionId) {
+          await markSessionWhatsAppLoggedOut(opts.onboardingSessionId)
           broadcastLoggedOut(opts.onboardingSessionId)
           // A user is on the QR screen waiting — start a fresh socket so the
           // clean auth dir makes Baileys emit a new QR, which the SSE stream

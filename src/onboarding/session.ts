@@ -109,6 +109,17 @@ export async function bindSessionToWhatsAppJid(
   return finalizeWhatsAppBinding(session, jid, provider)
 }
 
+/** Persist a Baileys revocation so a returning onboarding browser enters the
+ * re-link flow instead of trusting the previous linked-device state. */
+export async function markSessionWhatsAppLoggedOut(sessionId: string): Promise<void> {
+  const session = await loadSession(sessionId)
+  if (!session) return
+  session.whatsappLinked = false
+  session.whatsappJid = undefined
+  if (session.step > 5) session.step = 5
+  await saveSession(session)
+}
+
 export async function getOrCreateSession(sessionId?: string): Promise<OnboardingSession> {
   if (sessionId) {
     const existing = await loadSession(sessionId)

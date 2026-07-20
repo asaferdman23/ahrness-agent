@@ -6,6 +6,8 @@ import path from 'node:path'
 import { BaileysSessionManager, discoverBaileysAuthClients } from './baileys-manager.js'
 import type { BaileysSession, startBaileysWhatsApp } from './whatsapp.js'
 import type { WhatsAppTransport } from './whatsapp-transport.js'
+import { baileysHomeChatPatch } from './baileys-home-chat.js'
+import { getClientMeta, updateClientMeta } from './store/client-store.js'
 
 const roots: string[] = []
 
@@ -169,6 +171,42 @@ test('resolves Message yourself only from the connected socket owner', async () 
     jid: '15551234567@s.whatsapp.net',
     subject: 'Message yourself',
   })
+})
+
+test('external WhatsApp logout clears the stale home workspace before relinking', async () => {
+  const root = path.join(tmpdir(), `ahrness-baileys-logout-${process.pid}-${Date.now()}`)
+  roots.push(root)
+  process.env.AGENT_STORE_DIR = root
+  const clientId = 'client-a'
+  await updateClientMeta(clientId, baileysHomeChatPatch({
+    jid: '120363111111111111@g.us',
+    kind: 'group',
+    subject: 'Old workspace',
+  }))
+
+  let loggedOut: ((clientId: string) => void | Promise<void>) | undefined
+  const starter = (async (id, opts = {}) => {
+    loggedOut = opts.onLoggedOut
+    opts.onConnected?.(id)
+    return {
+      clientId: id,
+      socket: {} as BaileysSession['socket'],
+      transport: fakeTransport(),
+      stop() {},
+      async logout() {},
+    }
+  }) satisfies typeof startBaileysWhatsApp
+  const manager = new BaileysSessionManager(starter)
+  await manager.ensureSocket(clientId)
+
+  assert.ok(loggedOut)
+  await loggedOut(clientId)
+
+  const meta = await getClientMeta(clientId)
+  assert.equal(meta.baileysHomeChatJid, undefined)
+  assert.equal(meta.baileysHomeChatKind, undefined)
+  assert.equal(meta.baileysHomeGroupJid, undefined)
+  assert.equal(manager.isConnected(clientId), false)
 })
 
 test('creates a group only on the connected tenant socket with one validated participant', async () => {

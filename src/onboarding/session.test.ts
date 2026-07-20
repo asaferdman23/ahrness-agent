@@ -4,7 +4,15 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { clientIdFromJid, getClientMeta, getProfile, getRole, saveProfile, saveRole } from '../store/client-store.js'
-import { bindSessionToWhatsAppCode, bindSessionToWhatsAppJid, createSession, ensureWhatsAppConnectCode, saveSession } from './session.js'
+import {
+  bindSessionToWhatsAppCode,
+  bindSessionToWhatsAppJid,
+  createSession,
+  ensureWhatsAppConnectCode,
+  loadSession,
+  markSessionWhatsAppLoggedOut,
+  saveSession,
+} from './session.js'
 import type { ClientProfile } from '../store/types.js'
 
 let root: string
@@ -131,4 +139,20 @@ test('binds a Baileys QR-linked session to the authenticated tenant and JID', as
   assert.equal(bound?.whatsappLinked, true)
   assert.equal((await getClientMeta(tenantId)).whatsappProvider, 'baileys')
   assert.equal(await clientIdForJid(jid), tenantId)
+})
+
+test('marks a revoked Baileys onboarding session as needing step-five relinking', async () => {
+  const session = await createSession()
+  session.whatsappProvider = 'baileys'
+  session.whatsappLinked = true
+  session.whatsappJid = '15551234567@s.whatsapp.net'
+  session.step = 6
+  await saveSession(session)
+
+  await markSessionWhatsAppLoggedOut(session.sessionId)
+
+  const saved = await loadSession(session.sessionId)
+  assert.equal(saved?.whatsappLinked, false)
+  assert.equal(saved?.whatsappJid, undefined)
+  assert.equal(saved?.step, 5)
 })

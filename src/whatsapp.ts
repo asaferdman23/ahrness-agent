@@ -149,7 +149,7 @@ export async function startBaileysWhatsApp(
     /** Called when WhatsApp actively logs the linked device out (close code
      * 401, e.g. the user removed the device from their phone). The caller
      * should wipe the auth dir and offer a fresh QR — re-linking is safe. */
-    onLoggedOut?: (clientId: string) => void
+    onLoggedOut?: (clientId: string) => void | Promise<void>
     /** Called when the reconnect loop exhausts MAX_RECONNECT_ATTEMPTS. This is
      * a ban-risk protection stop — do NOT auto-wipe creds or show a new QR;
      * require manual operator intervention. Distinct from a 401 loggedOut. */
@@ -260,7 +260,7 @@ export async function startBaileysWhatsApp(
         await rm(authDir, { recursive: true, force: true }).catch((err) => {
           console.error(`[client ${clientId}] failed to clear auth dir on logout:`, err)
         })
-        opts.onLoggedOut?.(clientId)
+        await opts.onLoggedOut?.(clientId)
       }
     }
   })
