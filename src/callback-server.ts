@@ -39,6 +39,7 @@ import { getCrmStore } from './crm/store.js'
 import { handleCrmApi } from './crm/http.js'
 import { renderCrmPage } from './crm/views.js'
 import { handleAgentPermissionsApi } from './agent-permissions-http.js'
+import { handleSiteLoginRoute } from './site-login-http.js'
 
 const authHandler = toNodeHandler(auth)
 
@@ -344,6 +345,9 @@ export function startCallbackServer(transport: WhatsAppTransport | null): void {
       await handleCrmApi(req, res, url, session.user.id)
       return
     }
+
+    // ── Site login connect (signed-link, no dashboard session required) ─────
+    if (await handleSiteLoginRoute(req, res, url)) return
 
     // ── Agent Live dashboard (mounted from @agent-live/dashboard) ────────────
     if (await handleAgentLiveDashboard(req, res, url)) return
