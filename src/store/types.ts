@@ -94,6 +94,10 @@ export interface ClientMeta {
   slackTeamId?: string
   /** ISO timestamp for when the Slack workspace was connected. */
   slackConnectedAt?: string
+  /** Client opted their agent into the browser tool (navigate/click/type on any site). */
+  webBrowsingEnabled?: boolean
+  /** ISO timestamp for when web browsing was enabled. */
+  webBrowsingEnabledAt?: string
 }
 
 export interface OnboardingSession {

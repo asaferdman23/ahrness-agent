@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { rmSync, mkdtempSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs'
-import { getConnections, upsertConnection } from './client-store.js'
+import { getConnections, upsertConnection, getClientMeta, updateClientMeta } from './client-store.js'
 import { resetVaultForTests } from '../vault.js'
 
 let root: string
@@ -77,4 +77,12 @@ test('migrates a legacy plaintext connections file on read and re-encrypts it', 
   const raw = rawConnections()
   assert.doesNotMatch(raw, /LEGACY-PLAINTEXT-123/, 'legacy file should be re-encrypted on disk after read')
   assert.match(raw, /v1:/)
+})
+
+test('updateClientMeta persists the web browsing capability flag', async () => {
+  const clientId = 'browser-flag-test-client'
+  await updateClientMeta(clientId, { webBrowsingEnabled: true, webBrowsingEnabledAt: '2026-07-20T00:00:00.000Z' })
+  const meta = await getClientMeta(clientId)
+  assert.equal(meta.webBrowsingEnabled, true)
+  assert.equal(meta.webBrowsingEnabledAt, '2026-07-20T00:00:00.000Z')
 })
