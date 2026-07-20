@@ -1218,6 +1218,40 @@ export function createOnboardingHandler(): OnboardingHandler {
           })
           return json(res, { ok: true, group: match })
         }
+        if (req.method === 'POST' && pathname === '/api/onboarding/baileys-group-create') {
+          // Creating a group is an explicit external side effect. Require a
+          // human-supplied participant and never infer or auto-retry it.
+          const clientId = session.clientId ?? session.sessionId
+          const body = await parseJsonBody(req)
+          const requestedName = typeof body.groupName === 'string' ? body.groupName.trim() : ''
+          const phoneDigits = typeof body.participantPhone === 'string'
+            ? body.participantPhone.replace(/\D/g, '')
+            : ''
+          if (!requestedName || requestedName.length > 100) {
+            throw new Error('Choose a group name up to 100 characters')
+          }
+          if (phoneDigits.length < 8 || phoneDigits.length > 15) {
+            throw new Error('Enter a WhatsApp number including country code')
+          }
+          const linkedPhone = session.whatsappJid?.split('@')[0]?.split(':')[0]
+          if (linkedPhone === phoneDigits) throw new Error('Invite someone other than the linked WhatsApp number')
+          let created
+          try {
+            created = await baileysSessionManager().createGroup(clientId, {
+              subject: requestedName,
+              participantJid: `${phoneDigits}@s.whatsapp.net`,
+            })
+          } catch {
+            throw new Error('Could not create the group. Check that the invited number uses WhatsApp and try again.')
+          }
+          if (!created) throw new Error('WhatsApp is not linked yet')
+          await updateClientMeta(clientId, {
+            baileysHomeGroupJid: created.jid,
+            baileysHomeGroupSubject: created.subject,
+            baileysHomeGroupBoundAt: new Date().toISOString(),
+          })
+          return json(res, { ok: true, group: created })
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown onboarding API error'
         return json(res, { error: message }, 400)

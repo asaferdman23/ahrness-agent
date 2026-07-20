@@ -56,7 +56,8 @@ The customer sees three phases while the six existing routes remain compatible:
    platform connections. Missing integrations identify unavailable capabilities
    but do not block the activation-v2 cohort from continuing.
 3. **Launch** (steps 5–6): verified managed or linked WhatsApp setup, followed by
-   three role-aware starter briefs and a prefilled WhatsApp action.
+   a tenant-scoped existing-group dropdown or explicitly confirmed new-group
+   creation, then three role-aware starter briefs and a prefilled WhatsApp action.
 
 `ONBOARDING_ACTIVATION_V2_PERCENT` assigns sessions deterministically to the new
 experience. The legacy cohort retains the six-step rail and hard integration gate.
@@ -197,6 +198,9 @@ Two ways jobs are created:
 | POST | `/api/onboarding/automations` | Save the explicit recurring-job selection, including an empty selection |
 | POST | `/api/onboarding/whatsapp-provider` | Save the WhatsApp setup after prerequisite validation |
 | POST | `/api/onboarding/whatsapp-disconnect` | Disconnect a linked client-owned device and return to recovery |
+| GET | `/api/onboarding/baileys-groups` | List the linked tenant's participating groups and selected home group |
+| POST | `/api/onboarding/baileys-group` | Validate and select one existing tenant group |
+| POST | `/api/onboarding/baileys-group-create` | Explicitly create and select a group with one user-confirmed participant |
 | GET | `/onboarding[?c=<token>]` | Adopt signed client link, then redirect to current step |
 | GET | `/onboarding/step/:n` | Render step N (1 Profile, 2 Role, 3 Automations, 4 Connect, 5 Link, 6 Ready) |
 | POST | `/onboarding/step/1` | Save business profile |

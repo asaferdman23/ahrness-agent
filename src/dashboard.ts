@@ -77,10 +77,10 @@ function runPresentation(run: DashboardRunSummary): { title: string; icon: strin
   return { title: 'Could not finish', icon: '!', iconClass: 'failed', support: 'Review what happened and try the request again.' }
 }
 
-function connectionCard(name: string, connected: boolean, detail: string, needsAttention = false): string {
+function connectionCard(name: string, connected: boolean, detail: string, needsAttention = false, action?: { href: string; label: string }): string {
   const stateClass = connected ? 'connected' : needsAttention ? 'attention-state' : ''
   const label = connected ? 'Connected' : needsAttention ? 'Reconnect' : 'Available later'
-  return `<article class="connection-card"><div class="connection-head"><span class="connection-name">${escapeHtml(name)}</span><span class="state-label ${stateClass}">${label}</span></div><p class="connection-copy">${escapeHtml(detail)}</p></article>`
+  return `<article class="connection-card"><div class="connection-head"><span class="connection-name">${escapeHtml(name)}</span><span class="state-label ${stateClass}">${label}</span></div><p class="connection-copy">${escapeHtml(detail)}</p>${action ? `<a class="text-link connection-action" href="${escapeHtml(action.href)}">${escapeHtml(action.label)} →</a>` : ''}</article>`
 }
 
 function crmMoney(groups: Record<string, number>): string {
@@ -137,7 +137,7 @@ export function renderDashboardPage(user: User, state: DashboardState): string {
     platform.status === 'error' || platform.status === 'pending',
   ))
   const connections = [
-    connectionCard('WhatsApp', state.whatsappLinked, state.whatsappLinked ? 'Your primary place to send requests and receive results.' : 'Required to launch BizzClaw.', !state.whatsappLinked),
+    connectionCard('WhatsApp', state.whatsappLinked, state.whatsappLinked ? (state.whatsappHomeGroupSubject ? `BizzClaw works in “${state.whatsappHomeGroupSubject}”.` : 'Your primary place to send requests and receive results.') : 'Required to launch BizzClaw.', !state.whatsappLinked, state.whatsappProvider === 'baileys' && state.whatsappLinked ? { href: '/onboarding/step/5?manage=group', label: 'Change or create group' } : undefined),
     ...platformCards,
   ].join('')
 

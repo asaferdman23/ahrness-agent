@@ -121,3 +121,39 @@ test('creates an openable link only for a connected tenant home group', async ()
     /no longer available/,
   )
 })
+
+test('creates a group only on the connected tenant socket with one validated participant', async () => {
+  const calls: Array<{ subject: string; participants: string[] }> = []
+  const starter = (async (clientId, opts = {}) => {
+    opts.onConnected?.(clientId)
+    return {
+      clientId,
+      socket: {
+        async groupCreate(subject: string, participants: string[]) {
+          calls.push({ subject, participants })
+          return { id: '120363333333333333@g.us', subject, size: 2 }
+        },
+      } as unknown as BaileysSession['socket'],
+      transport: fakeTransport(),
+      stop() {},
+      async logout() {},
+    }
+  }) satisfies typeof startBaileysWhatsApp
+  const manager = new BaileysSessionManager(starter)
+
+  assert.equal(await manager.createGroup('client-a', {
+    subject: 'BizzClaw',
+    participantJid: '15551234567@s.whatsapp.net',
+  }), null)
+  await manager.ensureSocket('client-a')
+  const created = await manager.createGroup('client-a', {
+    subject: 'BizzClaw workspace',
+    participantJid: '15551234567@s.whatsapp.net',
+  })
+  assert.deepEqual(created, { jid: '120363333333333333@g.us', subject: 'BizzClaw workspace', size: 2 })
+  assert.deepEqual(calls, [{ subject: 'BizzClaw workspace', participants: ['15551234567@s.whatsapp.net'] }])
+  await assert.rejects(manager.createGroup('client-a', {
+    subject: 'BizzClaw',
+    participantJid: 'not-a-number',
+  }), /valid WhatsApp phone number/)
+})

@@ -134,6 +134,8 @@ let whatsappConnectionState: 'waiting' | 'reconnecting' | 'error' = 'waiting'
 let baileysGroupsState: { groups: BaileysGroup[]; selected: string | null } | null = null
 let baileysGroupsLoading = false
 let baileysGroupsError = ''
+let baileysGroupMode: 'existing' | 'create' = 'existing'
+let manageBaileysGroup = new URLSearchParams(location.search).get('manage') === 'group'
 let previewLoading = false
 let lastTrackedPhase = ''
 
@@ -195,7 +197,7 @@ async function load(): Promise<void> {
   replaceUrl(currentStep)
   updateHeaderStatus()
   render()
-  if (currentStep === 5 && data.session.whatsappProvider === 'baileys' && data.session.whatsappLinked && !data.progress.checks.whatsapp) {
+  if (currentStep === 5 && data.session.whatsappProvider === 'baileys' && data.session.whatsappLinked && (!data.progress.checks.whatsapp || manageBaileysGroup)) {
     void ensureBaileysGroupsLoaded()
   }
 }
@@ -468,7 +470,7 @@ function renderPlatforms(): string {
 function renderWhatsApp(): string {
   const selected = data.session.whatsappProvider
   const deviceLinked = data.session.whatsappLinked
-  const needsGroupPicker = selected === 'baileys' && deviceLinked && !data.progress.checks.whatsapp
+  const needsGroupPicker = selected === 'baileys' && deviceLinked && (!data.progress.checks.whatsapp || manageBaileysGroup)
   const linked = deviceLinked && data.progress.checks.whatsapp
   const twilioAvailable = data.whatsapp.twilio.enabled
   const providerPicker = `<form id="providerForm">
@@ -484,7 +486,7 @@ function renderWhatsApp(): string {
     : needsGroupPicker
       ? renderBaileysGroupPicker()
       : linked
-        ? `<div class="connect-stage connected-stage">${successSeal()}<p class="overline">Connection verified</p><h2>WhatsApp is ready</h2><p>${selected === 'baileys' ? `BizzClaw can work only in <strong>${escapeHtml(data.whatsapp.baileys.homeGroupSubject || 'your selected group')}</strong>. In that group, begin a request with <strong>@bizzclaw</strong>.` : 'BizzClaw can now receive your requests and deliver results in the conversation.'}</p><div class="inline-actions"><button class="btn btn-tertiary danger-action" type="button" id="disconnectBtn">Disconnect WhatsApp</button><button class="btn btn-primary" type="button" data-step="6">Choose first result</button></div></div>`
+        ? `<div class="connect-stage connected-stage">${successSeal()}<p class="overline">Connection verified</p><h2>WhatsApp is ready</h2><p>${selected === 'baileys' ? `BizzClaw can work only in <strong>${escapeHtml(data.whatsapp.baileys.homeGroupSubject || 'your selected group')}</strong>. In that group, begin a request with <strong>@bizzclaw</strong>.` : 'BizzClaw can now receive your requests and deliver results in the conversation.'}</p><div class="inline-actions">${selected === 'baileys' ? '<button class="btn btn-secondary" type="button" id="manageGroupBtn">Change or create group</button>' : ''}<button class="btn btn-tertiary danger-action" type="button" id="disconnectBtn">Disconnect WhatsApp</button><button class="btn btn-primary" type="button" data-step="6">Choose first result</button></div></div>`
         : selected === 'twilio'
           ? renderManagedWhatsApp()
           : renderLinkedWhatsApp()
@@ -535,32 +537,29 @@ function renderBaileysGroupPicker(): string {
     </div>`
   }
 
-  if (state.groups.length === 0) {
-    return `<div class="connect-stage error-connect">
-      <div><p class="overline">WhatsApp verified</p><h2>No groups found</h2><p>First add this WhatsApp number to a group, then refresh to continue.</p></div>
-      <div class="actions"><button class="btn btn-secondary" type="button" id="refreshGroups">Refresh groups</button></div>
-    </div>`
-  }
-
   return `<div class="connect-stage linked-connect">
-    <div><p class="overline">WhatsApp verified</p><h2>Choose where BizzClaw should work</h2><p>BizzClaw will respond only inside this group. Group members start a request with <strong>@bizzclaw</strong>.</p></div>
-    <form id="groupForm">
-      <div class="group-list">
-        ${state.groups.map((group) => `<label class="group-card${state.selected === group.jid ? ' selected' : ''}">
-          <input type="radio" name="groupJid" value="${escapeHtml(group.jid)}" ${state.selected === group.jid ? 'checked' : ''} />
-          <span class="group-info">
-            <span class="group-title">${escapeHtml(group.subject || group.jid)}</span>
-            <span class="group-meta">${group.size} members</span>
-          </span>
-          <span class="selection-control" aria-hidden="true">${checkIcon()}</span>
-        </label>`).join('')}
-      </div>
+    <div><p class="overline">WhatsApp verified</p><h2>Choose your BizzClaw workspace</h2><p>Use a group you already have, or create a fresh one. BizzClaw responds only in the workspace you confirm.</p></div>
+    <div class="group-mode-switch" role="group" aria-label="Choose group setup">
+      <button class="group-mode ${baileysGroupMode === 'existing' ? 'active' : ''}" type="button" id="useExistingGroup" aria-pressed="${baileysGroupMode === 'existing'}">Use existing group</button>
+      <button class="group-mode ${baileysGroupMode === 'create' ? 'active' : ''}" type="button" id="createNewGroup" aria-pressed="${baileysGroupMode === 'create'}">Create new group</button>
+    </div>
+    ${baileysGroupMode === 'existing' ? `<form id="groupForm" class="group-workspace-form">
+      <div class="field"><label for="groupJid">Your WhatsApp groups</label><select id="groupJid" name="groupJid" required>
+        <option value="">Select a group…</option>
+        ${state.groups.map((group) => `<option value="${escapeHtml(group.jid)}" ${state.selected === group.jid ? 'selected' : ''}>${escapeHtml(group.subject || 'Unnamed group')} · ${group.size} members</option>`).join('')}
+      </select></div>
+      ${state.groups.length ? '<p class="field-hint">Only this group will be able to talk with BizzClaw.</p>' : '<div class="empty-state compact-empty"><strong>No groups found yet.</strong><p>Create a new workspace here, or create a group in WhatsApp and refresh this list.</p></div>'}
       ${baileysGroupsError ? `<p class="field-hint error">${escapeHtml(baileysGroupsError)}</p>` : ''}
       <div class="actions">
         <button class="btn btn-secondary" type="button" id="refreshGroups">Refresh</button>
-        <button class="btn btn-primary" type="submit" ${state.selected ? '' : 'disabled'}>Confirm group</button>
+        <button class="btn btn-primary" type="submit" ${state.groups.length ? '' : 'disabled'}>Use this group</button>
       </div>
-    </form>
+    </form>` : `<form id="createGroupForm" class="group-workspace-form">
+      <div class="field"><label for="groupName">Group name</label><input id="groupName" name="groupName" type="text" maxlength="100" value="${escapeHtml(`BizzClaw — ${data.session.profile?.business?.name || 'My business'}`)}" required /></div>
+      <div class="field"><label for="participantPhone">Invite one trusted person</label><input id="participantPhone" name="participantPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+972 50 123 4567" required /><p class="field-hint">WhatsApp requires one other person when a group is created. Include their country code; this onboarding form does not save the number.</p></div>
+      ${baileysGroupsError ? `<p class="field-hint error">${escapeHtml(baileysGroupsError)}</p>` : ''}
+      <div class="actions"><button class="btn btn-secondary" type="button" id="cancelCreateGroup">Use existing group</button><button class="btn btn-primary" type="submit">Create workspace</button></div>
+    </form>`}
   </div>`
 }
 
@@ -576,6 +575,7 @@ async function ensureBaileysGroupsLoaded(): Promise<void> {
     const json = await res.json() as { groups?: BaileysGroup[]; selected?: string | null; error?: string }
     if (!res.ok) throw new Error(json.error || 'Could not load groups')
     baileysGroupsState = { groups: json.groups ?? [], selected: json.selected ?? null }
+    if (!baileysGroupsState.groups.length) baileysGroupMode = 'create'
   } catch (error) {
     baileysGroupsError = error instanceof Error ? error.message : 'Could not load groups'
   } finally {
@@ -597,12 +597,40 @@ async function submitBaileysGroup(groupJid: string): Promise<void> {
     if (!res.ok) throw new Error(json.error || 'Could not save group')
     data = await api(`/api/onboarding/bootstrap${location.search}`)
     updateHeaderStatus()
+    manageBaileysGroup = false
     const nextStep = data.progress.allowedStep
     currentStep = nextStep
-    history.pushState({ step: currentStep }, '', `/onboarding/step/${currentStep}${location.search}`)
+    const url = new URL(location.href)
+    url.searchParams.delete('manage')
+    history.pushState({ step: currentStep }, '', `/onboarding/step/${currentStep}${url.search}`)
     render()
   } catch (error) {
     showError(error instanceof Error ? error : new Error('Could not save group. Try again.'), 'Could not save group. Try again.')
+  }
+}
+
+async function createBaileysGroup(form: HTMLFormElement): Promise<void> {
+  const groupName = formValue(form, 'groupName')
+  const participantPhone = formValue(form, 'participantPhone')
+  if (!confirm(`Create “${groupName}” and invite ${participantPhone}?`)) return
+  const button = form.querySelector<HTMLButtonElement>('button[type="submit"]')
+  setSubmitting(button, true)
+  try {
+    errorMessage = ''
+    await postJson('/api/onboarding/baileys-group-create', { groupName, participantPhone })
+    data = await api(`/api/onboarding/bootstrap${location.search}`)
+    baileysGroupsState = null
+    manageBaileysGroup = false
+    updateHeaderStatus()
+    currentStep = data.progress.allowedStep
+    const url = new URL(location.href)
+    url.searchParams.delete('manage')
+    history.pushState({ step: currentStep }, '', `/onboarding/step/${currentStep}${url.search}`)
+    render()
+  } catch (error) {
+    showError(error instanceof Error ? error : new Error('Could not create the group. Try again.'), 'Could not create the group. Try again.')
+  } finally {
+    setSubmitting(button, false)
   }
 }
 
@@ -779,7 +807,7 @@ function bindEvents(): void {
     await submitBaileysGroup(groupJid)
   })
   app.querySelector<HTMLFormElement>('#groupForm')?.addEventListener('change', (event) => {
-    const target = event.target as HTMLInputElement | null
+    const target = event.target as HTMLSelectElement | null
     if (!target || target.name !== 'groupJid') return
     if (!baileysGroupsState) return
     baileysGroupsState = { ...baileysGroupsState, selected: target.value }
@@ -787,6 +815,28 @@ function bindEvents(): void {
   })
   app.querySelector<HTMLButtonElement>('#refreshGroups')?.addEventListener('click', () => {
     baileysGroupsState = null
+    void ensureBaileysGroupsLoaded()
+  })
+  app.querySelector<HTMLButtonElement>('#useExistingGroup')?.addEventListener('click', () => {
+    baileysGroupMode = 'existing'
+    render()
+  })
+  app.querySelector<HTMLButtonElement>('#createNewGroup')?.addEventListener('click', () => {
+    baileysGroupMode = 'create'
+    render()
+  })
+  app.querySelector<HTMLButtonElement>('#cancelCreateGroup')?.addEventListener('click', () => {
+    baileysGroupMode = 'existing'
+    render()
+  })
+  app.querySelector<HTMLFormElement>('#createGroupForm')?.addEventListener('submit', async (event) => {
+    event.preventDefault()
+    await createBaileysGroup(event.currentTarget)
+  })
+  app.querySelector<HTMLButtonElement>('#manageGroupBtn')?.addEventListener('click', () => {
+    manageBaileysGroup = true
+    baileysGroupsState = null
+    render()
     void ensureBaileysGroupsLoaded()
   })
   app.querySelector<HTMLButtonElement>('#disconnectBtn')?.addEventListener('click', async () => {

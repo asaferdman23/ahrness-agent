@@ -66,6 +66,11 @@ test('Baileys onboarding group endpoints require linked WhatsApp and persist the
             '120363222222222222@g.us': { id: '120363222222222222@g.us', subject: 'Launch', size: 25 },
           }
         },
+        async groupCreate(subject: string, participants: string[]) {
+          assert.equal(subject, 'BizzClaw — Northstar')
+          assert.deepEqual(participants, ['972501234567@s.whatsapp.net'])
+          return { id: '120363333333333333@g.us', subject, size: 2 }
+        },
       },
       transport: {
         sendText: async () => {},
@@ -103,17 +108,37 @@ test('Baileys onboarding group endpoints require linked WhatsApp and persist the
     assert.equal(meta.baileysHomeGroupSubject, 'Planning')
     assert.ok(typeof meta.baileysHomeGroupBoundAt === 'string')
 
+    const createRes = await fetch(`${base}/api/onboarding/baileys-group-create?session=${session.sessionId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ groupName: 'BizzClaw — Northstar', participantPhone: '+972 50 123 4567' }),
+    })
+    assert.equal(createRes.status, 200)
+    const createBody = await createRes.json() as { ok: boolean; group: { jid: string; subject: string; size: number } }
+    assert.equal(createBody.ok, true)
+    assert.equal(createBody.group.jid, '120363333333333333@g.us')
+    const createdMeta = await getClientMeta(clientId)
+    assert.equal(createdMeta.baileysHomeGroupJid, '120363333333333333@g.us')
+    assert.equal(createdMeta.baileysHomeGroupSubject, 'BizzClaw — Northstar')
+
+    const invalidCreateRes = await fetch(`${base}/api/onboarding/baileys-group-create?session=${session.sessionId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ groupName: 'BizzClaw', participantPhone: '123' }),
+    })
+    assert.equal(invalidCreateRes.status, 400)
+
     const groupsAfterRes = await fetch(`${base}/api/onboarding/baileys-groups?session=${session.sessionId}`)
     assert.equal(groupsAfterRes.status, 200)
     const groupsAfterBody = await groupsAfterRes.json() as { groups: Array<{ jid: string; subject: string; size: number }>; selected: string | null }
-    assert.equal(groupsAfterBody.selected, '120363111111111111@g.us')
+    assert.equal(groupsAfterBody.selected, '120363333333333333@g.us')
 
     const bootstrapRes = await fetch(`${base}/api/onboarding/bootstrap?session=${session.sessionId}`)
     const bootstrap = await bootstrapRes.json() as {
       whatsapp: { baileys: { homeGroupJid: string | null; homeGroupSubject: string | null } }
     }
-    assert.equal(bootstrap.whatsapp.baileys.homeGroupJid, '120363111111111111@g.us')
-    assert.equal(bootstrap.whatsapp.baileys.homeGroupSubject, 'Planning')
+    assert.equal(bootstrap.whatsapp.baileys.homeGroupJid, '120363333333333333@g.us')
+    assert.equal(bootstrap.whatsapp.baileys.homeGroupSubject, 'BizzClaw — Northstar')
 
     const disconnectRes = await fetch(`${base}/api/onboarding/whatsapp-disconnect?session=${session.sessionId}`, {
       method: 'POST',

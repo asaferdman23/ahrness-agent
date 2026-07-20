@@ -44,10 +44,15 @@ link for an internal group JID, so the server requests the group's WhatsApp
 invite URL only after the user clicks. The URL is not persisted or placed in
 page HTML.
 
-Creating a new group is intentionally not automatic. Group creation is a real
-WhatsApp side effect and normally needs another participant; a future creation
-flow must require a deliberate confirmation, validate that participant, and
-must not retry blindly or create duplicate groups.
+Creating a new group is never automatic. The Launch screen and the dashboard's
+**Change or create group** link offer an explicit creation form. WhatsApp needs
+one other participant at creation, so the user supplies one phone number with a
+country code and confirms the exact group name and invitee before the request is
+sent. The onboarding endpoint converts the number to a WhatsApp JID in memory
+and does not persist the submitted form field; WhatsApp still records group
+membership normally. The returned group becomes that tenant's home group.
+The browser disables the submitting control and the server never retries a group
+creation request blindly.
 
 ## Two-device acceptance test
 

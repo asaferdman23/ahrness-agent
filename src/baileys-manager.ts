@@ -34,6 +34,11 @@ export type BaileysGroupInfo = {
   size: number
 }
 
+export type CreateBaileysGroupInput = {
+  subject: string
+  participantJid: string
+}
+
 /**
  * Map Baileys GroupMetadata records to picker rows, sorted by member count
  * (largest first) so the most relevant groups surface at the top. Pure and
@@ -141,6 +146,27 @@ export class BaileysSessionManager {
     const code = await session.socket.groupInviteCode(groupJid)
     if (!code) throw new Error('WhatsApp did not return a group link')
     return `https://chat.whatsapp.com/${encodeURIComponent(code)}`
+  }
+
+  /** Create one explicitly requested WhatsApp group for a connected tenant. */
+  async createGroup(clientId: string, input: CreateBaileysGroupInput): Promise<BaileysGroupInfo | null> {
+    const session = this.sessions.get(clientId)
+    if (!session || !this._connected.has(clientId)) return null
+    const subject = input.subject.trim()
+    if (!subject || subject.length > 100) throw new Error('Group name must be between 1 and 100 characters')
+    if (!/^\d{8,15}@s\.whatsapp\.net$/.test(input.participantJid)) {
+      throw new Error('Enter a valid WhatsApp phone number including country code')
+    }
+
+    const created = await session.socket.groupCreate(subject, [input.participantJid])
+    if (!created.id || !/^\d+@g\.us$/.test(created.id)) {
+      throw new Error('WhatsApp did not return the new group')
+    }
+    return {
+      jid: created.id,
+      subject: created.subject || subject,
+      size: created.size ?? 2,
+    }
   }
 
   /** True if a socket is currently active (open or connecting) for the client. */

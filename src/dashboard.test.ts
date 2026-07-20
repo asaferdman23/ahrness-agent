@@ -156,6 +156,7 @@ test('dashboard opens the selected Baileys group instead of a direct chat', () =
   assert.match(html, /Your private workspace is “BizzClaw HQ”/)
   assert.match(html, /fetch\('\/api\/whatsapp\/home-group-link'/)
   assert.doesNotMatch(html, /https:\/\/wa\.me\/15551234567/)
+  assert.match(html, /href="\/onboarding\/step\/5\?manage=group">Change or create group/)
 })
 
 test('dashboard escapes customer-controlled identity, result, and alert text', () => {
