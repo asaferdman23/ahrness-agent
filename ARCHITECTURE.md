@@ -407,10 +407,23 @@ pattern scan. Clicks that look irreversible (checkout, delete, unsubscribe —
 `src/browser/risk.ts`) route through the existing approve-before-act
 confirmation gate (`confirmations.ts`) instead of executing directly.
 
-Credential-based login to specific sites (LinkedIn, Instagram, Facebook,
-Reddit and others) is a separate follow-on capability — see
-`docs/superpowers/specs/2026-07-20-web-browser-agent-tool-design.md` and its
-Plan B.
+Credential-based login is now built: `browser_login({ domain })` resolves a
+per-client, per-domain credential from an encrypted vault
+(`store/clients/<clientId>/site-credentials.json`, AES-256-GCM via the
+existing `vault.ts`) that is **only ever written from a signed-link web
+form** (`/connect-site`, reached the same way onboarding links already work
+— never from the agent or a WhatsApp message, making it structurally
+impossible for a password to reach the model or chat history). A curated
+registry (`src/browser-sites/registry.ts`) gives LinkedIn/Instagram/
+Facebook/Reddit a known login URL; other domains fall back to a best-effort
+`https://<domain>/login` guess. Login-field detection reuses the same
+auto-indexed element list `browser_view_elements` already builds
+(`src/browser/login-field-finder.ts`), not raw CSS selectors. The login
+sequence screenshots the empty login form and delivers it to the client
+before typing anything (transparency/credibility, and a phishing sanity
+check), disables `browser_screenshot` for the client for the duration of
+credential entry (`src/browser/vision-gate.ts`), and re-enables it
+afterward — always, even if the flow throws partway through.
 
 ---
 
