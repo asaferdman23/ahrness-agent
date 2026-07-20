@@ -4,6 +4,7 @@ import { wrapBrowserContent } from './untrusted-content.js'
 import { isLikelyIrreversibleAction } from './risk.js'
 import { assertSafeNavigationTarget } from './ssrf-guard.js'
 import { stageOrExecute, fileConfirmationStore } from '../confirmations.js'
+import { isVisionDisabled } from './vision-gate.js'
 
 /** Per-process cache of the last browser_view_elements() call, so click/type by index can look up the label for the risk check. */
 const lastElementsByClient = new Map<string, BrowserElement[]>()
@@ -165,6 +166,9 @@ export function createBrowserTools(clientId: string, client: BrowserRuntimeClien
       description: "Takes a screenshot of the current page. Returns a base64 PNG the caller can render or hand to vision analysis. Unavailable mid-login (see browser_login in the credential-login tool set).",
       inputSchema: { type: 'object', properties: {}, required: [], additionalProperties: false },
       callback: async (_input: unknown) => {
+        if (isVisionDisabled(clientId)) {
+          return JSON.stringify({ error: 'Screenshots are temporarily unavailable while a login is in progress for this client.' })
+        }
         const result = await client.screenshot(clientId)
         return JSON.stringify(result)
       },
