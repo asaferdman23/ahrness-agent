@@ -14,7 +14,7 @@
  *   open 'http://127.0.0.1:5173/onboarding/step/2?mock=step2'
  *
  * Scenarios: step1-empty, step1-filled, step1-preview, step2, step3, step4,
- * step5-choose, step5-managed, step5-qr, step6.
+ * step5-choose, step5-managed, step5-qr, step5-group, step6, step6-self.
  *
  * Always include the /step/N path segment — the app redirects to
  * progress.allowedStep when the URL has no explicit step.
@@ -79,7 +79,7 @@ function scenarioState(mock) {
     whatsapp: {
       providers: ['twilio', 'baileys'], selectedProvider: null,
       twilio: { enabled: true, digits: '14155238886', connectCode: 'JOIN-4821', waLink: 'https://wa.me/14155238886?text=JOIN-4821' },
-      baileys: { enabled: true, latestQr: null, homeGroupJid: null, homeGroupSubject: null },
+      baileys: { enabled: true, latestQr: null, homeChatJid: null, homeChatKind: null, homeChatSubject: null, homeGroupJid: null, homeGroupSubject: null },
     },
   }
 
@@ -108,6 +108,19 @@ function scenarioState(mock) {
       return { ...base, preview, platforms, session: { ...base.session, profile, roleId: 'ads-analyst', scheduleTemplates: ['weekly-report'], whatsappProvider: 'baileys', whatsappLinked: true, connections: { google: 'connected' } }, progress: { allowedStep: 5, readiness: 'needs_whatsapp', checks: { profile: true, role: true, automations: true, requiredConnections: true, whatsapp: false }, missingRequiredPlatforms: [] } }
     case 'step6':
       return { ...base, preview, platforms, session: { ...base.session, profile, roleId: 'ads-analyst', scheduleTemplates: ['weekly-report'], whatsappProvider: 'twilio', whatsappLinked: true, connections: { google: 'connected' } }, progress: { allowedStep: 6, readiness: 'live', checks: full, missingRequiredPlatforms: [] } }
+    case 'step6-self':
+      return {
+        ...base,
+        preview,
+        platforms,
+        session: { ...base.session, profile, roleId: 'ads-analyst', scheduleTemplates: ['weekly-report'], whatsappJid: '15551234567@s.whatsapp.net', whatsappProvider: 'baileys', whatsappLinked: true, connections: { google: 'connected' } },
+        progress: { allowedStep: 6, readiness: 'live', checks: full, missingRequiredPlatforms: [] },
+        whatsapp: {
+          ...base.whatsapp,
+          selectedProvider: 'baileys',
+          baileys: { ...base.whatsapp.baileys, homeChatJid: '15551234567@s.whatsapp.net', homeChatKind: 'self', homeChatSubject: 'Message yourself' },
+        },
+      }
     default:
       return base
   }
@@ -131,7 +144,7 @@ const server = createServer((req, res) => {
     return setTimeout(() => send(200, { preview }), 1200)
   }
   if (url.pathname === '/api/onboarding/baileys-groups') {
-    return send(200, { groups: [{ jid: '1@g.us', subject: 'Northstar Studio — Team', size: 8 }, { jid: '2@g.us', subject: 'Marketing war room', size: 4 }], selected: null })
+    return send(200, { groups: [{ jid: '1@g.us', subject: 'Northstar Studio — Team', size: 8 }, { jid: '2@g.us', subject: 'Marketing war room', size: 4 }], selected: null, selectedKind: null })
   }
   if (url.pathname.startsWith('/api/onboarding/')) {
     return send(200, current)

@@ -150,6 +150,27 @@ test('creates an openable link only for a connected tenant home group', async ()
   )
 })
 
+test('resolves Message yourself only from the connected socket owner', async () => {
+  const starter = (async (clientId, opts = {}) => {
+    opts.onConnected?.(clientId)
+    return {
+      clientId,
+      socket: { user: { id: '123456789012345@lid', jid: '15551234567:12@s.whatsapp.net' } } as BaileysSession['socket'],
+      transport: fakeTransport(),
+      stop() {},
+      async logout() {},
+    }
+  }) satisfies typeof startBaileysWhatsApp
+  const manager = new BaileysSessionManager(starter)
+
+  assert.equal(manager.selfChat('client-a'), null)
+  await manager.ensureSocket('client-a')
+  assert.deepEqual(manager.selfChat('client-a'), {
+    jid: '15551234567@s.whatsapp.net',
+    subject: 'Message yourself',
+  })
+})
+
 test('creates a group only on the connected tenant socket with one validated participant', async () => {
   const calls: Array<{ subject: string; participants: string[] }> = []
   let removalStatus = '200'

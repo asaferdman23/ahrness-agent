@@ -32,6 +32,11 @@ import {
   type WhatsAppProvider,
 } from '../whatsapp-providers.js'
 import { baileysSessionManager } from '../baileys-manager.js'
+import {
+  baileysHomeChatFromMeta,
+  baileysHomeChatPatch,
+  clearBaileysHomeChatPatch,
+} from '../baileys-home-chat.js'
 import { deriveOnboardingProgress, type OnboardingProgress } from './progress.js'
 import { currentPreview, generatePreview, profileFingerprint, registerPreviewAttempt } from './preview.js'
 import {
@@ -577,7 +582,7 @@ async function renderStep5(session: OnboardingSession): Promise<string> {
       <div class="card">
         ${eyebrow(5, 'WhatsApp')}
         <h1>Choose how WhatsApp connects</h1>
-        <p class="subtitle">Use our number, or host the agent in a 1:1 group with your own number.</p>
+        <p class="subtitle">Use our number, or link your own WhatsApp and choose Message yourself or a group.</p>
         ${providerPicker}
         <div class="connect-panel">
           <h2>Use our number</h2>
@@ -622,7 +627,7 @@ async function renderStep5(session: OnboardingSession): Promise<string> {
       <div class="card">
         ${eyebrow(5, 'WhatsApp')}
         <h1>Choose how WhatsApp connects</h1>
-        <p class="subtitle">Use our number, or host the agent in a 1:1 group with your own number.</p>
+        <p class="subtitle">Use our number, or link your own WhatsApp and choose Message yourself or a group.</p>
         ${providerPicker}
         <div class="connect-panel">
           <p class="qr-hint" style="text-align:center;">Pick a method above to continue.</p>
@@ -643,10 +648,10 @@ async function renderStep5(session: OnboardingSession): Promise<string> {
     <div class="card">
       ${eyebrow(5, 'Link WhatsApp')}
       <h1>Choose how WhatsApp connects</h1>
-      <p class="subtitle">Use our number, or host the agent in a 1:1 group with your own number.</p>
+      <p class="subtitle">Use our number, or link your own WhatsApp and choose Message yourself or a group.</p>
       ${providerPicker}
       <div class="connect-panel">
-      <h2>Host in your 1:1 group</h2>
+      <h2>Link your own WhatsApp</h2>
       <p class="subtitle">On your phone, open WhatsApp → Linked Devices → Link a Device → scan this code.</p>
       <div class="qr-box">
         <div id="qrDisplay">
@@ -656,8 +661,12 @@ async function renderStep5(session: OnboardingSession): Promise<string> {
       </div>
       </div>
       <div class="connect-panel" id="groupPanel" style="display:none;">
-        <h2>Pick the agent's group</h2>
-        <p class="subtitle">The agent will only listen and reply in the one group you choose. Add your number to the group first, then it appears below.</p>
+        <h2>Choose your private workspace</h2>
+        <p class="subtitle">Recommended: use WhatsApp's Message yourself chat. No group or second person is needed.</p>
+        <button type="button" class="btn btn-primary" id="confirmSelfChat">Use Message yourself →</button>
+        <p class="qr-hint" id="selfChatStatus"></p>
+        <hr style="margin:1.5rem 0;border:0;border-top:1px solid #e2e8f0;">
+        <p class="subtitle">Or choose one existing group for a shared workspace.</p>
         <div id="groupList" style="margin:1rem 0;text-align:left;"></div>
         <p class="qr-hint" id="groupStatus"></p>
         <div class="actions" style="margin-top:1rem;">
@@ -707,6 +716,23 @@ async function renderStep5(session: OnboardingSession): Promise<string> {
       }
 
       document.getElementById('refreshGroups').addEventListener('click', loadGroups)
+      document.getElementById('confirmSelfChat').addEventListener('click', async () => {
+        const status = document.getElementById('selfChatStatus')
+        status.textContent = 'Saving…'
+        try {
+          const r = await fetch('/api/onboarding/baileys-self-chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: '{}',
+          })
+          const data = await r.json()
+          if (!r.ok) { status.textContent = data.error || 'Could not select Message yourself'; return }
+          status.innerHTML = '<span style="color:#276749;font-weight:700">✓ Ready! Redirecting…</span>'
+          setTimeout(() => { location.href = '/onboarding/step/6' }, 800)
+        } catch (err) {
+          status.textContent = 'Could not select Message yourself — try again.'
+        }
+      })
       document.getElementById('confirmGroup').addEventListener('click', async () => {
         if (!selectedGroup) return
         const status = document.getElementById('groupStatus')
@@ -883,16 +909,16 @@ function effectiveWhatsAppLinked(session: OnboardingSession): boolean {
 }
 
 /**
- * For Baileys, WhatsApp setup is only complete once the user has also picked
- * their home group — the agent is group-scoped, so "linked" alone isn't enough.
- * This keeps step 6 unreachable until the group is confirmed.
+ * For Baileys, WhatsApp setup is complete only after the user explicitly picks
+ * Message yourself or a group. Linking a device alone does not authorize a
+ * destination.
  */
 async function effectiveWhatsAppReady(session: OnboardingSession): Promise<boolean> {
   if (!effectiveWhatsAppLinked(session)) return false
   if (session.whatsappProvider !== 'baileys') return true
   const clientId = session.clientId ?? session.sessionId
   const meta = await getClientMeta(clientId)
-  return Boolean(meta.baileysHomeGroupJid)
+  return baileysHomeChatFromMeta(meta) !== null
 }
 
 async function progressForSession(
@@ -944,13 +970,14 @@ async function onboardingBootstrap(session: OnboardingSession): Promise<Record<s
   // client isn't actually connected (e.g. the user removed the linked device,
   // or WhatsApp invalidated the session), treat it as not linked so the user
   // can re-link from step 5 instead of being stuck on step 6. For Baileys we
-  // also require the home group to be chosen before step 6 unlocks.
+  // also require an explicit self-chat or group destination before step 6.
   const effectiveLinked = effectiveWhatsAppLinked(session)
   const effectiveReady = await effectiveWhatsAppReady(session)
   const { progress, scheduleTemplates } = await progressForSession(session, effectiveReady)
   const clientMeta = selectedProvider === 'baileys'
     ? await getClientMeta(session.clientId ?? session.sessionId)
     : null
+  const homeChat = clientMeta ? baileysHomeChatFromMeta(clientMeta) : null
 
   return {
     agentName: process.env.AGENT_NAME ?? 'BizzClaw',
@@ -996,8 +1023,12 @@ async function onboardingBootstrap(session: OnboardingSession): Promise<Record<s
         // the global WHATSAPP_PROVIDER env.
         enabled: true,
         latestQr: latestQrDataUri,
-        homeGroupJid: clientMeta?.baileysHomeGroupJid ?? null,
-        homeGroupSubject: clientMeta?.baileysHomeGroupSubject ?? null,
+        homeChatJid: homeChat?.jid ?? null,
+        homeChatKind: homeChat?.kind ?? null,
+        homeChatSubject: homeChat?.subject ?? null,
+        // Compatibility for clients deployed before home-chat selection.
+        homeGroupJid: homeChat?.kind === 'group' ? homeChat.jid : null,
+        homeGroupSubject: homeChat?.kind === 'group' ? homeChat.subject : null,
       },
     },
   }
@@ -1246,11 +1277,7 @@ export function createOnboardingHandler(): OnboardingHandler {
             await baileysSessionManager().disconnect(clientId).catch((err) => {
               console.error(`[onboarding] baileys disconnect failed for ${clientId}:`, err)
             })
-            await updateClientMeta(clientId, {
-              baileysHomeGroupJid: undefined,
-              baileysHomeGroupSubject: undefined,
-              baileysHomeGroupBoundAt: undefined,
-            })
+            await updateClientMeta(clientId, clearBaileysHomeChatPatch())
           }
           session.whatsappLinked = false
           session.whatsappJid = undefined
@@ -1267,7 +1294,25 @@ export function createOnboardingHandler(): OnboardingHandler {
             return json(res, { error: 'WhatsApp is not linked yet' }, 409)
           }
           const existing = await getClientMeta(clientId)
-          return json(res, { groups, selected: existing.baileysHomeGroupJid ?? null })
+          const homeChat = baileysHomeChatFromMeta(existing)
+          return json(res, {
+            groups,
+            selected: homeChat?.kind === 'group' ? homeChat.jid : null,
+            selectedKind: homeChat?.kind ?? null,
+          })
+        }
+        if (req.method === 'POST' && pathname === '/api/onboarding/baileys-self-chat') {
+          // The browser supplies no phone number or JID. Resolve the destination
+          // exclusively from the connected tenant socket so another person's
+          // direct chat can never be selected.
+          const clientId = session.clientId ?? session.sessionId
+          const selfChat = baileysSessionManager().selfChat(clientId)
+          if (!selfChat) throw new Error('WhatsApp is not linked yet')
+          await updateClientMeta(clientId, baileysHomeChatPatch({
+            ...selfChat,
+            kind: 'self',
+          }))
+          return json(res, { ok: true, workspace: { ...selfChat, kind: 'self' } })
         }
         if (req.method === 'POST' && pathname === '/api/onboarding/baileys-group') {
           // Save the user's chosen home group. The picked jid must be one of the
@@ -1280,11 +1325,7 @@ export function createOnboardingHandler(): OnboardingHandler {
           if (groups === null) throw new Error('WhatsApp is not linked yet')
           const match = groups.find((g) => g.jid === groupJid)
           if (!match) throw new Error('That group is not available on the linked account')
-          await updateClientMeta(clientId, {
-            baileysHomeGroupJid: match.jid,
-            baileysHomeGroupSubject: match.subject,
-            baileysHomeGroupBoundAt: new Date().toISOString(),
-          })
+          await updateClientMeta(clientId, baileysHomeChatPatch({ ...match, kind: 'group' }))
           return json(res, { ok: true, group: match })
         }
         if (req.method === 'POST' && pathname === '/api/onboarding/baileys-group-create') {
@@ -1316,11 +1357,7 @@ export function createOnboardingHandler(): OnboardingHandler {
             throw new Error('Could not create the group. Check that the invited number uses WhatsApp and try again.')
           }
           if (!created) throw new Error('WhatsApp is not linked yet')
-          await updateClientMeta(clientId, {
-            baileysHomeGroupJid: created.jid,
-            baileysHomeGroupSubject: created.subject,
-            baileysHomeGroupBoundAt: new Date().toISOString(),
-          })
+          await updateClientMeta(clientId, baileysHomeChatPatch({ ...created, kind: 'group' }))
           return json(res, {
             ok: true,
             group: created,

@@ -25,8 +25,14 @@ import { getClientMeta, getConnections, getRole, updateClientMeta } from './stor
 import { broadcastLinked, broadcastPairingCode, broadcastPairingError, broadcastQr } from './onboarding/server.js'
 import { bindSessionToWhatsAppJid } from './onboarding/session.js'
 import type { WhatsAppTransport } from './whatsapp-transport.js'
-import { effectiveAllowedGroupJids, shouldProcessBaileysInbound, sameWhatsAppUser } from './baileys-gate.js'
-import { createBaileysGroupTransport } from './baileys-group-transport.js'
+import {
+  BaileysConversationWindow,
+  effectiveAllowedGroupJids,
+  shouldProcessBaileysInbound,
+  sameWhatsAppUser,
+} from './baileys-gate.js'
+import { createBaileysHomeChatTransport } from './baileys-group-transport.js'
+import { baileysHomeChatFromMeta } from './baileys-home-chat.js'
 import { consumeAgentAuthoredMessage, rememberAgentMessageId } from './baileys-message-origin.js'
 
 /**
@@ -179,7 +185,8 @@ export async function startBaileysWhatsApp(
   })
 
   const agentSentMessageIds = new Set<string>()
-  const transport = createBaileysGroupTransport(clientId, createBaileysTransport(socket, agentSentMessageIds))
+  const conversationWindow = new BaileysConversationWindow()
+  const transport = createBaileysHomeChatTransport(clientId, createBaileysTransport(socket, agentSentMessageIds))
 
   socket.ev.on('creds.update', saveCreds)
 
@@ -272,9 +279,10 @@ export async function startBaileysWhatsApp(
       if (!text && !media) continue
 
       const meta = await getClientMeta(clientId)
-      // Home group is chosen explicitly during onboarding (POST /api/onboarding/baileys-group)
-      // and stored as meta.baileysHomeGroupJid. No silent auto-bind here — the agent
-      // only listens in the one group the user picked.
+      const homeChat = baileysHomeChatFromMeta(meta)
+      // The home chat is chosen explicitly during onboarding. No silent
+      // auto-bind: the agent listens only in the verified linked-account
+      // self-chat or the one group the user selected.
 
       const gate = shouldProcessBaileysInbound({
         remoteJid: jid,
@@ -283,7 +291,12 @@ export async function startBaileysWhatsApp(
         hasMedia: Boolean(media),
         mentionedJids: extractMentionedJids(msg),
         botJid: socket.user?.id,
-        allowedGroupJids: effectiveAllowedGroupJids(undefined, meta.baileysHomeGroupJid),
+        allowedGroupJids: effectiveAllowedGroupJids(
+          undefined,
+          homeChat?.kind === 'group' ? homeChat.jid : undefined,
+        ),
+        allowedSelfJid: homeChat?.kind === 'self' ? homeChat.jid : undefined,
+        conversationActive: conversationWindow.isActive(jid),
       })
       if (!gate.allowed) {
         if (gate.triggered && (gate.reason === 'group-not-configured' || gate.reason === 'group-not-allowed')) {
@@ -291,6 +304,11 @@ export async function startBaileysWhatsApp(
         }
         continue
       }
+
+      // One explicit mention opens a short conversational window in this
+      // tenant's selected group. Each accepted follow-up extends it, allowing
+      // natural back-and-forth without making BizzClaw listen indefinitely.
+      if (gate.groupMode && !gate.selfChat) conversationWindow.touch(jid)
 
       if (!gate.groupMode && !(await isInboundSenderAllowed(jid))) {
         console.log(`[${jid}] blocked by sender allowlist`)

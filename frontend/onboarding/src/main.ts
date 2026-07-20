@@ -104,6 +104,9 @@ interface Bootstrap {
     baileys: {
       enabled: boolean
       latestQr: string | null
+      homeChatJid: string | null
+      homeChatKind: 'self' | 'group' | null
+      homeChatSubject: string | null
       homeGroupJid: string | null
       homeGroupSubject: string | null
     }
@@ -134,10 +137,10 @@ let whatsappConnectionState: 'waiting' | 'reconnecting' | 'error' = 'waiting'
 let baileysLinkMode: 'phone' | 'qr' = window.matchMedia('(max-width: 620px)').matches ? 'phone' : 'qr'
 let pairingCode = ''
 let pairingRequestPending = false
-let baileysGroupsState: { groups: BaileysGroup[]; selected: string | null } | null = null
+let baileysGroupsState: { groups: BaileysGroup[]; selected: string | null; selectedKind: 'self' | 'group' | null } | null = null
 let baileysGroupsLoading = false
 let baileysGroupsError = ''
-let baileysGroupMode: 'existing' | 'create' = 'existing'
+let baileysWorkspaceMode: 'self' | 'existing' | 'create' = 'self'
 let manageBaileysGroup = new URLSearchParams(location.search).get('manage') === 'group'
 let previewLoading = false
 let lastTrackedPhase = ''
@@ -493,7 +496,7 @@ function renderWhatsApp(): string {
     : needsGroupPicker
       ? renderBaileysGroupPicker()
       : linked
-        ? `<div class="connect-stage connected-stage">${successSeal()}<p class="overline">Connection verified</p><h2>WhatsApp is ready</h2><p>${selected === 'baileys' ? `BizzClaw can work only in <strong>${escapeHtml(data.whatsapp.baileys.homeGroupSubject || 'your selected group')}</strong>. In that group, begin a request with <strong>@bizzclaw</strong>.` : 'BizzClaw can now receive your requests and deliver results in the conversation.'}</p><div class="inline-actions">${selected === 'baileys' ? '<button class="btn btn-secondary" type="button" id="manageGroupBtn">Change or create group</button>' : ''}<button class="btn btn-tertiary danger-action" type="button" id="disconnectBtn">Disconnect WhatsApp</button><button class="btn btn-primary" type="button" data-step="6">Choose first result</button></div></div>`
+        ? `<div class="connect-stage connected-stage">${successSeal()}<p class="overline">Connection verified</p><h2>WhatsApp is ready</h2><p>${selected === 'baileys' ? (data.whatsapp.baileys.homeChatKind === 'self' ? 'Send a normal message in WhatsApp’s <strong>Message yourself</strong> chat. No @mention is needed.' : `BizzClaw works only in <strong>${escapeHtml(data.whatsapp.baileys.homeChatSubject || 'your selected group')}</strong>. Start with <strong>@bizzclaw</strong>, then continue naturally.`) : 'BizzClaw can now receive your requests and deliver results in the conversation.'}</p><div class="inline-actions">${selected === 'baileys' ? '<button class="btn btn-secondary" type="button" id="manageGroupBtn">Change WhatsApp workspace</button>' : ''}<button class="btn btn-tertiary danger-action" type="button" id="disconnectBtn">Disconnect WhatsApp</button><button class="btn btn-primary" type="button" data-step="6">Choose first result</button></div></div>`
         : selected === 'twilio'
           ? renderManagedWhatsApp()
           : renderLinkedWhatsApp()
@@ -552,21 +555,18 @@ function pairingCodeMarkup(code: string): string {
 
 function renderBaileysGroupPicker(): string {
   const state = baileysGroupsState
-  if (baileysGroupsLoading || !state) {
-    return `<div class="connect-stage linked-connect">
-      <div><p class="overline">WhatsApp verified</p><h2>Choose your BizzClaw group</h2><p>Choose the one group where BizzClaw should respond.</p></div>
-      <div class="status-panel">${baileysGroupsLoading ? 'Loading your groups…' : 'Preparing the group picker…'}</div>
-      <div class="actions"><button class="btn btn-secondary" type="button" id="refreshGroups">Refresh groups</button></div>
-    </div>`
-  }
-
   return `<div class="connect-stage linked-connect">
-    <div><p class="overline">WhatsApp verified</p><h2>Choose your BizzClaw workspace</h2><p>Use a group you already have, or create a fresh one. BizzClaw responds only in the workspace you confirm.</p></div>
-    <div class="group-mode-switch" role="group" aria-label="Choose group setup">
-      <button class="group-mode ${baileysGroupMode === 'existing' ? 'active' : ''}" type="button" id="useExistingGroup" aria-pressed="${baileysGroupMode === 'existing'}">Use existing group</button>
-      <button class="group-mode ${baileysGroupMode === 'create' ? 'active' : ''}" type="button" id="createNewGroup" aria-pressed="${baileysGroupMode === 'create'}">Create new group</button>
+    <div><p class="overline">WhatsApp verified</p><h2>Where do you want to talk with BizzClaw?</h2><p>Choose one private destination. BizzClaw will ignore every other WhatsApp chat.</p></div>
+    <div class="group-mode-switch" role="group" aria-label="Choose WhatsApp workspace">
+      <button class="group-mode ${baileysWorkspaceMode === 'self' ? 'active' : ''}" type="button" id="useSelfChat" aria-pressed="${baileysWorkspaceMode === 'self'}">Message myself</button>
+      <button class="group-mode ${baileysWorkspaceMode === 'existing' ? 'active' : ''}" type="button" id="useExistingGroup" aria-pressed="${baileysWorkspaceMode === 'existing'}">Existing group</button>
+      <button class="group-mode ${baileysWorkspaceMode === 'create' ? 'active' : ''}" type="button" id="createNewGroup" aria-pressed="${baileysWorkspaceMode === 'create'}">New group</button>
     </div>
-    ${baileysGroupMode === 'existing' ? `<form id="groupForm" class="group-workspace-form">
+    ${baileysWorkspaceMode === 'self' ? `<form id="selfChatForm" class="group-workspace-form">
+      <div class="privacy-callout"><span class="privacy-icon" aria-hidden="true">${shieldIcon()}</span><div><span class="tag">Recommended</span><strong>Use WhatsApp’s private “Message yourself” chat</strong><p>No group and no second person are needed. Only messages in your own self-chat reach BizzClaw.</p></div></div>
+      <p class="privacy-boundary">Messages still travel through WhatsApp, and the linked BizzClaw service reads this chat so it can respond.</p>
+      <div class="actions"><span></span><button class="btn btn-primary" type="submit">Use Message myself</button></div>
+    </form>` : baileysWorkspaceMode === 'existing' ? (!state ? `<div class="group-workspace-form"><div class="status-panel">${baileysGroupsLoading ? 'Loading your groups…' : 'Preparing your groups…'}</div>${baileysGroupsError ? `<p class="field-hint error">${escapeHtml(baileysGroupsError)}</p>` : ''}<div class="actions"><button class="btn btn-secondary" type="button" id="refreshGroups">Refresh groups</button></div></div>` : `<form id="groupForm" class="group-workspace-form">
       <div class="field"><label for="groupJid">Your WhatsApp groups</label><select id="groupJid" name="groupJid" required>
         <option value="">Select a group…</option>
         ${state.groups.map((group) => `<option value="${escapeHtml(group.jid)}" ${state.selected === group.jid ? 'selected' : ''}>${escapeHtml(group.subject || 'Unnamed group')} · ${group.size} members</option>`).join('')}
@@ -577,8 +577,8 @@ function renderBaileysGroupPicker(): string {
         <button class="btn btn-secondary" type="button" id="refreshGroups">Refresh</button>
         <button class="btn btn-primary" type="submit" ${state.groups.length ? '' : 'disabled'}>Use this group</button>
       </div>
-    </form>` : `<form id="createGroupForm" class="group-workspace-form">
-      <div class="privacy-callout"><span class="privacy-icon" aria-hidden="true">${shieldIcon()}</span><div><span class="tag">Recommended</span><strong>Keep this workspace private</strong><p>BizzClaw will remove the setup contact immediately, leaving only your linked WhatsApp account in the group.</p></div></div>
+    </form>`) : `<form id="createGroupForm" class="group-workspace-form">
+      <div class="privacy-callout"><span class="privacy-icon" aria-hidden="true">${shieldIcon()}</span><div><strong>Create a dedicated team workspace</strong><p>Choose this when another trusted person should work with BizzClaw in the same conversation.</p></div></div>
       <div class="field"><label for="groupName">Group name</label><input id="groupName" name="groupName" type="text" maxlength="100" value="${escapeHtml(`BizzClaw — ${data.session.profile?.business?.name || 'My business'}`)}" required /></div>
       <div class="field"><label for="participantPhone">Temporary setup contact</label><input id="participantPhone" name="participantPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+972 50 123 4567" required /><p class="field-hint">WhatsApp requires another account to create a group. Choose someone you trust and include their country code; this form does not save the number.</p></div>
       <fieldset class="privacy-options"><legend>Who should remain in the workspace?</legend><label class="privacy-option"><input type="radio" name="workspacePrivacy" value="private" checked /><span><strong>Only me</strong><small>Remove the setup contact automatically.</small></span></label><label class="privacy-option"><input type="radio" name="workspacePrivacy" value="shared" /><span><strong>Me and this person</strong><small>Keep them as a group member.</small></span></label></fieldset>
@@ -598,15 +598,31 @@ async function ensureBaileysGroupsLoaded(): Promise<void> {
   render()
   try {
     const res = await fetch('/api/onboarding/baileys-groups')
-    const json = await res.json() as { groups?: BaileysGroup[]; selected?: string | null; error?: string }
+    const json = await res.json() as { groups?: BaileysGroup[]; selected?: string | null; selectedKind?: 'self' | 'group' | null; error?: string }
     if (!res.ok) throw new Error(json.error || 'Could not load groups')
-    baileysGroupsState = { groups: json.groups ?? [], selected: json.selected ?? null }
-    if (!baileysGroupsState.groups.length) baileysGroupMode = 'create'
+    baileysGroupsState = { groups: json.groups ?? [], selected: json.selected ?? null, selectedKind: json.selectedKind ?? null }
   } catch (error) {
     baileysGroupsError = error instanceof Error ? error.message : 'Could not load groups'
   } finally {
     baileysGroupsLoading = false
     render()
+  }
+}
+
+async function submitBaileysSelfChat(): Promise<void> {
+  try {
+    errorMessage = ''
+    await postJson('/api/onboarding/baileys-self-chat', {})
+    data = await api(`/api/onboarding/bootstrap${location.search}`)
+    manageBaileysGroup = false
+    updateHeaderStatus()
+    currentStep = data.progress.allowedStep
+    const url = new URL(location.href)
+    url.searchParams.delete('manage')
+    history.pushState({ step: currentStep }, '', `/onboarding/step/${currentStep}${url.search}`)
+    render()
+  } catch (error) {
+    showError(error instanceof Error ? error : new Error('Could not select Message myself.'), 'Could not select Message myself.')
   }
 }
 
@@ -692,7 +708,7 @@ function renderDone(): string {
   return shell(
     'BizzClaw is ready on WhatsApp',
     `${escapeHtml(role?.displayName ?? 'Your business goal')} is set. Choose one useful result to start with.`,
-    `<div class="launch-hero">${successSeal()}<div><p class="overline">Ready to start</p><h2>Begin with one real business result.</h2><p>${usesLinkedNumber ? `Choose a useful brief, then send it to ${escapeHtml(data.whatsapp.baileys.homeGroupSubject || 'your selected BizzClaw group')}. The @bizzclaw prompt is included.` : 'Choose meaningful work, not a test prompt. BizzClaw already has the context you saved.'}</p></div></div>
+    `<div class="launch-hero">${successSeal()}<div><p class="overline">Ready to start</p><h2>Begin with one real business result.</h2><p>${usesLinkedNumber ? (data.whatsapp.baileys.homeChatKind === 'self' ? 'Choose a useful brief, then send it in WhatsApp’s Message yourself chat. No @mention is needed.' : `Choose a useful brief, then send it to ${escapeHtml(data.whatsapp.baileys.homeChatSubject || 'your selected BizzClaw group')}. The @bizzclaw prompt is included.`) : 'Choose meaningful work, not a test prompt. BizzClaw already has the context you saved.'}</p></div></div>
     <fieldset class="starter-list"><legend>Choose your first result</legend>${tasks.map((task, index) => `<label class="starter-task"><input type="radio" name="starterTask" value="${index}" ${index === 0 ? 'checked' : ''} /><span><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(task.prompt)}</small></span><span class="selection-control" aria-hidden="true">${checkIcon()}</span></label>`).join('')}</fieldset>
     <div class="launch-actions"><a id="firstBriefAction" href="${escapeHtml(firstBriefUrl(tasks[0]!.prompt))}" target="_blank" rel="noopener" class="btn btn-whatsapp btn-large">${usesLinkedNumber ? 'Open brief in WhatsApp' : 'Send to BizzClaw in WhatsApp'} ${arrowIcon()}</a><a href="/dashboard" class="btn btn-secondary btn-large">Go to BizzClaw home</a></div>`,
     { launch: true },
@@ -725,8 +741,13 @@ function starterTasksForRole(roleId: string | null): Array<{ title: string; prom
 }
 
 function firstBriefUrl(prompt: string): string {
-  const digits = data.session.whatsappProvider === 'twilio' ? data.whatsapp.twilio.digits : ''
-  const message = data.session.whatsappProvider === 'baileys' ? `@bizzclaw ${prompt}` : prompt
+  const selfChat = data.session.whatsappProvider === 'baileys' && data.whatsapp.baileys.homeChatKind === 'self'
+  const digits = data.session.whatsappProvider === 'twilio'
+    ? data.whatsapp.twilio.digits
+    : selfChat
+      ? (data.whatsapp.baileys.homeChatJid?.split('@')[0]?.split(':')[0] ?? '')
+      : ''
+  const message = data.session.whatsappProvider === 'baileys' && !selfChat ? `@bizzclaw ${prompt}` : prompt
   return digits ? `https://wa.me/${encodeURIComponent(digits)}?text=${encodeURIComponent(message)}` : `https://wa.me/?text=${encodeURIComponent(message)}`
 }
 
@@ -867,6 +888,10 @@ function bindEvents(): void {
     }
     await submitBaileysGroup(groupJid)
   })
+  app.querySelector<HTMLFormElement>('#selfChatForm')?.addEventListener('submit', async (event) => {
+    event.preventDefault()
+    await submitBaileysSelfChat()
+  })
   app.querySelector<HTMLFormElement>('#groupForm')?.addEventListener('change', (event) => {
     const target = event.target as HTMLSelectElement | null
     if (!target || target.name !== 'groupJid') return
@@ -878,17 +903,23 @@ function bindEvents(): void {
     baileysGroupsState = null
     void ensureBaileysGroupsLoaded()
   })
-  app.querySelector<HTMLButtonElement>('#useExistingGroup')?.addEventListener('click', () => {
-    baileysGroupMode = 'existing'
+  app.querySelector<HTMLButtonElement>('#useSelfChat')?.addEventListener('click', () => {
+    baileysWorkspaceMode = 'self'
     render()
   })
+  app.querySelector<HTMLButtonElement>('#useExistingGroup')?.addEventListener('click', () => {
+    baileysWorkspaceMode = 'existing'
+    render()
+    if (!baileysGroupsState) void ensureBaileysGroupsLoaded()
+  })
   app.querySelector<HTMLButtonElement>('#createNewGroup')?.addEventListener('click', () => {
-    baileysGroupMode = 'create'
+    baileysWorkspaceMode = 'create'
     render()
   })
   app.querySelector<HTMLButtonElement>('#cancelCreateGroup')?.addEventListener('click', () => {
-    baileysGroupMode = 'existing'
+    baileysWorkspaceMode = 'existing'
     render()
+    if (!baileysGroupsState) void ensureBaileysGroupsLoaded()
   })
   app.querySelector<HTMLFormElement>('#createGroupForm')?.addEventListener('submit', async (event) => {
     event.preventDefault()
@@ -896,6 +927,7 @@ function bindEvents(): void {
   })
   app.querySelector<HTMLButtonElement>('#manageGroupBtn')?.addEventListener('click', () => {
     manageBaileysGroup = true
+    baileysWorkspaceMode = data.whatsapp.baileys.homeChatKind === 'group' ? 'existing' : 'self'
     baileysGroupsState = null
     render()
     void ensureBaileysGroupsLoaded()

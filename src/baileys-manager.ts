@@ -19,6 +19,7 @@ import { startBaileysWhatsApp, type BaileysSession } from './whatsapp.js'
 import { broadcastLoggedOut } from './onboarding/server.js'
 import { access, readdir } from 'node:fs/promises'
 import path from 'node:path'
+import { jidNormalizedUser } from '@whiskeysockets/baileys'
 
 export type EnsureSocketOptions = {
   /** Onboarding session id to route QR/pairing broadcasts to. */
@@ -42,6 +43,11 @@ export type CreateBaileysGroupInput = {
 
 export type CreatedBaileysGroup = BaileysGroupInfo & {
   temporaryParticipantRemoved: boolean | null
+}
+
+export type BaileysSelfChatInfo = {
+  jid: string
+  subject: 'Message yourself'
 }
 
 /**
@@ -129,6 +135,22 @@ export class BaileysSessionManager {
       console.error(`[client ${clientId}] failed to fetch participating groups:`, err)
       return null
     }
+  }
+
+  /** Return only the connected socket owner's normalized JID. This is the
+   * destination WhatsApp exposes as “Message yourself”; callers cannot submit
+   * a number or JID, preventing an arbitrary direct chat from being selected. */
+  selfChat(clientId: string): BaileysSelfChatInfo | null {
+    const session = this.sessions.get(clientId)
+    if (!session || !this._connected.has(clientId)) return null
+    // Modern WhatsApp accounts may expose a LID as `id` and the usable phone
+    // address separately as `jid`. Prefer the phone address so wa.me launch
+    // links and inbound self-chat routing use the same stable identity.
+    const jid = jidNormalizedUser(session.socket.user?.jid ?? session.socket.user?.id)
+    if (!/^\d+@(s\.whatsapp\.net|lid)$/.test(jid)) {
+      throw new Error('WhatsApp did not expose the linked account identity')
+    }
+    return { jid, subject: 'Message yourself' }
   }
 
   /**

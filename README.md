@@ -205,12 +205,14 @@ store/                  # runtime data (gitignored): agent.sqlite, workspaces, .
   credentials.
 - **Sender allowlist** — set `AGENT_ALLOWED_SENDERS` so the agent only engages
   known numbers; unset = open (a warning is logged at startup).
-- **Baileys home group mode** — for linked-device deployments, keep
-  `BAILEYS_GROUP_ONLY=true` and set `BAILEYS_ALLOWED_GROUP_JIDS` to the single
-  WhatsApp group where the agent should live. The agent ignores direct chats and
-  other groups, and only runs when a message starts with the configured trigger
-  such as `@bizzclaw hi`. Optionally set `BAILEYS_ALLOWED_GROUP_PARTICIPANTS`
-  to your own WhatsApp JID so only you can trigger it inside that group.
+- **Baileys home-chat mode** — after linking their own number, each tenant must
+  explicitly choose WhatsApp's **Message yourself** chat or one verified group.
+  The owner JID for Message yourself comes only from the connected socket; the
+  browser cannot select an arbitrary direct chat. Every other direct chat and
+  group is rejected at both inbound and outbound boundaries. Self-chat messages
+  need no `@bizzclaw` trigger. In groups, one `@bizzclaw hi` opens a natural
+  30-minute conversation window. Set `BAILEYS_CONVERSATION_TTL_MS=0` to require
+  the trigger on every group message.
 - **Final files** must be written to `/workspace/outputs` and published with the
   `publish_output` tool before delivery.
 

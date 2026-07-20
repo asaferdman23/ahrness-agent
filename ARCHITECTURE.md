@@ -56,9 +56,10 @@ The customer sees three phases while the six existing routes remain compatible:
    platform connections. Missing integrations identify unavailable capabilities
    but do not block the activation-v2 cohort from continuing.
 3. **Launch** (steps 5–6): verified managed or linked WhatsApp setup, followed by
-   a tenant-scoped existing-group dropdown or explicitly confirmed new-group
-   creation. Private creation temporarily adds one required setup contact and
-   verifies their immediate removal before describing the group as self-only.
+   an explicit private destination. **Message yourself** is the recommended
+   no-group path; customers can instead choose an existing group or explicitly
+   create a new one for shared work. Private group creation temporarily adds one
+   required setup contact and verifies their immediate removal.
    Launch then offers three role-aware starter briefs and a prefilled WhatsApp action.
 
 `ONBOARDING_ACTIVATION_V2_PERCENT` assigns sessions deterministically to the new
@@ -90,18 +91,27 @@ WhatsApp is the primary channel; a client can additionally connect a personal
 Telegram bot so the *same* agent (same profile, role, connections, memory) is
 reachable there too.
 
-### Baileys MVP group mode
+### Baileys MVP home-chat mode
 
 Baileys runs as a process-wide manager with one isolated socket and auth folder
 per tenant. On mobile, the customer enters their number and completes WhatsApp's
 same-phone Linked Devices flow with a short-lived pairing code; on desktop they
 can scan the tenant-scoped QR instead. The customer must then choose one
-participating WhatsApp group before launch. Inbound gating and the
-outbound transport both enforce that saved group; the group JID is only the
+home destination before launch: the connected account's verified **Message
+yourself** chat or one participating group. The browser never supplies the
+self-chat JID; it is derived from the connected socket owner. Inbound gating and
+the outbound transport both enforce that saved destination; its JID is only the
 delivery address, while the explicit tenant `clientId` selects business context,
 memory, tools, and the correct socket. Persisted sessions restore independently
 after restart. See `docs/baileys-multi-user-testing.md` for the security model and
 two-device acceptance test.
+
+Message-yourself requests need no mention because that verified direct chat is
+dedicated to the linked owner and every other direct chat remains blocked. In a
+group, the first message must address `@bizzclaw`; that opens a process-local
+30-minute idle window renewed by each accepted follow-up. Expiry or restart
+returns groups to mention-required. `BAILEYS_CONVERSATION_TTL_MS=0` restores
+mention-on-every-group-message behavior.
 
 - **Identity**: `runAndDeliver`/`buildClientAgent` resolve a client from a
   "jid" string via `clientIdForJid` (`src/tenant-store.ts`). For WhatsApp that
@@ -203,6 +213,7 @@ Two ways jobs are created:
 | POST | `/api/onboarding/whatsapp-provider` | Save the WhatsApp setup after prerequisite validation |
 | POST | `/api/onboarding/whatsapp-disconnect` | Disconnect a linked client-owned device and return to recovery |
 | GET | `/api/onboarding/baileys-groups` | List the linked tenant's participating groups and selected home group |
+| POST | `/api/onboarding/baileys-self-chat` | Select the connected account's server-verified Message yourself chat |
 | POST | `/api/onboarding/baileys-group` | Validate and select one existing tenant group |
 | POST | `/api/onboarding/baileys-group-create` | Explicitly create and select a group with one user-confirmed participant |
 | GET | `/onboarding[?c=<token>]` | Adopt signed client link, then redirect to current step |
@@ -300,7 +311,19 @@ Agent Live activity database.
 
 ## Roles
 
-One role per client. Chosen during onboarding. Determines which skills, MCPs, and system prompt additions the agent receives.
+One role per client. Chosen during onboarding. Determines which skills, MCPs,
+and system prompt additions the agent receives. `resolveRoleHarness()` in
+`src/roles/harness.ts` is the single pure resolver shared by construction and
+tests; it applies tenant overrides, removes duplicates, and returns the exact
+skill and connectable-platform set used by `buildClientAgent()`.
+
+All employees intentionally share business context, CRM, safe output delivery,
+and reminders. Their role prompt, operating-skill bundle, supported live apps,
+and routine templates create the specialization. Strands currently records a
+skill's `allowed-tools` as metadata but does not enforce it, so capability
+boundaries rely on which platform tools the harness actually loads—not on that
+frontmatter field. Automated tests require each onboarding role to resolve to a
+distinct prompt-and-skill harness and require every registered skill to parse.
 
 ### 📣 Marketing Manager
 - **Skills:** `meta-ads-expert`, `ad-performance-analysis`, `higgsfield-creative`, `business-context`
@@ -326,6 +349,12 @@ One role per client. Chosen during onboarding. Determines which skills, MCPs, an
 - **Optional MCPs:** `tiktok`, `higgsfield`
 - **Focus:** Organic content strategy, post drafting, scheduling, engagement tracking.
 
+### 🚀 GTM Operator
+- **Skills:** `gtm-operator`, `whatsapp-personal-assistant`, `business-context`
+- **Required MCPs:** _(none)_
+- **Optional MCPs:** `instagram-graph`, `tiktok`, `google`, `higgsfield`
+- **Focus:** Founder-led distribution, useful community participation, launch planning, and qualified sales conversations.
+
 ### 🤖 Personal Assistant / Developer
 - **Skills:** `whatsapp-personal-assistant`, `software-developer`, `business-context`
 - **Required MCPs:** _(none)_
@@ -347,6 +376,7 @@ The `AgentSkills` plugin (from `@strands-agents/sdk`) handles progressive disclo
 | `higgsfield-creative` | Model selection, image/video prompt craft, media handling, delivery workflow |
 | `whatsapp-personal-assistant` | Scheduling, drafting, summarizing, general knowledge, tone guardrails |
 | `social-media-manager` | Content strategy, caption formula, posting cadence, platform-specific best practices |
+| `gtm-operator` | Founder-led distribution, community-specific writing, launch planning, and pipeline signals |
 | `software-developer` | Sandbox-driven code execution, file processing, scripting, technical problem solving |
 | `business-context` | Teaches the agent *how to use* the client's assets: fetch landing page copy, read Instagram posts, cross-reference organic vs paid |
 
@@ -576,7 +606,9 @@ src/
 │
 ├── roles/
 │   ├── types.ts                      # RoleDefinition interface
-│   ├── registry.ts                   # Map of roleId → RoleDefinition for all 5 roles
+│   ├── registry.ts                   # Map of roleId → RoleDefinition for all 6 roles
+│   ├── harness.ts                    # Effective skills/platforms for the selected employee
+│   ├── harness.test.ts               # Employee differentiation + skill integrity contract
 │   └── index.ts                      # re-exports
 │
 ├── mcps/

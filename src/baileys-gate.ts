@@ -3,6 +3,7 @@ export type BaileysInboundDecision = {
   reason?: string
   prompt?: string
   groupMode: boolean
+  selfChat: boolean
   triggered: boolean
 }
 
@@ -14,10 +15,52 @@ export type BaileysInboundGateInput = {
   mentionedJids?: string[]
   botJid?: string | null
   allowedGroupJids?: string
+  /** Verified linked-account JID when “Message yourself” is the saved home chat. */
+  allowedSelfJid?: string
   allowedParticipantJids?: string
   triggerAliases?: string
   groupOnly?: string
   requireTrigger?: string
+  /** True after this selected group has explicitly addressed BizzClaw. */
+  conversationActive?: boolean
+}
+
+const DEFAULT_CONVERSATION_TTL_MS = 30 * 60 * 1000
+
+/**
+ * Keeps a selected group conversational after its first explicit BizzClaw
+ * mention. State is intentionally process-local and short-lived: a restart or
+ * idle timeout returns to the safe mention-required state.
+ */
+export class BaileysConversationWindow {
+  private readonly expiresAtByGroup = new Map<string, number>()
+
+  constructor(private readonly ttlMs = baileysConversationTtlMs()) {}
+
+  isActive(groupJid: string, now = Date.now()): boolean {
+    const key = groupJid.toLowerCase()
+    const expiresAt = this.expiresAtByGroup.get(key)
+    if (!expiresAt || expiresAt <= now) {
+      this.expiresAtByGroup.delete(key)
+      return false
+    }
+    return true
+  }
+
+  touch(groupJid: string, now = Date.now()): void {
+    if (!isWhatsAppGroupJid(groupJid) || this.ttlMs <= 0) return
+    this.expiresAtByGroup.set(groupJid.toLowerCase(), now + this.ttlMs)
+  }
+
+  clear(groupJid: string): void {
+    this.expiresAtByGroup.delete(groupJid.toLowerCase())
+  }
+}
+
+export function baileysConversationTtlMs(value = process.env.BAILEYS_CONVERSATION_TTL_MS): number {
+  if (value === undefined || value.trim() === '') return DEFAULT_CONVERSATION_TTL_MS
+  const parsed = Number(value)
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : DEFAULT_CONVERSATION_TTL_MS
 }
 
 export function isWhatsAppGroupJid(jid: string): boolean {
@@ -43,36 +86,40 @@ export function shouldProcessBaileysInbound(input: BaileysInboundGateInput): Bai
     mentionedJids: input.mentionedJids ?? [],
     botJid: input.botJid,
   })
+  const isGroup = isWhatsAppGroupJid(input.remoteJid)
+  const selfChat = Boolean(
+    !isGroup && input.allowedSelfJid && sameWhatsAppUser(input.remoteJid, input.allowedSelfJid),
+  )
 
   if (groupMode) {
-    if (!isWhatsAppGroupJid(input.remoteJid)) {
-      return { allowed: false, reason: 'direct-chat-blocked', groupMode, triggered: trigger.triggered }
-    }
-
-    const allowedGroups = parseCsv(input.allowedGroupJids)
-    if (allowedGroups.size === 0) {
-      return { allowed: false, reason: 'group-not-configured', groupMode, triggered: trigger.triggered }
-    }
-    if (!allowedGroups.has(input.remoteJid.toLowerCase())) {
-      return { allowed: false, reason: 'group-not-allowed', groupMode, triggered: trigger.triggered }
-    }
-
-    const allowedParticipants = parseCsv(input.allowedParticipantJids ?? process.env.BAILEYS_ALLOWED_GROUP_PARTICIPANTS)
-    if (allowedParticipants.size > 0) {
-      const participant = input.participantJid?.toLowerCase()
-      if (!participant || !allowedParticipants.has(participant)) {
-        return { allowed: false, reason: 'participant-not-allowed', groupMode, triggered: trigger.triggered }
+    if (isGroup) {
+      const allowedGroups = parseCsv(input.allowedGroupJids)
+      if (allowedGroups.size === 0) {
+        return { allowed: false, reason: 'group-not-configured', groupMode, selfChat, triggered: trigger.triggered }
       }
+      if (!allowedGroups.has(input.remoteJid.toLowerCase())) {
+        return { allowed: false, reason: 'group-not-allowed', groupMode, selfChat, triggered: trigger.triggered }
+      }
+
+      const allowedParticipants = parseCsv(input.allowedParticipantJids ?? process.env.BAILEYS_ALLOWED_GROUP_PARTICIPANTS)
+      if (allowedParticipants.size > 0) {
+        const participant = input.participantJid?.toLowerCase()
+        if (!participant || !allowedParticipants.has(participant)) {
+          return { allowed: false, reason: 'participant-not-allowed', groupMode, selfChat, triggered: trigger.triggered }
+        }
+      }
+    } else if (!selfChat) {
+      return { allowed: false, reason: 'direct-chat-blocked', groupMode, selfChat, triggered: trigger.triggered }
     }
   }
 
   const requireTrigger = input.requireTrigger ?? process.env.BAILEYS_REQUIRE_TRIGGER ?? 'true'
-  if (requireTrigger !== 'false' && !trigger.triggered) {
-    return { allowed: false, reason: 'trigger-missing', groupMode, triggered: false }
+  if (requireTrigger !== 'false' && !selfChat && !trigger.triggered && !input.conversationActive) {
+    return { allowed: false, reason: 'trigger-missing', groupMode, selfChat, triggered: false }
   }
 
   const prompt = trigger.prompt.trim() || (input.hasMedia ? 'Use the attached file to complete my request.' : 'Hi')
-  return { allowed: true, prompt, groupMode, triggered: trigger.triggered }
+  return { allowed: true, prompt, groupMode, selfChat, triggered: trigger.triggered }
 }
 
 function parseCsv(value: string | undefined): Set<string> {

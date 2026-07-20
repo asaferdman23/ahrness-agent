@@ -13,11 +13,11 @@ const user: User = {
   updatedAt: new Date(),
 }
 
-test('dashboard readiness requires a live Baileys socket and selected group', () => {
-  assert.equal(dashboardWhatsappReady({ whatsappJid: '1555@s.whatsapp.net', provider: 'twilio', baileysConnected: false, baileysHomeGroupJid: null }), true)
-  assert.equal(dashboardWhatsappReady({ whatsappJid: '1555@s.whatsapp.net', provider: 'baileys', baileysConnected: false, baileysHomeGroupJid: '120@g.us' }), false)
-  assert.equal(dashboardWhatsappReady({ whatsappJid: '1555@s.whatsapp.net', provider: 'baileys', baileysConnected: true, baileysHomeGroupJid: null }), false)
-  assert.equal(dashboardWhatsappReady({ whatsappJid: '1555@s.whatsapp.net', provider: 'baileys', baileysConnected: true, baileysHomeGroupJid: '120@g.us' }), true)
+test('dashboard readiness requires a live Baileys socket and selected home chat', () => {
+  assert.equal(dashboardWhatsappReady({ whatsappJid: '1555@s.whatsapp.net', provider: 'twilio', baileysConnected: false, baileysHomeChatJid: null }), true)
+  assert.equal(dashboardWhatsappReady({ whatsappJid: '1555@s.whatsapp.net', provider: 'baileys', baileysConnected: false, baileysHomeChatJid: '120@g.us' }), false)
+  assert.equal(dashboardWhatsappReady({ whatsappJid: '1555@s.whatsapp.net', provider: 'baileys', baileysConnected: true, baileysHomeChatJid: null }), false)
+  assert.equal(dashboardWhatsappReady({ whatsappJid: '1555@s.whatsapp.net', provider: 'baileys', baileysConnected: true, baileysHomeChatJid: '1555@s.whatsapp.net' }), true)
 })
 
 function dashboardState(overrides: Partial<DashboardState> = {}): DashboardState {
@@ -25,7 +25,8 @@ function dashboardState(overrides: Partial<DashboardState> = {}): DashboardState
     whatsappLinked: true,
     whatsappJid: '15551234567@s.whatsapp.net',
     whatsappProvider: 'twilio',
-    whatsappHomeGroupSubject: null,
+    whatsappHomeChatKind: null,
+    whatsappHomeChatSubject: null,
     telegramLinked: false,
     telegramConnectUrl: null,
     slackLinked: false,
@@ -156,14 +157,27 @@ test('dashboard gives active work and attention a clear primary action', () => {
 test('dashboard opens the selected Baileys group instead of a direct chat', () => {
   const html = renderDashboardPage(user, dashboardState({
     whatsappProvider: 'baileys',
-    whatsappHomeGroupSubject: 'BizzClaw HQ',
+    whatsappHomeChatKind: 'group',
+    whatsappHomeChatSubject: 'BizzClaw HQ',
   }))
 
   assert.match(html, /Open my BizzClaw group/)
   assert.match(html, /Your private workspace is “BizzClaw HQ”/)
-  assert.match(html, /fetch\('\/api\/whatsapp\/home-group-link'/)
+  assert.match(html, /fetch\('\/api\/whatsapp\/home-chat-link'/)
   assert.doesNotMatch(html, /https:\/\/wa\.me\/15551234567/)
-  assert.match(html, /href="\/onboarding\/step\/5\?manage=group">Change or create group/)
+  assert.match(html, /href="\/onboarding\/step\/5\?manage=group">Change workspace/)
+})
+
+test('dashboard opens Message yourself directly for a self-chat workspace', () => {
+  const html = renderDashboardPage(user, dashboardState({
+    whatsappProvider: 'baileys',
+    whatsappHomeChatKind: 'self',
+    whatsappHomeChatSubject: 'Message yourself',
+  }))
+
+  assert.match(html, /Open Message yourself/)
+  assert.match(html, /https:\/\/wa\.me\/15551234567/)
+  assert.doesNotMatch(html, /openHomeGroup/)
 })
 
 test('dashboard escapes customer-controlled identity, result, and alert text', () => {

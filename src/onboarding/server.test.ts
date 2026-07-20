@@ -40,7 +40,7 @@ test('pairing phone normalization accepts international formatting and rejects u
   assert.throws(() => normalizePairingPhoneNumber(undefined), /Enter your WhatsApp phone number/)
 })
 
-test('Baileys onboarding group endpoints require linked WhatsApp and persist the chosen home group', async () => {
+test('Baileys onboarding lets the linked owner choose Message yourself or a verified group', async () => {
   const session = await createSession()
   session.whatsappProvider = 'baileys'
   session.whatsappLinked = true
@@ -68,6 +68,7 @@ test('Baileys onboarding group endpoints require linked WhatsApp and persist the
     const fakeSession = {
       clientId,
       socket: {
+        user: { id: '15551234567:4@s.whatsapp.net' },
         async groupFetchAllParticipating() {
           return {
             '120363111111111111@g.us': { id: '120363111111111111@g.us', subject: 'Planning', size: 10 },
@@ -121,6 +122,25 @@ test('Baileys onboarding group endpoints require linked WhatsApp and persist the
     assert.equal(meta.baileysHomeGroupJid, '120363111111111111@g.us')
     assert.equal(meta.baileysHomeGroupSubject, 'Planning')
     assert.ok(typeof meta.baileysHomeGroupBoundAt === 'string')
+    assert.equal(meta.baileysHomeChatKind, 'group')
+
+    const selfRes = await fetch(`${base}/api/onboarding/baileys-self-chat?session=${session.sessionId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    })
+    assert.equal(selfRes.status, 200)
+    const selfBody = await selfRes.json() as { ok: boolean; workspace: { jid: string; kind: string; subject: string } }
+    assert.deepEqual(selfBody.workspace, {
+      jid: '15551234567@s.whatsapp.net',
+      kind: 'self',
+      subject: 'Message yourself',
+    })
+    const selfMeta = await getClientMeta(clientId)
+    assert.equal(selfMeta.baileysHomeChatJid, '15551234567@s.whatsapp.net')
+    assert.equal(selfMeta.baileysHomeChatKind, 'self')
+    assert.equal(selfMeta.baileysHomeChatSubject, 'Message yourself')
+    assert.equal(selfMeta.baileysHomeGroupJid, undefined)
 
     const createRes = await fetch(`${base}/api/onboarding/baileys-group-create?session=${session.sessionId}`, {
       method: 'POST',
@@ -135,6 +155,7 @@ test('Baileys onboarding group endpoints require linked WhatsApp and persist the
     const createdMeta = await getClientMeta(clientId)
     assert.equal(createdMeta.baileysHomeGroupJid, '120363333333333333@g.us')
     assert.equal(createdMeta.baileysHomeGroupSubject, 'BizzClaw — Northstar')
+    assert.equal(createdMeta.baileysHomeChatKind, 'group')
 
     const invalidCreateRes = await fetch(`${base}/api/onboarding/baileys-group-create?session=${session.sessionId}`, {
       method: 'POST',
@@ -164,6 +185,8 @@ test('Baileys onboarding group endpoints require linked WhatsApp and persist the
     const disconnectedMeta = await getClientMeta(clientId)
     assert.equal(disconnectedMeta.baileysHomeGroupJid, undefined)
     assert.equal(disconnectedMeta.baileysHomeGroupSubject, undefined)
+    assert.equal(disconnectedMeta.baileysHomeChatJid, undefined)
+    assert.equal(disconnectedMeta.baileysHomeChatKind, undefined)
   } finally {
     server.close()
     const managerAny = baileysSessionManager() as any

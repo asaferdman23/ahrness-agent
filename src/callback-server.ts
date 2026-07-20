@@ -39,6 +39,7 @@ import { getCrmStore } from './crm/store.js'
 import { handleCrmApi } from './crm/http.js'
 import { renderCrmPage } from './crm/views.js'
 import { baileysSessionManager } from './baileys-manager.js'
+import { baileysHomeChatFromMeta } from './baileys-home-chat.js'
 
 const authHandler = toNodeHandler(auth)
 
@@ -125,27 +126,33 @@ export function startCallbackServer(transport: WhatsAppTransport | null): void {
       return
     }
 
-    // ── Open the tenant's selected Baileys home group (protected) ───────────
-    if (req.method === 'POST' && url.pathname === '/api/whatsapp/home-group-link') {
+    // ── Open the tenant's selected Baileys home chat (protected) ────────────
+    if (req.method === 'POST' && (
+      url.pathname === '/api/whatsapp/home-chat-link' ||
+      url.pathname === '/api/whatsapp/home-group-link'
+    )) {
       const session = await getSession(req)
       if (!session?.user) {
         res.writeHead(401, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Sign in required' }))
         return
       }
       const meta = await getClientMeta(session.user.id)
-      if (meta.whatsappProvider !== 'baileys' || !meta.baileysHomeGroupJid) {
-        res.writeHead(409, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Choose your BizzClaw WhatsApp group first' }))
+      const homeChat = baileysHomeChatFromMeta(meta)
+      if (meta.whatsappProvider !== 'baileys' || !homeChat) {
+        res.writeHead(409, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Choose your BizzClaw WhatsApp workspace first' }))
         return
       }
       try {
-        const groupUrl = await baileysSessionManager().homeGroupUrl(session.user.id, meta.baileysHomeGroupJid)
-        if (!groupUrl) {
+        const chatUrl = homeChat.kind === 'self'
+          ? `https://wa.me/${encodeURIComponent(homeChat.jid.split('@')[0]!.split(':')[0]!)}`
+          : await baileysSessionManager().homeGroupUrl(session.user.id, homeChat.jid)
+        if (!chatUrl) {
           res.writeHead(409, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'WhatsApp is reconnecting. Try again in a moment.' }))
           return
         }
-        res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ url: groupUrl }))
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ url: chatUrl }))
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Could not open the WhatsApp group'
+        const message = err instanceof Error ? err.message : 'Could not open the WhatsApp workspace'
         res.writeHead(409, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: message }))
       }
       return
@@ -192,11 +199,12 @@ export function startCallbackServer(transport: WhatsAppTransport | null): void {
       ])
       const recentRuns = agentLiveStore.listRuns(tenantId, { limit: 3 })
       const latestRun = recentRuns[0] ?? null
+      const homeChat = baileysHomeChatFromMeta(clientMeta)
       const whatsappReady = dashboardWhatsappReady({
         whatsappJid: tenantRow?.whatsappJid ?? null,
         provider: tenantRow?.whatsappProvider ?? null,
         baileysConnected: baileysSessionManager().isConnected(tenantId),
-        baileysHomeGroupJid: clientMeta.baileysHomeGroupJid ?? null,
+        baileysHomeChatJid: homeChat?.jid ?? null,
       })
 
       const botUsername = sharedTelegramBotUsername()
@@ -306,7 +314,8 @@ export function startCallbackServer(transport: WhatsAppTransport | null): void {
           whatsappLinked: whatsappReady,
           whatsappJid: tenantRow?.whatsappJid ?? null,
           whatsappProvider: tenantRow?.whatsappProvider ?? null,
-          whatsappHomeGroupSubject: clientMeta.baileysHomeGroupSubject ?? null,
+          whatsappHomeChatKind: homeChat?.kind ?? null,
+          whatsappHomeChatSubject: homeChat?.subject ?? null,
           telegramLinked: !!clientMeta.telegramChatId,
           telegramConnectUrl: botUsername ? telegramConnectUrl(botUsername, tenantId) : null,
           slackLinked: !!clientMeta.slackTeamId,

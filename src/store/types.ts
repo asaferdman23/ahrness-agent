@@ -80,7 +80,12 @@ export interface ClientMeta {
   onboardingNudgedAt?: string
   /** Transport this client chose or last used for WhatsApp delivery. */
   whatsappProvider?: WhatsAppProvider
-  /** Per-client Baileys home group for customer-facing group-only mode. */
+  /** The one direct-self chat or group where this tenant's Baileys agent lives. */
+  baileysHomeChatJid?: string
+  baileysHomeChatKind?: 'self' | 'group'
+  baileysHomeChatSubject?: string
+  baileysHomeChatBoundAt?: string
+  /** Legacy group-only fields retained for read compatibility. */
   baileysHomeGroupJid?: string
   /** Display-only group title captured when the user confirms the group. */
   baileysHomeGroupSubject?: string

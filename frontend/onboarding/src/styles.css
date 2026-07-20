@@ -375,6 +375,7 @@ textarea { min-height: 104px; resize: vertical; line-height: 1.55; }
    on a soft track. Green stays reserved for meaning, so it is not used here. */
 .link-method-switch, .group-mode-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 0.3rem; padding: 0.3rem; border: 1px solid var(--line-strong); border-radius: var(--r-lg); background: var(--paper-soft); }
 .group-mode-switch { min-width: min(380px, 44vw); }
+.group-mode-switch { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .link-method, .group-mode { border: 0; border-radius: var(--r-md); background: transparent; color: var(--ink-muted); font-family: var(--sans); font-size: 0.8rem; font-weight: 500; cursor: pointer; transition: background-color 150ms ease, color 150ms ease; }
 .link-method { display: grid; gap: 0.15rem; min-height: 50px; }
 .group-mode { min-height: 40px; }
