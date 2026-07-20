@@ -70,12 +70,18 @@ test('browser_login with a saved credential publishes a before-screenshot, disab
   })
   const tools = createBrowserLoginTools('client-withcred', '972501234567@s.whatsapp.net', sandbox, published, client)
   const loginTool = findTool(tools, 'browser_login')
-  await loginTool.invoke({ domain: 'reddit.com' })
+  const result = await loginTool.invoke({ domain: 'reddit.com' })
 
   assert.ok(writes.length >= 1, 'must write at least the before-screenshot into the sandbox')
   assert.ok(published.length >= 1, 'must publish at least the before-screenshot for delivery')
   assert.equal(visionDuringType, true, 'vision must be disabled while credentials are being typed')
   assert.equal(isVisionDisabled('client-withcred'), false, 'vision must be re-enabled after the login sequence finishes')
+
+  assert.ok(!result.includes('hunter2'), 'the tool result must never contain the password')
+  for (const item of published) {
+    assert.ok(!item.caption?.includes('hunter2'), `caption must never contain the password: ${item.caption}`)
+    assert.ok(!item.fileName.includes('hunter2'), `fileName must never contain the password: ${item.fileName}`)
+  }
 })
 
 test('browser_login re-enables vision even if the login sequence throws', async () => {
