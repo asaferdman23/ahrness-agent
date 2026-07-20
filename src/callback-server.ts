@@ -555,6 +555,7 @@ export function startCallbackServer(transport: WhatsAppTransport | null): void {
           teamId: exchange.teamId,
           teamName: exchange.teamName,
           installerUserId: exchange.installerUserId,
+          botUserId: exchange.botUserId,
         })
         console.log(`[slack-oauth] workspace ${exchange.teamId} connected for client ${oauthClientId}`)
         res.writeHead(200, { 'Content-Type': 'text/html' }).end(

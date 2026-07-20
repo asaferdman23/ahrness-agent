@@ -2,17 +2,24 @@
  * Slack Events API webhook handling.
  *
  * A single POST endpoint (/webhooks/slack/events, wired in callback-server.ts)
- * receives every connected client's inbound Slack DMs. Requests are verified
+ * receives every connected client's inbound Slack messages — DMs, and channel
+ * or private-group messages the bot has been invited to. Requests are verified
  * with the signing secret (see slack-client.ts::verifySlackSignature); the
  * event's team_id resolves back to a clientId via slack-store.ts's reverse
  * index, then delivery reuses the same runAndDeliver path as every other
  * channel.
+ *
+ * DMs are always processed. Channel/group messages go through slack-gate.ts:
+ * an explicit @mention is required to start talking, after which that
+ * (channel, user) pair stays conversational for a short window; replies are
+ * always threaded under the mention that opened the conversation.
  */
 import type { IncomingHttpHeaders } from 'node:http'
 import type { ClientAgentSession } from './agent.js'
 import { encodeClientChannelAddress } from './channel-address.js'
 import { runAndDeliver } from './delivery.js'
 import * as slack from './slack-client.js'
+import { SlackConversationWindow, shouldProcessSlackChannelMessage } from './slack-gate.js'
 import { clientIdForSlackTeam, getSlackConnection } from './slack-store.js'
 import { createSlackTransport } from './slack-transport.js'
 
@@ -25,8 +32,12 @@ interface SlackEvent {
   bot_id?: string
   text?: string
   ts?: string
+  thread_ts?: string
   files?: Array<{ id: string; name?: string; mimetype?: string; url_private_download?: string; size?: number }>
 }
+
+/** One conversation window per process, keyed by (channelId, userId) — see slack-gate.ts. */
+const conversationWindows = new SlackConversationWindow()
 
 interface SlackEventsPayload {
   type: string
@@ -117,7 +128,9 @@ async function processEvent(teamId: string, event: SlackEvent): Promise<void> {
   if (event.type !== 'message') return
   if (event.bot_id) return // never react to bot messages, including our own replies
   if (event.subtype) return // edits/deletes/joins/etc — only plain messages
-  if (event.channel_type !== 'im') return // DMs only for now, mirrors Telegram's owner-only lockdown
+  const isDirectMessage = event.channel_type === 'im'
+  const isChannelMessage = event.channel_type === 'channel' || event.channel_type === 'group'
+  if (!isDirectMessage && !isChannelMessage) return // e.g. mpim — not supported yet
   if (!event.channel) return
   if (!event.text && !event.files?.length) return
 
@@ -127,12 +140,31 @@ async function processEvent(teamId: string, event: SlackEvent): Promise<void> {
   const connection = await getSlackConnection(clientId)
   if (!connection) return
 
-  const transport = createSlackTransport(connection.botToken)
   const channel = event.channel
-  const address = encodeClientChannelAddress(clientId, 'slack', channel)
+  const file = event.files?.[0]
 
   let prompt = event.text ?? 'Hi'
-  const file = event.files?.[0]
+  let threadTs: string | undefined
+
+  if (isChannelMessage) {
+    if (!event.user) return
+    const decision = shouldProcessSlackChannelMessage({
+      text: event.text ?? null,
+      hasFile: Boolean(file),
+      botUserId: connection.botUserId,
+      conversationActive: conversationWindows.isActive(channel, event.user),
+    })
+    if (!decision.allowed) return
+
+    prompt = decision.prompt
+    // A follow-up reuses the thread the window was opened in; a fresh mention
+    // starts (or continues) the thread rooted at this message.
+    threadTs = conversationWindows.activeThreadTs(channel, event.user) ?? event.thread_ts ?? event.ts
+    if (threadTs) conversationWindows.touch(channel, event.user, threadTs)
+  }
+
+  const transport = createSlackTransport(connection.botToken)
+  const address = encodeClientChannelAddress(clientId, 'slack', threadTs ? `${channel}:${threadTs}` : channel)
 
   let prepare: ((session: ClientAgentSession) => Promise<void>) | undefined
   if (file?.url_private_download) {

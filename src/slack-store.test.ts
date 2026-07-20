@@ -34,6 +34,7 @@ test('saves and reads back a Slack install, token encrypted at rest', async () =
     teamId: 'T111',
     teamName: 'Acme Inc',
     installerUserId: 'U999',
+    botUserId: 'UBOT1',
   })
 
   const conn = await getSlackConnection('client-1')
@@ -45,8 +46,8 @@ test('saves and reads back a Slack install, token encrypted at rest', async () =
 
 test('resolves a team id back to its clientId via the reverse index', async () => {
   const { saveSlackConnection, clientIdForSlackTeam } = await freshStore()
-  await saveSlackConnection('client-1', { botToken: 'xoxb-a', teamId: 'T111', installerUserId: 'U1' })
-  await saveSlackConnection('client-2', { botToken: 'xoxb-b', teamId: 'T222', installerUserId: 'U2' })
+  await saveSlackConnection('client-1', { botToken: 'xoxb-a', teamId: 'T111', installerUserId: 'U1', botUserId: 'UBOT1' })
+  await saveSlackConnection('client-2', { botToken: 'xoxb-b', teamId: 'T222', installerUserId: 'U2', botUserId: 'UBOT2' })
 
   assert.equal(await clientIdForSlackTeam('T111'), 'client-1')
   assert.equal(await clientIdForSlackTeam('T222'), 'client-2')
@@ -57,7 +58,7 @@ test('updates ClientMeta with the connected team id', async () => {
   const { saveSlackConnection } = await freshStore()
   const { getClientMeta } = await import('./store/client-store.js')
 
-  await saveSlackConnection('client-1', { botToken: 'xoxb-a', teamId: 'T111', installerUserId: 'U1' })
+  await saveSlackConnection('client-1', { botToken: 'xoxb-a', teamId: 'T111', installerUserId: 'U1', botUserId: 'UBOT1' })
 
   const meta = await getClientMeta('client-1')
   assert.equal(meta.slackTeamId, 'T111')
@@ -66,8 +67,8 @@ test('updates ClientMeta with the connected team id', async () => {
 
 test('lists only clients with a stored Slack connection', async () => {
   const { saveSlackConnection, listConnectedSlackClients } = await freshStore()
-  await saveSlackConnection('client-a', { botToken: 'xoxb-a', teamId: 'T1', installerUserId: 'U1' })
-  await saveSlackConnection('client-b', { botToken: 'xoxb-b', teamId: 'T2', installerUserId: 'U2' })
+  await saveSlackConnection('client-a', { botToken: 'xoxb-a', teamId: 'T1', installerUserId: 'U1', botUserId: 'UBOT1' })
+  await saveSlackConnection('client-b', { botToken: 'xoxb-b', teamId: 'T2', installerUserId: 'U2', botUserId: 'UBOT2' })
 
   assert.deepEqual((await listConnectedSlackClients()).sort(), ['client-a', 'client-b'])
 })
@@ -75,7 +76,7 @@ test('lists only clients with a stored Slack connection', async () => {
 test('removeSlackConnection clears the stored connection', async () => {
   const { saveSlackConnection, removeSlackConnection, getSlackConnection, listConnectedSlackClients } =
     await freshStore()
-  await saveSlackConnection('client-1', { botToken: 'xoxb-a', teamId: 'T1', installerUserId: 'U1' })
+  await saveSlackConnection('client-1', { botToken: 'xoxb-a', teamId: 'T1', installerUserId: 'U1', botUserId: 'UBOT1' })
   await removeSlackConnection('client-1')
 
   assert.equal(await getSlackConnection('client-1'), null)

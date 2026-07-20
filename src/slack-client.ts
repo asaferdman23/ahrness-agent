@@ -62,6 +62,7 @@ export interface SlackOAuthExchange {
   teamId: string
   teamName?: string
   installerUserId: string
+  botUserId: string
 }
 
 /** Exchange an OAuth v2 `code` for a bot token + workspace/installer identity. */
@@ -80,8 +81,9 @@ export async function exchangeOAuthCode(
     access_token?: string
     team?: { id: string; name?: string }
     authed_user?: { id: string }
+    bot_user_id?: string
   }
-  if (!data.ok || !data.access_token || !data.team?.id || !data.authed_user?.id) {
+  if (!data.ok || !data.access_token || !data.team?.id || !data.authed_user?.id || !data.bot_user_id) {
     throw new SlackApiError('oauth.v2.access', data.error ?? 'incomplete response')
   }
   return {
@@ -89,11 +91,12 @@ export async function exchangeOAuthCode(
     teamId: data.team.id,
     teamName: data.team.name,
     installerUserId: data.authed_user.id,
+    botUserId: data.bot_user_id,
   }
 }
 
-export async function postMessage(botToken: string, channel: string, text: string): Promise<void> {
-  await callJson(botToken, 'chat.postMessage', { channel, text })
+export async function postMessage(botToken: string, channel: string, text: string, threadTs?: string): Promise<void> {
+  await callJson(botToken, 'chat.postMessage', { channel, text, ...(threadTs ? { thread_ts: threadTs } : {}) })
 }
 
 export async function uploadFile(
@@ -103,6 +106,7 @@ export async function uploadFile(
   fileName: string,
   mimeType: string,
   caption?: string,
+  threadTs?: string,
 ): Promise<void> {
   const upload = await callForm<SlackApiResponse & { upload_url?: string; file_id?: string }>(
     botToken,
@@ -124,6 +128,7 @@ export async function uploadFile(
     files: JSON.stringify([{ id: upload.file_id, title: caption ?? fileName }]),
     channel_id: channel,
     ...(caption ? { initial_comment: caption } : {}),
+    ...(threadTs ? { thread_ts: threadTs } : {}),
   })
 }
 

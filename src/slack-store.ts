@@ -16,6 +16,8 @@ export interface SlackConnection {
   teamId: string
   teamName?: string
   installerUserId: string
+  /** The bot's own Slack user id (`U…`), used to detect `@mentions` in channels. */
+  botUserId: string
   connectedAt: string
 }
 
@@ -24,6 +26,7 @@ interface StoredSlackConnection {
   teamId: string
   teamName?: string
   installerUserId: string
+  botUserId: string
   connectedAt: string
 }
 
@@ -63,13 +66,14 @@ type TeamIndex = Record<string, string> // teamId -> clientId
 /** Save a client's Slack install (from the OAuth v2 code exchange), encrypted at rest. */
 export async function saveSlackConnection(
   clientId: string,
-  install: { botToken: string; teamId: string; teamName?: string; installerUserId: string },
+  install: { botToken: string; teamId: string; teamName?: string; installerUserId: string; botUserId: string },
 ): Promise<void> {
   const record: StoredSlackConnection = {
     botTokenEncrypted: encryptSecret(install.botToken),
     teamId: install.teamId,
     teamName: install.teamName,
     installerUserId: install.installerUserId,
+    botUserId: install.botUserId,
     connectedAt: new Date().toISOString(),
   }
   await atomicWrite(connectionPath(clientId), record)
@@ -90,6 +94,7 @@ export async function getSlackConnection(clientId: string): Promise<SlackConnect
     teamId: record.teamId,
     teamName: record.teamName,
     installerUserId: record.installerUserId,
+    botUserId: record.botUserId,
     connectedAt: record.connectedAt,
   }
 }
