@@ -8,8 +8,6 @@ import {
 } from '@strands-agents/sdk'
 import { AnthropicModel } from '@strands-agents/sdk/models/anthropic'
 import { AgentSkills } from '@strands-agents/sdk/vended-plugins/skills'
-import { resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import {
   getProfile,
   getRole as getClientRole,
@@ -41,6 +39,7 @@ import { RunObservabilityPlugin, type RunObservabilityContext } from '@agent-liv
 import { createHiggsFieldMcpClient } from './mcp.js'
 import type { PlatformId } from './store/types.js'
 import type { TurnMessage, Summarize } from './sessions/index.js'
+import { runtimeSkillPath } from './runtime-skill-path.js'
 
 /** Model id used for the client agent and for context-window budgeting. */
 export const AGENT_MODEL = process.env.AGENT_MODEL ?? 'claude-opus-4-8'
@@ -59,8 +58,6 @@ export function createModel(modelId: string = AGENT_MODEL): AnthropicModel {
 }
 
 export { clientIdFromJid }
-
-const SKILLS_DIR = resolve(fileURLToPath(import.meta.url), '../../skills')
 
 // Platforms served by REST tool wrappers — no official MCP server exists
 const NATIVE_TOOL_PLATFORMS = new Set<PlatformId>(['instagram-graph', 'tiktok', 'google'])
@@ -234,7 +231,7 @@ export async function buildClientAgent(
   const extraSkills = roleRecord?.skillOverrides?.extra ?? []
   const skillPaths = [...roleDef.skills, ...extraSkills]
     .filter((s) => !disabledSkills.has(s))
-    .map((name) => resolve(SKILLS_DIR, name))
+    .map((name) => runtimeSkillPath(name))
 
   const skillsPlugin = new AgentSkills({ skills: skillPaths })
 

@@ -22,7 +22,6 @@ import { isInboundSenderAllowed } from './access.js'
 import { runAndDeliver } from './delivery.js'
 import { maybeOnboardingNudge } from './onboarding-nudge.js'
 import { getClientMeta, getConnections, getRole, updateClientMeta } from './store/client-store.js'
-import { clientIdForJid } from './tenant-store.js'
 import { broadcastLinked, broadcastQr } from './onboarding/server.js'
 import { bindSessionToWhatsAppJid } from './onboarding/session.js'
 import type { WhatsAppTransport } from './whatsapp-transport.js'
@@ -86,7 +85,14 @@ function createBaileysTransport(socket: WASocket, agentSentMessageIds: Set<strin
   }
   return {
     async sendText(jid, text) {
-      remember(await socket.sendMessage(jid, { text }))
+      // Baileys treats URL preview generation as an optional peer feature.
+      // BizzClaw does not need previews, and disabling it avoids an optional
+      // package/network fetch from becoming part of the delivery path.
+      remember(await socket.sendMessage(
+        jid,
+        { text },
+        { getUrlInfo: undefined } as Parameters<WASocket['sendMessage']>[2] & { getUrlInfo?: undefined },
+      ))
     },
     async sendImage(jid, data, mimeType, caption) {
       remember(await socket.sendMessage(jid, { image: data, mimetype: mimeType, caption }))
@@ -306,7 +312,9 @@ export async function startBaileysWhatsApp(
         }
       }
 
-      const senderClientId = await clientIdForJid(jid)
+      // This socket already belongs to exactly one tenant. A group JID is only
+      // a delivery address and must never become the profile/readiness key.
+      const senderClientId = clientId
       await updateClientMeta(senderClientId, { whatsappProvider: 'baileys' })
       const connections = await getConnections(senderClientId)
       const hasAnyConnection = Object.values(connections).some((c) => c?.status === 'connected')
