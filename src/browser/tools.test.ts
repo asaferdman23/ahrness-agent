@@ -113,6 +113,27 @@ test('browser_screenshot returns an image payload', async () => {
   assert.match(result, /ZmFrZQ==/)
 })
 
+test('browser_navigate clears the cached element labels so a stale index is treated as unresolved', async () => {
+  let clicked = false
+  const client = fakeClient({
+    elements: async () => ({ elements: [{ index: 0, tag: 'a', type: null, label: 'Learn more' }] }),
+    navigate: async () => ({ httpStatus: 200, title: 'New page' }),
+    click: async () => {
+      clicked = true
+      return { ok: true, url: 'https://example.com/receipt' }
+    },
+  })
+  const tools = createBrowserTools('client-6', client)
+  const elementsTool = findTool(tools, 'browser_view_elements')
+  await elementsTool.invoke({})
+  const navigateTool = findTool(tools, 'browser_navigate')
+  await navigateTool.invoke({ url: 'https://example.com/new' })
+  const clickTool = findTool(tools, 'browser_click')
+  const result = await clickTool.invoke({ index: 0 })
+  assert.ok(!clicked, 'must not execute a click for an index that was valid before navigation but not re-resolved after')
+  assert.match(result, /confirm/i)
+})
+
 test('browser_navigate rejects a URL that resolves to a private address before calling the client', async () => {
   let navigated = false
   const client = fakeClient({

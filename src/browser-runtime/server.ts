@@ -1,9 +1,12 @@
 import http from 'node:http'
+import { lookup } from 'node:dns/promises'
+import net from 'node:net'
 import puppeteerExtraDefault from 'puppeteer-extra'
 import type { PuppeteerExtra } from 'puppeteer-extra'
 import type { Browser, Page } from 'puppeteer'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 import StealthPlugin from 'puppeteer-extra-plugin-stealth'
+import { isPrivateAddress } from '../net-guard.js'
 
 // `puppeteer-extra`'s default-export typing doesn't resolve correctly under this
 // project's NodeNext + esModuleInterop config (the import types as the CJS module
@@ -38,6 +41,32 @@ interface ClientSession {
 }
 const sessions = new Map<string, ClientSession>()
 
+// Validates the ACTUAL destination of every network request the page makes —
+// initial navigation, every redirect hop, and every subresource — not just the
+// URL the agent originally asked for. This is what actually holds under
+// adversarial redirects and DNS-rebinding; assertSafeNavigationTarget (host-side,
+// in ssrf-guard.ts) only checks once, before the request is even sent, so a
+// public host that DNS-rebinds after that check, or a 302 to a private address,
+// would otherwise reach it unguarded.
+async function isRequestTargetSafe(url: string): Promise<boolean> {
+  let hostname: string
+  try {
+    hostname = new URL(url).hostname
+  } catch {
+    return false
+  }
+  if (!hostname) return false
+  try {
+    const addresses = net.isIP(hostname)
+      ? [hostname]
+      : (await lookup(hostname, { all: true, verbatim: true })).map((r) => r.address)
+    if (addresses.length === 0) return false
+    return !addresses.some((address) => isPrivateAddress(address))
+  } catch {
+    return false // DNS failure — fail closed
+  }
+}
+
 async function getSession(clientId: string): Promise<ClientSession> {
   const existing = sessions.get(clientId)
   if (existing) {
@@ -51,6 +80,15 @@ async function getSession(clientId: string): Promise<ClientSession> {
   const context = await browser.createBrowserContext()
   const page = await context.newPage()
   page.setDefaultNavigationTimeout(NAV_TIMEOUT_MS)
+  await page.setRequestInterception(true)
+  page.on('request', (request) => {
+    isRequestTargetSafe(request.url())
+      .then((safe) => {
+        if (safe) request.continue().catch(() => {})
+        else request.abort('blockedbyclient').catch(() => {})
+      })
+      .catch(() => request.abort('blockedbyclient').catch(() => {}))
+  })
   const session: ClientSession = { page, lastUsedAt: Date.now() }
   sessions.set(clientId, session)
   return session

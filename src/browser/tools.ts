@@ -30,7 +30,11 @@ export function createBrowserTools(clientId: string, client: BrowserRuntimeClien
         const input = rawInput as { url: string }
         await assertSafeNavigationTarget(input.url)
         const result = await client.navigate(clientId, input.url)
-        return JSON.stringify(result)
+        lastElementsByClient.delete(clientId)
+        return JSON.stringify({
+          httpStatus: result.httpStatus,
+          title: wrapBrowserContent('page title', result.title),
+        })
       },
     }),
 
@@ -88,12 +92,12 @@ export function createBrowserTools(clientId: string, client: BrowserRuntimeClien
             },
             async () => {
               const result = await client.click(clientId, { index: input.index })
-              return JSON.stringify(result)
+              return JSON.stringify({ ok: result.ok, url: wrapBrowserContent('resulting page url', result.url) })
             },
           )
         }
         const result = await client.click(clientId, { index: input.index })
-        return JSON.stringify(result)
+        return JSON.stringify({ ok: result.ok, url: wrapBrowserContent('resulting page url', result.url) })
       },
     }),
 
@@ -118,7 +122,7 @@ export function createBrowserTools(clientId: string, client: BrowserRuntimeClien
           },
           async () => {
             const result = await client.click(clientId, { selector: input.selector })
-            return JSON.stringify(result)
+            return JSON.stringify({ ok: result.ok, url: wrapBrowserContent('resulting page url', result.url) })
           },
         )
       },

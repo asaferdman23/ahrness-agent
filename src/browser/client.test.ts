@@ -44,3 +44,38 @@ test('close issues a DELETE to the context path', async () => {
   assert.equal(calls[0].method, 'DELETE')
   assert.match(calls[0].url, /\/contexts\/client-1$/)
 })
+
+test('retries transparently after a network-level failure and succeeds', async () => {
+  let attempts = 0
+  const impl = (async () => {
+    attempts++
+    if (attempts === 1) throw new TypeError('fetch failed')
+    return new Response(JSON.stringify({ httpStatus: 200, title: 'Example' }), { status: 200 })
+  }) as typeof fetch
+  const client = createBrowserRuntimeClient(impl)
+  const result = await client.navigate('client-1', 'https://example.com')
+  assert.equal(result.title, 'Example')
+  assert.equal(attempts, 2, 'should have retried exactly once after the network failure')
+})
+
+test('gives up after exhausting retries when the network failure never clears', async () => {
+  let attempts = 0
+  const impl = (async () => {
+    attempts++
+    throw new TypeError('fetch failed')
+  }) as typeof fetch
+  const client = createBrowserRuntimeClient(impl)
+  await assert.rejects(() => client.navigate('client-1', 'https://example.com'), /fetch failed/)
+  assert.equal(attempts, 3, 'should stop retrying after the bounded number of attempts')
+})
+
+test('does not retry a non-2xx HTTP response — surfaces the error immediately', async () => {
+  let attempts = 0
+  const impl = (async () => {
+    attempts++
+    return new Response(JSON.stringify({ error: 'CAPACITY: too many active browsing sessions right now, try again shortly' }), { status: 503 })
+  }) as typeof fetch
+  const client = createBrowserRuntimeClient(impl)
+  await assert.rejects(() => client.navigate('client-1', 'https://example.com'), /CAPACITY/)
+  assert.equal(attempts, 1, 'a real HTTP error response must not be retried')
+})

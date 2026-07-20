@@ -12,4 +12,9 @@ ENV PUPPETEER_SKIP_DOWNLOAD=true
 
 WORKDIR /app
 
+# No COPY / npm ci here on purpose: application source and node_modules are
+# provided at runtime via a bind mount (see browser-runtime-manager.ts, which
+# always mounts the repo root at /app:ro when it starts this container), the
+# same pattern Dockerfile.sandbox's containers already use in this repo. This
+# image has no source of its own — running it without the mount will fail.
 CMD ["node", "--import", "tsx", "src/browser-runtime/server.ts"]
