@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createServer } from 'node:http'
-import { createSession, loadSession } from './session.js'
+import { createSession, loadSession, saveSession } from './session.js'
 import { createOnboardingHandler } from './server.js'
 import { getClientMeta } from '../store/client-store.js'
 import { baileysSessionManager } from '../baileys-manager.js'
@@ -34,6 +34,9 @@ afterEach(() => {
 
 test('Baileys onboarding group endpoints require linked WhatsApp and persist the chosen home group', async () => {
   const session = await createSession()
+  session.whatsappProvider = 'baileys'
+  session.whatsappLinked = true
+  await saveSession(session)
   const handler = (await import('./server.js')).createOnboardingHandler()
   const server = createServer((req, res) => { handler(req, res).catch((err: unknown) => {
     console.error(err)
@@ -48,6 +51,7 @@ test('Baileys onboarding group endpoints require linked WhatsApp and persist the
   try {
     const noGroupsRes = await fetch(`${base}/api/onboarding/baileys-groups?session=${session.sessionId}`)
     assert.equal(noGroupsRes.status, 409)
+    assert.match(noGroupsRes.headers.get('set-cookie') ?? '', new RegExp(`session=${session.sessionId}`))
     const noGroupsBody = await noGroupsRes.json() as { error: string }
     assert.equal(noGroupsBody.error, 'WhatsApp is not linked yet')
 
@@ -96,12 +100,30 @@ test('Baileys onboarding group endpoints require linked WhatsApp and persist the
 
     const meta = await getClientMeta(clientId)
     assert.equal(meta.baileysHomeGroupJid, '120363111111111111@g.us')
+    assert.equal(meta.baileysHomeGroupSubject, 'Planning')
     assert.ok(typeof meta.baileysHomeGroupBoundAt === 'string')
 
     const groupsAfterRes = await fetch(`${base}/api/onboarding/baileys-groups?session=${session.sessionId}`)
     assert.equal(groupsAfterRes.status, 200)
     const groupsAfterBody = await groupsAfterRes.json() as { groups: Array<{ jid: string; subject: string; size: number }>; selected: string | null }
     assert.equal(groupsAfterBody.selected, '120363111111111111@g.us')
+
+    const bootstrapRes = await fetch(`${base}/api/onboarding/bootstrap?session=${session.sessionId}`)
+    const bootstrap = await bootstrapRes.json() as {
+      whatsapp: { baileys: { homeGroupJid: string | null; homeGroupSubject: string | null } }
+    }
+    assert.equal(bootstrap.whatsapp.baileys.homeGroupJid, '120363111111111111@g.us')
+    assert.equal(bootstrap.whatsapp.baileys.homeGroupSubject, 'Planning')
+
+    const disconnectRes = await fetch(`${base}/api/onboarding/whatsapp-disconnect?session=${session.sessionId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    })
+    assert.equal(disconnectRes.status, 200)
+    const disconnectedMeta = await getClientMeta(clientId)
+    assert.equal(disconnectedMeta.baileysHomeGroupJid, undefined)
+    assert.equal(disconnectedMeta.baileysHomeGroupSubject, undefined)
   } finally {
     server.close()
     const managerAny = baileysSessionManager() as any
@@ -175,6 +197,44 @@ test('activation event endpoint rejects unknown events and stores only allowlist
     assert.equal(accepted.status, 200)
     const records = JSON.parse(readFileSync(join(root, 'clients', session.sessionId, 'activation-events.json'), 'utf8')) as Array<{ properties: Record<string, unknown> }>
     assert.deepEqual(records[0]?.properties, { phase: 'configure', step: 4, platform: 'meta-ads' })
+  } finally {
+    server.close()
+  }
+})
+
+test('activation onboarding can choose WhatsApp before connecting optional capability apps', async () => {
+  const session = await createSession()
+  const handler = createOnboardingHandler()
+  const server = createServer((req, res) => { handler(req, res).catch((error: unknown) => {
+    res.statusCode = 500
+    res.end(error instanceof Error ? error.message : 'Internal Server Error')
+  }) })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const address = server.address() as AddressInfo
+  const base = `http://127.0.0.1:${address.port}/api/onboarding`
+  const post = (path: string, body: Record<string, unknown>) => fetch(`${base}/${path}?session=${session.sessionId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+
+  try {
+    assert.equal((await post('profile', {
+      name: 'Northstar',
+      description: 'We help growing shops earn repeat customers.',
+    })).status, 200)
+    assert.equal((await post('role', { roleId: 'marketing-manager' })).status, 200)
+    assert.equal((await post('automations', { templates: [] })).status, 200)
+
+    const providerRes = await post('whatsapp-provider', { whatsappProvider: 'baileys' })
+    assert.equal(providerRes.status, 200)
+    const providerBody = await providerRes.json() as {
+      progress: { allowedStep: number; checks: { requiredConnections: boolean } }
+      session: { whatsappProvider: string | null }
+    }
+    assert.equal(providerBody.progress.allowedStep, 5)
+    assert.equal(providerBody.progress.checks.requiredConnections, false)
+    assert.equal(providerBody.session.whatsappProvider, 'baileys')
   } finally {
     server.close()
   }

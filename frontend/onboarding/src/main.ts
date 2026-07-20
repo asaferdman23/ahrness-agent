@@ -101,7 +101,12 @@ interface Bootstrap {
     providers: Provider[]
     selectedProvider: Provider | null
     twilio: { enabled: boolean; digits: string; connectCode: string | null; waLink: string | null }
-    baileys: { enabled: boolean; latestQr: string | null }
+    baileys: {
+      enabled: boolean
+      latestQr: string | null
+      homeGroupJid: string | null
+      homeGroupSubject: string | null
+    }
   }
 }
 
@@ -154,11 +159,12 @@ async function api(path: string, body?: Record<string, unknown>): Promise<Bootst
   return json as Bootstrap
 }
 
-async function postJson<T>(path: string, body: Record<string, unknown> = {}): Promise<T> {
+async function postJson<T>(path: string, body: Record<string, unknown> = {}, signal?: AbortSignal): Promise<T> {
   const res = await fetch(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+    signal,
   })
   const json = await res.json() as T & { error?: string }
   if (!res.ok) throw new Error(json.error || 'Request failed. Try again.')
@@ -332,6 +338,9 @@ function renderProfile(): string {
   const business = profile?.business ?? {}
   const assets = profile?.assets ?? {}
   const preview = data.preview
+  const previewRecovery = !preview && errorMessage && data.progress.checks.profile && data.activationV2
+    ? `<div class="actions preview-recovery"><button class="btn btn-secondary" type="submit">Try preview again</button><button class="btn btn-primary" type="button" data-step="2" data-complete-phase="brief">Continue setup ${arrowIcon()}</button></div>`
+    : ''
   const previewPanel = previewLoading
     ? `<section class="preview-card preview-loading" aria-live="polite"><span class="status-spinner" aria-hidden="true"></span><div><p class="overline">Creating your first advantage</p><h2>BizzClaw is turning your brief into an action plan…</h2><p>This normally takes less than 20 seconds.</p></div></section>`
     : preview
@@ -351,10 +360,10 @@ function renderProfile(): string {
         ${input('Business or project name', 'name', business.name ?? '', 'Northstar Studio…', true, 'text', 'organization', 'This is how BizzClaw will refer to the business.')}
         <div class="field">
           <div class="label-row"><label for="description">What does the business do?</label><span>Required</span></div>
-          <textarea id="description" name="description" required minlength="10" placeholder="We help independent retailers turn customer conversations into repeat revenue…">${escapeHtml(business.description ?? '')}</textarea>
+          <textarea id="description" name="description" required minlength="10" autocomplete="off" placeholder="We help independent retailers turn customer conversations into repeat revenue…">${escapeHtml(business.description ?? '')}</textarea>
           <p class="field-hint">One sentence is enough: what you sell and the result customers get.</p>
         </div>
-        ${input('Website', 'website', assets.website ?? '', 'https://yourcompany.com…', false, 'url', 'Saved as a reference only. BizzClaw does not claim to have visited it.')}
+        ${input('Website', 'website', assets.website ?? '', 'https://yourcompany.com…', false, 'url', 'url', 'Saved as a reference only. BizzClaw does not claim to have visited it.')}
       </div>
       <details class="personalization-details" ${business.targetAudience || assets.instagram?.handle || assets.tiktok?.handle ? 'open' : ''}>
         <summary>Improve personalization <span>Optional</span></summary>
@@ -369,7 +378,7 @@ function renderProfile(): string {
       <input type="hidden" name="industry" value="${escapeHtml(business.industry ?? 'other')}" />
       <input type="hidden" name="brandVoice" value="${escapeHtml(business.brandVoice ?? '')}" />
       <input type="hidden" name="goals" value="${escapeHtml(business.goals?.[0] ?? 'brand_awareness')}" />
-      ${preview ? '' : formActions('', data.activationV2 ? 'Create My Preview' : 'Save Business Brief')}
+      ${preview ? '' : previewRecovery || formActions('', data.activationV2 ? 'Create My Preview' : 'Save Business Brief')}
       ${previewPanel}
     </form>`,
   )
@@ -389,7 +398,10 @@ function renderRole(): string {
           title: role.displayName,
           tag: data.session.roleId === role.id ? 'Selected' : '',
           description: role.description,
-          chips: role.tools.map((tool) => ({ label: tool.displayName, core: tool.required })),
+          chips: role.tools.map((tool) => ({
+            label: data.activationV2 && tool.required ? `${tool.displayName} · live data` : tool.displayName,
+            core: tool.required && !data.activationV2,
+          })),
           required: true,
         })).join('')}
       </fieldset>
@@ -455,15 +467,16 @@ function renderPlatforms(): string {
 
 function renderWhatsApp(): string {
   const selected = data.session.whatsappProvider
-  const needsGroupPicker = selected === 'baileys' && data.session.whatsappLinked && !data.progress.checks.whatsapp
-  const linked = data.session.whatsappLinked && data.progress.checks.whatsapp
+  const deviceLinked = data.session.whatsappLinked
+  const needsGroupPicker = selected === 'baileys' && deviceLinked && !data.progress.checks.whatsapp
+  const linked = deviceLinked && data.progress.checks.whatsapp
   const twilioAvailable = data.whatsapp.twilio.enabled
   const providerPicker = `<form id="providerForm">
     <fieldset class="option-list provider-list"><legend class="sr-only">Choose a WhatsApp setup</legend>
       ${optionCard({ name: 'whatsappProvider', value: 'twilio', checked: selected === 'twilio', icon: managedIcon(), title: 'Use the BizzClaw WhatsApp number', tag: 'Recommended', description: twilioAvailable ? 'The fastest route. Send one message to the managed business number and start working immediately.' : 'The managed number is not available in this environment.', disabled: !twilioAvailable, required: true })}
       ${optionCard({ name: 'whatsappProvider', value: 'baileys', checked: selected === 'baileys', icon: linkedDeviceIcon(), title: 'Link your own WhatsApp number', tag: 'Advanced', description: 'Use Linked Devices so BizzClaw can work from a number you control.', required: true })}
     </fieldset>
-    ${!linked ? `<div class="provider-submit"><button class="btn btn-secondary" type="submit">Use Selected Setup</button></div>` : ''}
+    ${!deviceLinked ? `<div class="provider-submit"><button class="btn btn-secondary" type="submit">Use Selected Setup</button></div>` : ''}
   </form>`
 
   const panel = !selected
@@ -471,7 +484,7 @@ function renderWhatsApp(): string {
     : needsGroupPicker
       ? renderBaileysGroupPicker()
       : linked
-        ? `<div class="connect-stage connected-stage">${successSeal()}<p class="overline">Connection verified</p><h2>WhatsApp is ready</h2><p>BizzClaw can now receive your requests and deliver results in the conversation.</p><div class="inline-actions"><button class="btn btn-tertiary danger-action" type="button" id="disconnectBtn">Disconnect WhatsApp</button><button class="btn btn-primary" type="button" data-step="6">Choose first result</button></div></div>`
+        ? `<div class="connect-stage connected-stage">${successSeal()}<p class="overline">Connection verified</p><h2>WhatsApp is ready</h2><p>${selected === 'baileys' ? `BizzClaw can work only in <strong>${escapeHtml(data.whatsapp.baileys.homeGroupSubject || 'your selected group')}</strong>. In that group, begin a request with <strong>@bizzclaw</strong>.` : 'BizzClaw can now receive your requests and deliver results in the conversation.'}</p><div class="inline-actions"><button class="btn btn-tertiary danger-action" type="button" id="disconnectBtn">Disconnect WhatsApp</button><button class="btn btn-primary" type="button" data-step="6">Choose first result</button></div></div>`
         : selected === 'twilio'
           ? renderManagedWhatsApp()
           : renderLinkedWhatsApp()
@@ -479,7 +492,7 @@ function renderWhatsApp(): string {
   return shell(
     'Choose where BizzClaw should reach you',
     'WhatsApp is where you send requests, approve important actions, and receive finished work.',
-    `${providerPicker}${panel}<div class="actions compact-actions"><button class="btn btn-secondary" type="button" data-step="4">Back</button><span></span></div>`,
+    `${deviceLinked ? '' : providerPicker}${panel}<div class="actions compact-actions"><button class="btn btn-secondary" type="button" data-step="4">Back</button><span></span></div>`,
   )
 }
 
@@ -530,7 +543,7 @@ function renderBaileysGroupPicker(): string {
   }
 
   return `<div class="connect-stage linked-connect">
-    <div><p class="overline">WhatsApp verified</p><h2>Choose where BizzClaw should work</h2><p>BizzClaw will respond only inside this selected group.</p></div>
+    <div><p class="overline">WhatsApp verified</p><h2>Choose where BizzClaw should work</h2><p>BizzClaw will respond only inside this group. Group members start a request with <strong>@bizzclaw</strong>.</p></div>
     <form id="groupForm">
       <div class="group-list">
         ${state.groups.map((group) => `<label class="group-card${state.selected === group.jid ? ' selected' : ''}">
@@ -539,6 +552,7 @@ function renderBaileysGroupPicker(): string {
             <span class="group-title">${escapeHtml(group.subject || group.jid)}</span>
             <span class="group-meta">${group.size} members</span>
           </span>
+          <span class="selection-control" aria-hidden="true">${checkIcon()}</span>
         </label>`).join('')}
       </div>
       ${baileysGroupsError ? `<p class="field-hint error">${escapeHtml(baileysGroupsError)}</p>` : ''}
@@ -603,13 +617,14 @@ function renderDone(): string {
 
   const role = data.roles.find((candidate) => candidate.id === data.session.roleId)
   const tasks = starterTasksForRole(data.session.roleId)
+  const usesLinkedNumber = data.session.whatsappProvider === 'baileys'
 
   return shell(
     'BizzClaw is ready on WhatsApp',
     `${escapeHtml(role?.displayName ?? 'Your business goal')} is set. Choose one useful result to start with.`,
-    `<div class="launch-hero">${successSeal()}<div><p class="overline">Ready to start</p><h2>Begin with one real business result.</h2><p>Choose meaningful work, not a test prompt. BizzClaw already has the context you saved.</p></div></div>
+    `<div class="launch-hero">${successSeal()}<div><p class="overline">Ready to start</p><h2>Begin with one real business result.</h2><p>${usesLinkedNumber ? `Choose a useful brief, then send it to ${escapeHtml(data.whatsapp.baileys.homeGroupSubject || 'your selected BizzClaw group')}. The @bizzclaw prompt is included.` : 'Choose meaningful work, not a test prompt. BizzClaw already has the context you saved.'}</p></div></div>
     <fieldset class="starter-list"><legend>Choose your first result</legend>${tasks.map((task, index) => `<label class="starter-task"><input type="radio" name="starterTask" value="${index}" ${index === 0 ? 'checked' : ''} /><span><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(task.prompt)}</small></span><span class="selection-control" aria-hidden="true">${checkIcon()}</span></label>`).join('')}</fieldset>
-    <div class="launch-actions"><a id="firstBriefAction" href="${escapeHtml(firstBriefUrl(tasks[0]!.prompt))}" target="_blank" rel="noopener" class="btn btn-primary btn-large">Send to BizzClaw in WhatsApp ${arrowIcon()}</a><a href="/dashboard" class="btn btn-secondary btn-large">Go to BizzClaw home</a></div>`,
+    <div class="launch-actions"><a id="firstBriefAction" href="${escapeHtml(firstBriefUrl(tasks[0]!.prompt))}" target="_blank" rel="noopener" class="btn btn-primary btn-large">${usesLinkedNumber ? 'Open brief in WhatsApp' : 'Send to BizzClaw in WhatsApp'} ${arrowIcon()}</a><a href="/dashboard" class="btn btn-secondary btn-large">Go to BizzClaw home</a></div>`,
     { launch: true },
   )
 }
@@ -627,15 +642,22 @@ function starterTasksForRole(roleId: string | null): Array<{ title: string; prom
     'gtm-operator': { title: 'Find the first path to sales conversations', prompt: 'Use my business brief to choose the audience and channels most likely to create qualified sales conversations, then give me a seven-day action plan.' },
     'personal-assistant-dev': { title: 'Build my operating priorities', prompt: 'Turn my business brief into a prioritized operating plan for this week, including the three tasks you can help me complete first.' },
   }
-  const previewTask = data.preview?.suggestedFirstBrief
-    ? { title: 'Use BizzClaw’s suggested brief', prompt: data.preview.suggestedFirstBrief }
-    : specialist[roleId ?? ''] ?? shared[0]!
-  return [previewTask, specialist[roleId ?? ''] ?? shared[0]!, shared[1]!]
+  const candidates = [
+    ...(data.preview?.suggestedFirstBrief
+      ? [{ title: 'Use BizzClaw’s suggested brief', prompt: data.preview.suggestedFirstBrief }]
+      : []),
+    specialist[roleId ?? ''] ?? shared[0]!,
+    ...shared,
+  ]
+  return candidates.filter((task, index) => (
+    candidates.findIndex((candidate) => candidate.prompt === task.prompt) === index
+  )).slice(0, 3)
 }
 
 function firstBriefUrl(prompt: string): string {
-  const digits = data.whatsapp.twilio.digits
-  return digits ? `https://wa.me/${encodeURIComponent(digits)}?text=${encodeURIComponent(prompt)}` : `https://wa.me/?text=${encodeURIComponent(prompt)}`
+  const digits = data.session.whatsappProvider === 'twilio' ? data.whatsapp.twilio.digits : ''
+  const message = data.session.whatsappProvider === 'baileys' ? `@bizzclaw ${prompt}` : prompt
+  return digits ? `https://wa.me/${encodeURIComponent(digits)}?text=${encodeURIComponent(message)}` : `https://wa.me/?text=${encodeURIComponent(message)}`
 }
 
 function input(
@@ -678,6 +700,7 @@ function formActions(backStep: string, submitLabel: string): string {
 
 function render(): void {
   stopLiveWork()
+  updateHeaderStatus()
   app.innerHTML = currentStep === 1 ? renderProfile()
     : currentStep === 2 ? renderRole()
       : currentStep === 3 ? renderAutomations()
@@ -803,7 +826,11 @@ async function submitProfile(form: HTMLFormElement): Promise<void> {
     }
     previewLoading = true
     render()
-    const response = await postJson<{ preview: OnboardingPreview }>('/api/onboarding/preview')
+    const response = await postJson<{ preview: OnboardingPreview }>(
+      '/api/onboarding/preview',
+      {},
+      AbortSignal.timeout(30_000),
+    )
     data.preview = response.preview
     previewLoading = false
     render()
@@ -811,7 +838,13 @@ async function submitProfile(form: HTMLFormElement): Promise<void> {
   } catch (error) {
     previewLoading = false
     trackActivation('preview_failed', { phase: 'brief', step: 1 })
-    showError(error, 'Could not create your preview. You can try again or continue setup.')
+    const timedOut = error instanceof DOMException && (error.name === 'TimeoutError' || error.name === 'AbortError')
+    showError(
+      new Error(timedOut
+        ? 'Your preview is taking longer than expected. Your business brief is saved—try again or continue setup.'
+        : 'We couldn’t create your preview right now. Your business brief is saved—try again or continue setup.'),
+      'Your business brief is saved—try again or continue setup.',
+    )
   } finally {
     setSubmitting(button, false)
   }

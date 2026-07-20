@@ -1,0 +1,88 @@
+import { afterEach, test } from 'node:test'
+import assert from 'node:assert/strict'
+import { mkdir, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+import { BaileysSessionManager, discoverBaileysAuthClients } from './baileys-manager.js'
+import type { BaileysSession, startBaileysWhatsApp } from './whatsapp.js'
+import type { WhatsAppTransport } from './whatsapp-transport.js'
+
+const roots: string[] = []
+
+afterEach(async () => {
+  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
+  delete process.env.AGENT_STORE_DIR
+})
+
+function fakeTransport(): WhatsAppTransport {
+  return {
+    async sendText() {},
+    async sendImage() {},
+    async sendVideo() {},
+    async sendAudio() {},
+    async sendDocument() {},
+  }
+}
+
+test('manager starts different clients independently and deduplicates concurrent starts per client', async () => {
+  const starts: string[] = []
+  const starter = (async (clientId, opts = {}) => {
+    starts.push(clientId)
+    await Promise.resolve()
+    opts.onConnected?.(clientId)
+    return {
+      clientId,
+      socket: {} as BaileysSession['socket'],
+      transport: fakeTransport(),
+      stop() {},
+      async logout() {},
+    }
+  }) satisfies typeof startBaileysWhatsApp
+  const manager = new BaileysSessionManager(starter)
+
+  const [firstA, secondA, clientB] = await Promise.all([
+    manager.ensureSocket('client-a'),
+    manager.ensureSocket('client-a'),
+    manager.ensureSocket('client-b'),
+  ])
+
+  assert.equal(firstA, secondA)
+  assert.notEqual(firstA, clientB)
+  assert.deepEqual(starts.sort(), ['client-a', 'client-b'])
+  assert.equal(manager.isConnected('client-a'), true)
+  assert.equal(manager.isConnected('client-b'), true)
+  manager.stop('client-a')
+  assert.equal(manager.isConnected('client-a'), false)
+  assert.equal(manager.isConnected('client-b'), true)
+})
+
+test('discovers and restores only clients with persisted Baileys credentials', async () => {
+  const root = path.join(tmpdir(), `ahrness-baileys-manager-${process.pid}-${Date.now()}`)
+  roots.push(root)
+  process.env.AGENT_STORE_DIR = root
+  await mkdir(path.join(root, 'clients', 'client-a', 'auth'), { recursive: true })
+  await mkdir(path.join(root, 'clients', 'client-b', 'auth'), { recursive: true })
+  await mkdir(path.join(root, 'clients', 'not-linked'), { recursive: true })
+  await writeFile(path.join(root, 'clients', 'client-a', 'auth', 'creds.json'), '{}')
+  await writeFile(path.join(root, 'clients', 'client-b', 'auth', 'creds.json'), '{}')
+
+  assert.deepEqual(await discoverBaileysAuthClients(), ['client-a', 'client-b'])
+
+  const starts: string[] = []
+  const starter = (async (clientId) => {
+    starts.push(clientId)
+    if (clientId === 'client-b') throw new Error('revoked')
+    return {
+      clientId,
+      socket: {} as BaileysSession['socket'],
+      transport: fakeTransport(),
+      stop() {},
+      async logout() {},
+    }
+  }) satisfies typeof startBaileysWhatsApp
+  const result = await new BaileysSessionManager(starter).restoreSockets()
+
+  assert.deepEqual(starts.sort(), ['client-a', 'client-b'])
+  assert.deepEqual(result.restored, ['client-a'])
+  assert.deepEqual(result.failed, ['client-b'])
+})

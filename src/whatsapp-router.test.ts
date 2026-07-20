@@ -75,3 +75,45 @@ test('falls back when a preferred provider is unavailable', async () => {
 
   assert.deepEqual(calls, ['twilio:text:15551234567@s.whatsapp.net:hello'])
 })
+
+test('client-pinned routing keeps two group destinations on their own Baileys sockets', async () => {
+  await updateClientMeta('client-a', { whatsappProvider: 'baileys' })
+  await updateClientMeta('client-b', { whatsappProvider: 'baileys' })
+  const calls: string[] = []
+  const sessions = new Map([
+    ['client-a', { transport: captureTransport('baileys-a', calls) }],
+    ['client-b', { transport: captureTransport('baileys-b', calls) }],
+  ])
+  const manager = { get: (clientId: string) => sessions.get(clientId) ?? null }
+  const router = createRoutingWhatsAppTransport(
+    { twilio: captureTransport('twilio', calls) },
+    'twilio',
+    { baileysManager: manager as never },
+  )
+
+  await Promise.all([
+    router.forClient!('client-a').sendText('120363111111111111@g.us', 'hello a'),
+    router.forClient!('client-b').sendText('120363222222222222@g.us', 'hello b'),
+  ])
+
+  assert.deepEqual(calls.sort(), [
+    'baileys-a:text:120363111111111111@g.us:hello a',
+    'baileys-b:text:120363222222222222@g.us:hello b',
+  ])
+})
+
+test('a disconnected Baileys client never falls back to another sender', async () => {
+  await updateClientMeta('client-a', { whatsappProvider: 'baileys' })
+  const calls: string[] = []
+  const router = createRoutingWhatsAppTransport(
+    { twilio: captureTransport('twilio', calls) },
+    'twilio',
+    { baileysManager: { get: () => null } as never },
+  )
+
+  await assert.rejects(
+    () => router.forClient!('client-a').sendText('120363111111111111@g.us', 'hello'),
+    /linked WhatsApp session is not connected/,
+  )
+  assert.deepEqual(calls, [])
+})

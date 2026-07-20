@@ -19,8 +19,7 @@ export function createRoutingWhatsAppTransport(
 ): WhatsAppTransport {
   const { baileysManager } = options
 
-  async function pick(jid: string): Promise<WhatsAppTransport> {
-    const clientId = await clientIdForJid(jid)
+  async function pickForClient(clientId: string): Promise<WhatsAppTransport> {
     const preferred = (await getClientMeta(clientId)).whatsappProvider
 
     // If the client prefers baileys and we have a per-client manager, route
@@ -28,7 +27,7 @@ export function createRoutingWhatsAppTransport(
     if (preferred === 'baileys' && baileysManager) {
       const session = baileysManager.get(clientId)
       if (session) return session.transport
-      // Fall through to default if the client's socket isn't running yet.
+      throw new Error('The client linked WhatsApp session is not connected')
     }
 
     const provider = preferred && transports[preferred] ? preferred : defaultProvider
@@ -37,21 +36,31 @@ export function createRoutingWhatsAppTransport(
     return transport
   }
 
-  return {
-    async sendText(jid, text) {
-      await (await pick(jid)).sendText(jid, text)
-    },
-    async sendImage(jid, data, mimeType, caption) {
-      await (await pick(jid)).sendImage(jid, data, mimeType, caption)
-    },
-    async sendVideo(jid, data, mimeType, caption) {
-      await (await pick(jid)).sendVideo(jid, data, mimeType, caption)
-    },
-    async sendAudio(jid, data, mimeType) {
-      await (await pick(jid)).sendAudio(jid, data, mimeType)
-    },
-    async sendDocument(jid, data, mimeType, fileName, caption) {
-      await (await pick(jid)).sendDocument(jid, data, mimeType, fileName, caption)
-    },
+  async function pick(jid: string): Promise<WhatsAppTransport> {
+    return pickForClient(await clientIdForJid(jid))
   }
+
+  function routed(resolve: (jid: string) => Promise<WhatsAppTransport>): WhatsAppTransport {
+    return {
+      async sendText(jid, text) {
+        await (await resolve(jid)).sendText(jid, text)
+      },
+      async sendImage(jid, data, mimeType, caption) {
+        await (await resolve(jid)).sendImage(jid, data, mimeType, caption)
+      },
+      async sendVideo(jid, data, mimeType, caption) {
+        await (await resolve(jid)).sendVideo(jid, data, mimeType, caption)
+      },
+      async sendAudio(jid, data, mimeType) {
+        await (await resolve(jid)).sendAudio(jid, data, mimeType)
+      },
+      async sendDocument(jid, data, mimeType, fileName, caption) {
+        await (await resolve(jid)).sendDocument(jid, data, mimeType, fileName, caption)
+      },
+    }
+  }
+
+  const transport = routed(pick)
+  transport.forClient = (clientId) => routed(() => pickForClient(clientId))
+  return transport
 }

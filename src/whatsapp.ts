@@ -23,12 +23,12 @@ import { runAndDeliver } from './delivery.js'
 import { maybeOnboardingNudge } from './onboarding-nudge.js'
 import { getClientMeta, getConnections, getRole, updateClientMeta } from './store/client-store.js'
 import { clientIdForJid } from './tenant-store.js'
-import { broadcastLinked, broadcastLinkedToAll, broadcastQr, broadcastQrToAll } from './onboarding/server.js'
+import { broadcastLinked, broadcastQr } from './onboarding/server.js'
 import { bindSessionToWhatsAppJid } from './onboarding/session.js'
 import type { WhatsAppTransport } from './whatsapp-transport.js'
 import { effectiveAllowedGroupJids, shouldProcessBaileysInbound, sameWhatsAppUser } from './baileys-gate.js'
-
-const STORE_ROOT = process.env.AGENT_STORE_DIR ?? './store'
+import { createBaileysGroupTransport } from './baileys-group-transport.js'
+import { consumeAgentAuthoredMessage, rememberAgentMessageId } from './baileys-message-origin.js'
 
 /**
  * Per-client Baileys auth directory. Each linked WhatsApp account gets its own
@@ -39,7 +39,7 @@ const STORE_ROOT = process.env.AGENT_STORE_DIR ?? './store'
  * that forces Baileys to emit a fresh QR on the next socket start.
  */
 export function authDirFor(clientId: string): string {
-  return path.resolve(STORE_ROOT, 'clients', clientId, 'auth')
+  return path.resolve(process.env.AGENT_STORE_DIR ?? './store', 'clients', clientId, 'auth')
 }
 
 // Anti-ban: cap rapid reconnect loops. Each close multiplies the delay by 2
@@ -80,22 +80,31 @@ const silentLogger: any = {
   child: () => silentLogger,
 }
 
-function createBaileysTransport(socket: WASocket): WhatsAppTransport {
+function createBaileysTransport(socket: WASocket, agentSentMessageIds: Set<string>): WhatsAppTransport {
+  const remember = (message: proto.IWebMessageInfo | undefined): void => {
+    rememberAgentMessageId(agentSentMessageIds, message?.key.id)
+  }
   return {
-    sendText: (jid, text) => socket.sendMessage(jid, { text }).then(() => {}),
-    sendImage: (jid, data, mimeType, caption) =>
-      socket.sendMessage(jid, { image: data, mimetype: mimeType, caption }).then(() => {}),
-    sendVideo: (jid, data, mimeType, caption) =>
-      socket.sendMessage(jid, { video: data, mimetype: mimeType, caption }).then(() => {}),
-    sendAudio: (jid, data, mimeType) =>
-      socket.sendMessage(jid, { audio: data, mimetype: mimeType }).then(() => {}),
-    sendDocument: (jid, data, mimeType, fileName, caption) =>
-      socket.sendMessage(jid, {
+    async sendText(jid, text) {
+      remember(await socket.sendMessage(jid, { text }))
+    },
+    async sendImage(jid, data, mimeType, caption) {
+      remember(await socket.sendMessage(jid, { image: data, mimetype: mimeType, caption }))
+    },
+    async sendVideo(jid, data, mimeType, caption) {
+      remember(await socket.sendMessage(jid, { video: data, mimetype: mimeType, caption }))
+    },
+    async sendAudio(jid, data, mimeType) {
+      remember(await socket.sendMessage(jid, { audio: data, mimetype: mimeType }))
+    },
+    async sendDocument(jid, data, mimeType, fileName, caption) {
+      remember(await socket.sendMessage(jid, {
         document: data,
         mimetype: mimeType,
         fileName,
         ...(caption ? { caption } : {}),
-      }).then(() => {}),
+      }))
+    },
   }
 }
 
@@ -161,7 +170,8 @@ export async function startBaileysWhatsApp(
     markOnlineOnConnect: false,
   })
 
-  const transport = createBaileysTransport(socket)
+  const agentSentMessageIds = new Set<string>()
+  const transport = createBaileysGroupTransport(clientId, createBaileysTransport(socket, agentSentMessageIds))
 
   socket.ev.on('creds.update', saveCreds)
 
@@ -180,8 +190,10 @@ export async function startBaileysWhatsApp(
         console.log(`\n[client ${clientId}] Scan this QR code in WhatsApp → Settings → Linked Devices:\n`)
         qrcode.generate(qr, { small: true })
       }
+      // QR material is tenant-sensitive. A background/restored socket never
+      // broadcasts it; only the onboarding session that started this socket
+      // may receive it.
       if (opts.onboardingSessionId) await broadcastQr(opts.onboardingSessionId, qr)
-      else await broadcastQrToAll(qr)
     }
 
     if (connection === 'open') {
@@ -196,8 +208,6 @@ export async function startBaileysWhatsApp(
           })
         }
         broadcastLinked(linkedJid, opts.onboardingSessionId)
-      } else {
-        broadcastLinkedToAll(linkedJid)
       }
     }
 
@@ -237,7 +247,7 @@ export async function startBaileysWhatsApp(
     if (type !== 'notify') return
 
     for (const msg of messages) {
-      if (msg.key.fromMe) continue
+      if (consumeAgentAuthoredMessage(agentSentMessageIds, msg.key.fromMe, msg.key.id)) continue
 
       const jid = msg.key.remoteJid
       if (!jid) continue
@@ -247,10 +257,9 @@ export async function startBaileysWhatsApp(
       if (!text && !media) continue
 
       const meta = await getClientMeta(clientId)
-      const explicitAllowedGroups = process.env.BAILEYS_ALLOWED_GROUP_JIDS
-      // Home group is chosen explicitly during onboarding (POST /onboarding/step/5/group)
+      // Home group is chosen explicitly during onboarding (POST /api/onboarding/baileys-group)
       // and stored as meta.baileysHomeGroupJid. No silent auto-bind here — the agent
-      // only listens in the group the user picked (or the env override).
+      // only listens in the one group the user picked.
 
       const gate = shouldProcessBaileysInbound({
         remoteJid: jid,
@@ -259,14 +268,11 @@ export async function startBaileysWhatsApp(
         hasMedia: Boolean(media),
         mentionedJids: extractMentionedJids(msg),
         botJid: socket.user?.id,
-        allowedGroupJids: effectiveAllowedGroupJids(explicitAllowedGroups, meta.baileysHomeGroupJid),
+        allowedGroupJids: effectiveAllowedGroupJids(undefined, meta.baileysHomeGroupJid),
       })
       if (!gate.allowed) {
         if (gate.triggered && (gate.reason === 'group-not-configured' || gate.reason === 'group-not-allowed')) {
-          console.log(
-            `[baileys] blocked group ${jid}; set BAILEYS_ALLOWED_GROUP_JIDS=${jid} to force this as the global home group override` +
-              (msg.key.participant ? `; optional BAILEYS_ALLOWED_GROUP_PARTICIPANTS=${msg.key.participant}` : ''),
-          )
+          console.log(`[baileys][client ${clientId}] blocked non-selected group ${jid}`)
         }
         continue
       }
@@ -285,7 +291,9 @@ export async function startBaileysWhatsApp(
       // Only the linked account owner (same user as socket.user) may stop —
       // random group participants can't disable someone else's agent.
       const ownerJid = socket.user?.id
-      const isOwner = ownerJid ? sameWhatsAppUser(jid, ownerJid) : false
+      const isOwner = Boolean(msg.key.fromMe) || Boolean(
+        ownerJid && msg.key.participant && sameWhatsAppUser(msg.key.participant, ownerJid),
+      )
       const normalized = (gate.prompt ?? text ?? '').trim().toLowerCase()
       const isStopCommand = ['stop', 'עצור', 'stop agent', 'disconnect', 'logout'].includes(normalized)
       if (isStopCommand && isOwner && opts.onStopCommand) {
@@ -330,7 +338,7 @@ export async function startBaileysWhatsApp(
           }
         }
 
-        await runAndDeliver(transport, jid, prompt, { prepare })
+        await runAndDeliver(transport, jid, prompt, { prepare, clientId })
 
         if (!onboarded) {
           const nudge = await maybeOnboardingNudge(senderClientId, jid)
@@ -359,14 +367,18 @@ export async function startBaileysWhatsApp(
     },
     logout: async () => {
       // Tell WhatsApp to remove this linked device server-side (it disappears
-      // from the user's phone), then stop the socket. The auth dir is left in
-      // place; the operator can delete it to fully clear state.
+      // from the user's phone), then stop the socket and remove its local
+      // credentials so a server restart cannot silently reconnect it.
       stopped = true
       try {
         await socket.logout()
       } catch {
         // best-effort — if logout fails, just end the socket
         try { socket.end(undefined) } catch { /* already closed */ }
+      } finally {
+        await rm(authDir, { recursive: true, force: true }).catch((err) => {
+          console.error(`[client ${clientId}] failed to clear auth dir on disconnect:`, err)
+        })
       }
     },
   }

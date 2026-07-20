@@ -82,6 +82,8 @@ export interface ClientMeta {
   whatsappProvider?: WhatsAppProvider
   /** Per-client Baileys home group for customer-facing group-only mode. */
   baileysHomeGroupJid?: string
+  /** Display-only group title captured when the user confirms the group. */
+  baileysHomeGroupSubject?: string
   /** ISO timestamp for when the Baileys home group was first bound. */
   baileysHomeGroupBoundAt?: string
   /** Telegram chat id bound via the shared platform bot's /start deep link (see telegram-shared-bot.ts). */

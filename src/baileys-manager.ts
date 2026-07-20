@@ -16,7 +16,9 @@
  * is isolated from the others.
  */
 import { startBaileysWhatsApp, type BaileysSession } from './whatsapp.js'
-import { broadcastLoggedOut, broadcastLoggedOutToAll } from './onboarding/server.js'
+import { broadcastLoggedOut } from './onboarding/server.js'
+import { access, readdir } from 'node:fs/promises'
+import path from 'node:path'
 
 export type EnsureSocketOptions = {
   /** Onboarding session id to route QR/pairing broadcasts to. */
@@ -45,9 +47,35 @@ export function toGroupInfoList(
     .sort((a, b) => b.size - a.size)
 }
 
+/** Find persisted linked-device credentials without reading or exposing them. */
+export async function discoverBaileysAuthClients(
+  storeRoot = process.env.AGENT_STORE_DIR ?? './store',
+): Promise<string[]> {
+  const clientsRoot = path.resolve(storeRoot, 'clients')
+  let entries
+  try {
+    entries = await readdir(clientsRoot, { withFileTypes: true })
+  } catch {
+    return []
+  }
+  const clientIds = await Promise.all(entries
+    .filter((entry) => entry.isDirectory())
+    .map(async (entry) => {
+      try {
+        await access(path.join(clientsRoot, entry.name, 'auth', 'creds.json'))
+        return entry.name
+      } catch {
+        return null
+      }
+    }))
+  return clientIds.filter((clientId): clientId is string => clientId !== null).sort()
+}
+
 export class BaileysSessionManager {
   private sessions = new Map<string, BaileysSession>()
   private starting = new Map<string, Promise<BaileysSession>>()
+
+  constructor(private readonly startSession: typeof startBaileysWhatsApp = startBaileysWhatsApp) {}
 
   /**
    * Ensure a Baileys socket is running for the given client. Idempotent —
@@ -101,6 +129,7 @@ export class BaileysSessionManager {
   /** Stop a single client's socket and remove it from the registry. */
   stop(clientId: string): void {
     const session = this.sessions.get(clientId)
+    this._connected.delete(clientId)
     if (session) {
       session.stop()
       this.sessions.delete(clientId)
@@ -110,8 +139,8 @@ export class BaileysSessionManager {
   /**
    * Disconnect a client's WhatsApp: log out the linked device server-side
    * (so it disappears from the user's phone), stop the socket, and clear the
-   * connection state. The auth dir on disk is left in place — the user can
-   * re-link later, which overwrites it.
+   * connection state. The socket removes local credentials so a later process
+   * restart cannot reconnect a tenant who explicitly disconnected.
    */
   async disconnect(clientId: string): Promise<void> {
     const session = this.sessions.get(clientId)
@@ -160,6 +189,25 @@ export class BaileysSessionManager {
     return this.sessions.has(clientId) && this._connected.has(clientId)
   }
 
+  /** Restore every persisted linked account after a process restart. Failures
+   * stay isolated so one revoked device cannot prevent other tenants starting. */
+  async restoreSockets(): Promise<{ restored: string[]; failed: string[] }> {
+    const clientIds = await discoverBaileysAuthClients()
+    const outcomes = await Promise.all(clientIds.map(async (clientId) => {
+      try {
+        await this.ensureSocket(clientId)
+        return { clientId, ok: true as const }
+      } catch (err) {
+        console.error(`[client ${clientId}] failed to restore Baileys session:`, err)
+        return { clientId, ok: false as const }
+      }
+    }))
+    return {
+      restored: outcomes.filter((outcome) => outcome.ok).map((outcome) => outcome.clientId),
+      failed: outcomes.filter((outcome) => !outcome.ok).map((outcome) => outcome.clientId),
+    }
+  }
+
   /** Mark a client's socket as connected (called from connection.open). */
   markConnected(clientId: string): void {
     this._connected.add(clientId)
@@ -183,6 +231,7 @@ export class BaileysSessionManager {
       }
     }
     this.sessions.clear()
+    this._connected.clear()
   }
 
   private async startClient(
@@ -194,7 +243,7 @@ export class BaileysSessionManager {
     // global env phone number can block QR emission entirely.
     const phoneNumber = opts.phoneNumber
 
-    return startBaileysWhatsApp(clientId, {
+    return this.startSession(clientId, {
       phoneNumber,
       onboardingSessionId: opts.onboardingSessionId,
       onConnected: (id) => this.markConnected(id),
@@ -224,8 +273,6 @@ export class BaileysSessionManager {
           this.ensureSocket(id, opts).catch((err) => {
             console.error(`[client ${id}] re-link socket start failed:`, err)
           })
-        } else {
-          broadcastLoggedOutToAll()
         }
       },
       onReconnectExhausted: (id) => {

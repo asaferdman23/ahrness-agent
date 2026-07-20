@@ -825,8 +825,8 @@ function rolePayload(session: OnboardingSession): Record<string, unknown>[] {
 
 function effectiveWhatsAppLinked(session: OnboardingSession): boolean {
   if (!session.whatsappLinked) return false
-  if (session.whatsappProvider !== 'baileys' || !session.clientId) return true
-  return baileysSessionManager().isConnected(session.clientId)
+  if (session.whatsappProvider !== 'baileys') return true
+  return baileysSessionManager().isConnected(session.clientId ?? session.sessionId)
 }
 
 /**
@@ -895,6 +895,9 @@ async function onboardingBootstrap(session: OnboardingSession): Promise<Record<s
   const effectiveLinked = effectiveWhatsAppLinked(session)
   const effectiveReady = await effectiveWhatsAppReady(session)
   const { progress, scheduleTemplates } = await progressForSession(session, effectiveReady)
+  const clientMeta = selectedProvider === 'baileys'
+    ? await getClientMeta(session.clientId ?? session.sessionId)
+    : null
 
   return {
     agentName: process.env.AGENT_NAME ?? 'BizzClaw',
@@ -940,6 +943,8 @@ async function onboardingBootstrap(session: OnboardingSession): Promise<Record<s
         // the global WHATSAPP_PROVIDER env.
         enabled: true,
         latestQr: latestQrDataUri,
+        homeGroupJid: clientMeta?.baileysHomeGroupJid ?? null,
+        homeGroupSubject: clientMeta?.baileysHomeGroupSubject ?? null,
       },
     },
   }
@@ -1039,7 +1044,7 @@ async function saveProviderFromJson(session: OnboardingSession, body: Record<str
   if (!progress.checks.profile || !progress.checks.role || !progress.checks.automations) {
     throw new Error('Finish the earlier setup stages before choosing WhatsApp')
   }
-  if (!progress.checks.requiredConnections) {
+  if (!progress.checks.requiredConnections && !activationV2Enabled(session.sessionId)) {
     throw new Error('Connect the required platforms before choosing WhatsApp')
   }
   if (provider === 'twilio' && !isTwilioProvider()) {
@@ -1061,10 +1066,16 @@ export type OnboardingHandler = (req: IncomingMessage, res: ServerResponse) => P
 export function createOnboardingHandler(): OnboardingHandler {
   return async (req, res) => {
     const { pathname, query } = parseUrl(req.url ?? '/', true)
-    const sessionId = getSessionId(req) ?? (query.session as string | undefined)
+    const cookieSessionId = getSessionId(req)
+    const querySessionId = typeof query.session === 'string' ? query.session : undefined
+    const sessionId = querySessionId ?? cookieSessionId
     const session = await getOrCreateSession(sessionId)
 
-    if (!sessionId || sessionId !== session.sessionId) {
+    // A query-provided session is commonly used by local/device testing and
+    // signed-link adoption. Persist it into the HttpOnly cookie so subsequent
+    // browser fetches (which intentionally omit tenant/session identifiers)
+    // remain on the same onboarding session.
+    if (cookieSessionId !== session.sessionId) {
       setSessionCookie(res, session.sessionId)
     }
 
@@ -1161,9 +1172,15 @@ export function createOnboardingHandler(): OnboardingHandler {
         if (req.method === 'POST' && pathname === '/api/onboarding/whatsapp-disconnect') {
           // Log out the linked WhatsApp device (Baileys) and clear the session's
           // link state so the user can re-link or switch providers.
-          if (session.clientId && session.whatsappProvider === 'baileys') {
-            await baileysSessionManager().disconnect(session.clientId).catch((err) => {
-              console.error(`[onboarding] baileys disconnect failed for ${session.clientId}:`, err)
+          if (session.whatsappProvider === 'baileys') {
+            const clientId = session.clientId ?? session.sessionId
+            await baileysSessionManager().disconnect(clientId).catch((err) => {
+              console.error(`[onboarding] baileys disconnect failed for ${clientId}:`, err)
+            })
+            await updateClientMeta(clientId, {
+              baileysHomeGroupJid: undefined,
+              baileysHomeGroupSubject: undefined,
+              baileysHomeGroupBoundAt: undefined,
             })
           }
           session.whatsappLinked = false
@@ -1196,6 +1213,7 @@ export function createOnboardingHandler(): OnboardingHandler {
           if (!match) throw new Error('That group is not available on the linked account')
           await updateClientMeta(clientId, {
             baileysHomeGroupJid: match.jid,
+            baileysHomeGroupSubject: match.subject,
             baileysHomeGroupBoundAt: new Date().toISOString(),
           })
           return json(res, { ok: true, group: match })

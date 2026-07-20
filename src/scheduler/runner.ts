@@ -69,7 +69,7 @@ async function fire(transport: WhatsAppTransport, job: ScheduledJob): Promise<vo
   await updateJob(job.clientId, job.id, { lastRunAt: new Date().toISOString() })
   console.log(`[scheduler] firing "${job.title}" for ${job.jid}`)
   try {
-    await runAndDeliver(transport, job.jid, job.prompt, { channel: 'scheduler' })
+    await runAndDeliver(transport, job.jid, job.prompt, { channel: 'scheduler', clientId: job.clientId })
     if (job.schedule.kind === 'once') {
       await removeJob(job.clientId, job.id)
     } else {

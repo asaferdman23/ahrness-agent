@@ -87,6 +87,17 @@ WhatsApp is the primary channel; a client can additionally connect a personal
 Telegram bot so the *same* agent (same profile, role, connections, memory) is
 reachable there too.
 
+### Baileys MVP group mode
+
+Baileys runs as a process-wide manager with one isolated socket and auth folder
+per tenant. After scanning the tenant-scoped onboarding QR, the customer must
+choose one participating WhatsApp group before launch. Inbound gating and the
+outbound transport both enforce that saved group; the group JID is only the
+delivery address, while the explicit tenant `clientId` selects business context,
+memory, tools, and the correct socket. Persisted sessions restore independently
+after restart. See `docs/baileys-multi-user-testing.md` for the security model and
+two-device acceptance test.
+
 - **Identity**: `runAndDeliver`/`buildClientAgent` resolve a client from a
   "jid" string via `clientIdForJid` (`src/tenant-store.ts`). For WhatsApp that
   is a real JID looked up in the tenant table (or hashed, pre-auth). Telegram

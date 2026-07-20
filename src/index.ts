@@ -46,6 +46,10 @@ async function main(): Promise<void> {
   } else {
     console.log(`✓ Baileys per-client manager ready (available on request)`)
   }
+  const restoredBaileys = await baileysManager.restoreSockets()
+  if (restoredBaileys.restored.length > 0) {
+    console.log(`✓ Restored ${restoredBaileys.restored.length} linked Baileys client session(s)`)
+  }
 
   const transport: WhatsAppTransport = createRoutingWhatsAppTransport(
     transports,

@@ -129,9 +129,10 @@ export async function buildClientAgent(
   seedMessages: TurnMessage[] = [],
   modelOverride?: string | null,
   observability?: RunObservabilityContext,
+  clientIdOverride?: string,
 ): Promise<ClientAgentSession> {
   const model = modelOverride ?? AGENT_MODEL
-  const clientId = await clientIdForJid(jid)
+  const clientId = clientIdOverride ?? await clientIdForJid(jid)
 
   // Migrate legacy token store on first call
   await migrateLegacyToken(jid, clientId)

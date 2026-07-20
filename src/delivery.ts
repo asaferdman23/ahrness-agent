@@ -35,6 +35,9 @@ export interface DeliverOptions {
   prepare?: (session: ClientAgentSession) => Promise<void>
   /** Set only by the scheduler runner — reports as its own channel regardless of the underlying jid/address. */
   channel?: 'scheduler'
+  /** Explicit tenant identity for channels where the delivery address is not
+   * itself the tenant identity (for example a tenant-selected WhatsApp group). */
+  clientId?: string
 }
 
 const CONTENT_ENABLED = process.env.AGENT_ACTIVITY_CONTENT_ENABLED === 'true'
@@ -69,7 +72,8 @@ export async function runAndDeliver(
   prompt: string,
   opts: DeliverOptions = {},
 ): Promise<void> {
-  const clientId = await clientIdForJid(jid)
+  const clientId = opts.clientId ?? await clientIdForJid(jid)
+  const deliveryTransport = transport.forClient?.(clientId) ?? transport
   const key = sessionKeyFor(clientId)
   const store = sessionStore()
   const summarize = createSummarizer()
@@ -88,7 +92,7 @@ export async function runAndDeliver(
       const decision = await resolvePendingApproval({ store: confirmStore, clientId, text: prompt })
       if (decision?.decision === 'cancelled') {
         recorder.emit('approval.cancelled', 'Pending action cancelled')
-        await transport.sendText(jid, decision.reply)
+        await deliveryTransport.sendText(jid, decision.reply)
         return
       }
       if (decision?.decision === 'approved') {
@@ -112,7 +116,7 @@ export async function runAndDeliver(
             runId: recorder.runId,
             tenantId: recorder.tenantId,
             store: agentLiveStore(),
-          })
+          }, clientId)
           if (opts.prepare) await opts.prepare(session)
           const invokeResult = await session.agent.invoke(effectivePrompt)
           delivered = session
@@ -145,7 +149,7 @@ export async function runAndDeliver(
       if (reply.startsWith('⚠️ This needs your OK')) recorder.emit('approval.waiting', 'Waiting for approval')
 
       recorder.emit('delivery.started', 'Sending reply')
-      await transport.sendText(jid, reply)
+      await deliveryTransport.sendText(jid, reply)
       await recordActivationEvent(clientId, 'first_agent_output_delivered', { phase: 'launch' })
 
       for (const output of session.publishedOutputs) {
@@ -154,13 +158,13 @@ export async function runAndDeliver(
         await sleep(SEND_GAP)
         const bytes = Buffer.from(await session.readOutput(output))
         if (output.mimeType.startsWith('image/')) {
-          await transport.sendImage(jid, bytes, output.mimeType, output.caption)
+          await deliveryTransport.sendImage(jid, bytes, output.mimeType, output.caption)
         } else if (output.mimeType.startsWith('video/')) {
-          await transport.sendVideo(jid, bytes, output.mimeType, output.caption)
+          await deliveryTransport.sendVideo(jid, bytes, output.mimeType, output.caption)
         } else if (output.mimeType.startsWith('audio/')) {
-          await transport.sendAudio(jid, bytes, output.mimeType)
+          await deliveryTransport.sendAudio(jid, bytes, output.mimeType)
         } else {
-          await transport.sendDocument(jid, bytes, output.mimeType, output.fileName, output.caption)
+          await deliveryTransport.sendDocument(jid, bytes, output.mimeType, output.fileName, output.caption)
         }
         recorder.emit('output.published', `Published output: ${output.fileName}`, { fileName: output.fileName, mimeType: output.mimeType })
       }

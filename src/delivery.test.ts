@@ -23,6 +23,7 @@ interface FakeInvokeResult {
 }
 
 let agentBehavior: 'succeed' | 'throw' = 'succeed'
+let lastBuiltClientId: string | undefined
 
 const fakeSession = {
   agent: {
@@ -45,7 +46,10 @@ const fakeSession = {
 mock.module('./agent.js', {
   namedExports: {
     AGENT_MODEL: 'claude-opus-4-8',
-    buildClientAgent: async () => fakeSession,
+    buildClientAgent: async (...args: unknown[]) => {
+      lastBuiltClientId = typeof args[4] === 'string' ? args[4] : undefined
+      return fakeSession
+    },
     createSummarizer: () => async () => 'summary',
   },
 })
@@ -106,6 +110,31 @@ test('a successful run records exactly one run.completed event and delivers the 
 
   const activationEvents = JSON.parse(readFileSync(join(root, 'clients', tenantIdFor(jid), 'activation-events.json'), 'utf8')) as Array<{ event: string }>
   assert.equal(activationEvents.filter((event) => event.event === 'first_agent_output_delivered').length, 1)
+})
+
+test('an explicit client identity pins both agent context and routed delivery for a group address', async () => {
+  agentBehavior = 'succeed'
+  lastBuiltClientId = undefined
+  const sent: string[] = []
+  const pinned: string[] = []
+  const groupJid = '120363111111111111@g.us'
+  const transport = {
+    ...fakeTransport().transport,
+    forClient(clientId: string) {
+      pinned.push(clientId)
+      return {
+        ...fakeTransport().transport,
+        sendText: async (jid: string, text: string) => { sent.push(`${jid}:${text}`) },
+      }
+    },
+  }
+
+  await runAndDeliver(transport, groupJid, 'hello', { clientId: 'tenant-a' })
+
+  assert.equal(lastBuiltClientId, 'tenant-a')
+  assert.deepEqual(pinned, ['tenant-a'])
+  assert.deepEqual(sent, [`${groupJid}:ok`])
+  assert.equal(observabilityStore().listRuns('tenant-a', { limit: 10 }).length, 1)
 })
 
 test('a thrown error mid-invocation still records exactly one run.failed via the finally path, and rethrows', async () => {
