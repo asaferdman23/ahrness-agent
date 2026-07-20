@@ -25,6 +25,7 @@ import { createGoogleTools } from './mcps/google.js'
 import { createWebSearchTool } from './mcps/web-search.js'
 import { createConnectTools } from './mcps/connect.js'
 import { createBrowserTools } from './browser/tools.js'
+import { createBrowserLoginTools } from './browser/login-tools.js'
 import { ensureBrowserRuntime } from './browser-runtime-manager.js'
 import { limitHiggsfieldTools } from './higgsfield-usage.js'
 import {
@@ -214,7 +215,10 @@ export async function buildClientAgent(
   if (clientMeta.webBrowsingEnabled) {
     try {
       await ensureBrowserRuntime()
-      browserTools = createBrowserTools(clientId)
+      browserTools = [
+        ...createBrowserTools(clientId),
+        ...createBrowserLoginTools(clientId, jid, sandbox, publishedOutputs),
+      ]
     } catch (err) {
       console.warn('[browser] browser-runtime unavailable:', err instanceof Error ? err.message : err)
     }
