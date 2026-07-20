@@ -38,6 +38,7 @@ import type { PlatformId } from './store/types.js'
 import { getCrmStore } from './crm/store.js'
 import { handleCrmApi } from './crm/http.js'
 import { renderCrmPage } from './crm/views.js'
+import { handleAgentPermissionsApi } from './agent-permissions-http.js'
 
 const authHandler = toNodeHandler(auth)
 
@@ -275,6 +276,7 @@ export function startCallbackServer(transport: WhatsAppTransport | null): void {
           telegramConnectUrl: botUsername ? telegramConnectUrl(botUsername, tenantId) : null,
           slackLinked: !!clientMeta.slackTeamId,
           slackConnectUrl: slackInstallUrl(tenantId),
+          webBrowsingEnabled: !!clientMeta.webBrowsingEnabled,
           onboardingStep,
           role,
           profile: profile ? {
@@ -317,6 +319,17 @@ export function startCallbackServer(transport: WhatsAppTransport | null): void {
           })),
           crmSummary: getCrmStore(tenantId).summary(),
         }))
+      return
+    }
+
+    // ── Agent permissions (protected, tenant-bound capability toggles) ──────
+    if (url.pathname === '/api/agent-permissions') {
+      const session = await getSession(req)
+      if (!session?.user) {
+        res.writeHead(401, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Sign in required' }))
+        return
+      }
+      await handleAgentPermissionsApi(req, res, url, session.user.id)
       return
     }
 

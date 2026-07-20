@@ -22,6 +22,7 @@ function dashboardState(overrides: Partial<DashboardState> = {}): DashboardState
     telegramConnectUrl: null,
     slackLinked: false,
     slackConnectUrl: null,
+    webBrowsingEnabled: false,
     onboardingStep: 6,
     role: {
       id: 'gtm-operator',
