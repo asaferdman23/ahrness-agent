@@ -40,6 +40,8 @@ import { handleCrmApi } from './crm/http.js'
 import { renderCrmPage } from './crm/views.js'
 import { handleAgentPermissionsApi } from './agent-permissions-http.js'
 import { handleSiteLoginRoute } from './site-login-http.js'
+import { getAllSiteProfiles } from './browser-sites/registry.js'
+import { siteLoginConnectUrlFor } from './browser/site-login-link.js'
 
 const authHandler = toNodeHandler(auth)
 
@@ -268,6 +270,13 @@ export function startCallbackServer(transport: WhatsAppTransport | null): void {
         whatsappLinked: !!tenantRow?.whatsappJid,
       })
 
+      const siteLoginLinks = tenantRow?.whatsappJid
+        ? getAllSiteProfiles().map((profile) => ({
+            displayName: profile.displayName,
+            url: siteLoginConnectUrlFor(process.env.CALLBACK_BASE_URL ?? 'http://localhost:3000', tenantRow.whatsappJid!, profile.domain),
+          }))
+        : []
+
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
         .end(renderDashboardPage(session.user, {
           whatsappLinked: !!tenantRow?.whatsappJid,
@@ -278,6 +287,7 @@ export function startCallbackServer(transport: WhatsAppTransport | null): void {
           slackLinked: !!clientMeta.slackTeamId,
           slackConnectUrl: slackInstallUrl(tenantId),
           webBrowsingEnabled: !!clientMeta.webBrowsingEnabled,
+          siteLoginLinks,
           onboardingStep,
           role,
           profile: profile ? {
