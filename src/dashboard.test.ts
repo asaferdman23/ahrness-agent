@@ -23,6 +23,7 @@ function dashboardState(overrides: Partial<DashboardState> = {}): DashboardState
     slackLinked: false,
     slackConnectUrl: null,
     webBrowsingEnabled: false,
+    siteLoginLinks: [],
     onboardingStep: 6,
     role: {
       id: 'gtm-operator',

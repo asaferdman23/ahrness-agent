@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createBrowserTools } from './tools.js'
 import type { BrowserRuntimeClient } from './client.js'
+import { disableVision, enableVision } from './vision-gate.js'
 
 function fakeClient(overrides: Partial<BrowserRuntimeClient> = {}): BrowserRuntimeClient {
   return {
@@ -132,6 +133,18 @@ test('browser_navigate clears the cached element labels so a stale index is trea
   const result = await clickTool.invoke({ index: 0 })
   assert.ok(!clicked, 'must not execute a click for an index that was valid before navigation but not re-resolved after')
   assert.match(result, /confirm/i)
+})
+
+test('browser_screenshot refuses while vision is disabled for this client', async () => {
+  const tools = createBrowserTools('client-8', fakeClient())
+  disableVision('client-8')
+  try {
+    const screenshotTool = findTool(tools, 'browser_screenshot')
+    const result = await screenshotTool.invoke({})
+    assert.match(result, /temporarily unavailable/i)
+  } finally {
+    enableVision('client-8')
+  }
 })
 
 test('browser_navigate rejects a URL that resolves to a private address before calling the client', async () => {

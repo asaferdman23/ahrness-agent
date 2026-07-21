@@ -95,6 +95,7 @@ These are the things that silently break if you ignore them.
 | Change agent capabilities/instructions (runtime) | `src/skills/<skill>/SKILL.md` |
 | Add an agent tool | a `createXTools(...)` factory using `tool({ name, description, inputSchema, callback })`, then push it in `buildClientAgent` |
 | Add browser-tool capability | `src/browser/tools.ts` (tool factory) + `src/browser-runtime/server.ts` (the sidecar's Puppeteer service) + `src/browser-runtime-manager.ts` (container lifecycle) |
+| Add a curated site-login profile | `src/browser-sites/registry.ts` |
 | Onboarding web flow / OAuth | `src/onboarding/`, `src/oauth.ts`, `src/mcps/*` `authUrl` |
 | Scheduled automations | `src/scheduler/` (`templates.ts`, `cron.ts`, `runner.ts`, `tools.ts`) |
 | Conversation memory / compaction | `src/sessions/` |
